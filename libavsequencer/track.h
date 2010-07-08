@@ -177,7 +177,7 @@ typedef struct AVSequencerTrack {
 #define AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES       0x08 ///< All except portamento slides share the same memory (e.g. volume/panning slides)
 #define AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           0x10 ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
 #define AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    0x20 ///< Oppositional non-portamento slide directions don't share the same memory
-#define AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_PITCH     0x40 ///< Volume & pitch slides share same memory (S3M compatibility)
+#define AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        0x40 ///< Volume & pitch slides share same memory (S3M compatibility)
 
     /** Track playback flags. Some sequencers feature
        surround panning or allow initial reverse playback,
