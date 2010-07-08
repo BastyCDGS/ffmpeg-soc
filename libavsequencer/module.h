@@ -110,12 +110,12 @@ typedef struct AVSequencerModule {
 } AVSequencerModule;
 
 /**
- * Registers a module to the AVSequencer.
+ * Register a module to the AVSequencer.
  *
  * @param module the AVSequencerModule to be registered
  * @return >= 0 on success, error code otherwise
  *
- * @NOTE This is part of the new sequencer API which is still under construction.
+ * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
