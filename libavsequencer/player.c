@@ -1,5 +1,5 @@
 /*
- * AVSequencer main playback handler
+ * Sequencer main playback handler
  * Copyright (c) 2010 Sebastian Vater <cdgs.basty@googlemail.com>
  *
  * This file is part of FFmpeg.
@@ -19,6 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+/**
+ * @file
+ * Sequencer main playback handler.
+ */
+
 #include <stddef.h>
 #include <string.h>
 #include "avsequencer/avsequencer.h"
@@ -33,44 +38,6 @@
 
 #define AVSEQ_RANDOM_CONST  -1153374675
 #define AVSEQ_SLIDE_CONST   (8363*1712*4)
-
-typedef struct AVSequencerEffectsTable {
-    /** Function pointer to the actual effect to be executed for this
-       effect. Can be NULL if this effect number is unused.  */
-    void (*effect_func)( AVSequencerContext *avctx,
-        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t fx_byte, uint16_t data_word );
-
-    /** Function pointer for pre-pattern evaluation. Some effects
-       require a pre-initialization stage. Can be NULL if the effect
-       number either is not used or the effect does not require a
-       pre-initialization stage.  */
-    void (*pre_pattern_func)( AVSequencerContext *avctx,
-        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t data_word );
-
-    /** Function pointer for parameter checking for an effect. Can
-       be NULL if the effect number either is not used or the effect
-       does not require pre-checking.  */
-    void (*check_fx_func)( AVSequencerContext *avctx,
-        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
-
-    /** Special flags for this effect, this currently defines if the
-       effect is executed during the whole row each tick or just only
-       once per row.  */
-    uint8_t flags;
-#define AVSEQ_EFFECTS_TABLE_FLAG_EXEC_WHOLE_ROW 0x80 // Effect will be executed during the whole row instead of only once
-
-    /** Logical AND filter mask for the channel control command
-       filtering the affected channel.  */
-    uint8_t and_mask_ctrl;
-
-    /** Standard execution tick when this effect starts to be executed
-       and there is no execute effect command issued which is in most
-       case tick 0 (immediately) or 1 (skip first tick at row).  */
-    uint16_t std_exec_tick;
-} AVSequencerEffectsTable;
 
 static void process_row ( AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
 static void get_effects ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
@@ -116,6 +83,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(track_tremolo);
 ASSIGN_INSTRUMENT_ENVELOPE(track_pannolo);
 ASSIGN_INSTRUMENT_ENVELOPE(global_tremolo);
 ASSIGN_INSTRUMENT_ENVELOPE(global_pannolo);
+ASSIGN_INSTRUMENT_ENVELOPE(resonance);
 
 #define ASSIGN_SAMPLE_ENVELOPE(env_type) \
     static AVSequencerEnvelope *assign_##env_type##_envelope ( AVSequencerSample *sample, \
@@ -147,6 +115,7 @@ USE_ENVELOPE(track_pannolo);
 USE_ENVELOPE(global_tremolo);
 USE_ENVELOPE(global_pannolo);
 USE_ENVELOPE(arpeggio);
+USE_ENVELOPE(resonance);
 
 static uint32_t linear_slide_up ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint32_t frequency, uint32_t slide_value );
 static uint32_t amiga_slide_up ( AVSequencerPlayerChannel *player_channel, uint32_t frequency, uint32_t slide_value );
@@ -508,7 +477,8 @@ static const void *assign_envelope_lut[] = {
     assign_track_tremolo_envelope,
     assign_track_pannolo_envelope,
     assign_global_tremolo_envelope,
-    assign_global_pannolo_envelope
+    assign_global_pannolo_envelope,
+    assign_resonance_envelope
 };
 
 static const void *assign_auto_envelope_lut[] = {
@@ -533,27 +503,60 @@ static const void *envelope_ctrl_type_lut[] = {
     use_track_pannolo_envelope,
     use_global_tremolo_envelope,
     use_global_pannolo_envelope,
-    use_arpeggio_envelope
+    use_arpeggio_envelope,
+    use_resonance_envelope
 };
 
-/** Note frequency lookup table. Value is 65536*2^(x/12). Please note
-   that the pointer actually points to the 2nd element. So the base
-   C-4 is pitch_lut[0], not pitch_lut[-1]. B-3 is pitch_lut[-1].  */
+/** Note frequency lookup table. Value is 65536*2^(x/12).  */
 static const uint32_t pitch_lut[] = {
-    0x0000F1A2, // B-3 [-1]
-    0x00010000, // C-4 [0]
-    0x00010F39, // C#4 [1]
-    0x00011F5A, // D-4 [2]
-    0x00013070, // D#4 [3]
-    0x0001428A, // E-4 [4]
-    0x000155B8, // F-4 [5]
-    0x00016A0A, // F#4 [6]
-    0x00017F91, // G-4 [7]
-    0x00019660, // G#4 [8]
-    0x0001AE8A, // A-4 [9]
-    0x0001C824, // A#4 [10]
-    0x0001E343, // B-4 [11]
-    0x00020000  // C-5 [12]
+    0x0000F1A2, // B-3
+    0x00010000, // C-4
+    0x00010F39, // C#4
+    0x00011F5A, // D-4
+    0x00013070, // D#4
+    0x0001428A, // E-4
+    0x000155B8, // F-4
+    0x00016A0A, // F#4
+    0x00017F91, // G-4
+    0x00019660, // G#4
+    0x0001AE8A, // A-4
+    0x0001C824, // A#4
+    0x0001E343, // B-4
+    0x00020000  // C-5
+};
+
+/** Old SoundTracker tempo definition table.  */
+static const uint32_t old_st_lut[] = {
+    192345259,  96192529,  64123930,  48096264,  38475419,
+     32061964,  27482767,  24048132,  21687744,  19240098
+};
+
+/** Sine table for very fast sine calculation. Value is
+   sin(x)*32767 with one element being one degree.  */
+static const int16_t sine_lut[] = {
+         0,    571,   1143,   1714,   2285,   2855,   3425,   3993,   4560,   5125,   5689,   6252,  6812,    7370,   7927,  8480,
+      9031,   9580,  10125,  10667,  11206,  11742,  12274,  12803,  13327,  13847,  14364,  14875,  15383,  15885,  16383,  16876,
+     17363,  17846,  18323,  18794,  19259,  19719,  20173,  20620,  21062,  21497,  21925,  22347,  22761,  23169,  23570,  23964,
+     24350,  24729,  25100,  25464,  25820,  26168,  26509,  26841,  27165,  27480,  27787,  28086,  28377,  28658,  28931,  29195,
+     29450,  29696,  29934,  30162,  30381,  30590,  30790,  30981,  31163,  31335,  31497,  31650,  31793,  31927,  32050,  32164,
+     32269,  32363,  32448,  32522,  32587,  32642,  32687,  32722,  32747,  32762,  32767,  32762,  32747,  32722,  32687,  32642,
+     32587,  32522,  32448,  32363,  32269,  32164,  32050,  31927,  31793,  31650,  31497,  31335,  31163,  30981,  30790,  30590,
+     30381,  30162,  29934,  29696,  29450,  29195,  28931,  28658,  28377,  28086,  27787,  27480,  27165,  26841,  26509,  26168,
+     25820,  25464,  25100,  24729,  24350,  23964,  23570,  23169,  22761,  22347,  21925,  21497,  21062,  20620,  20173,  19719,
+     19259,  18794,  18323,  17846,  17363,  16876,  16383,  15885,  15383,  14875,  14364,  13847,  13327,  12803,  12274,  11742,
+     11206,  10667,  10125,   9580,   9031,   8480,   7927,   7370,   6812,   6252,   5689,   5125,   4560,   3993,   3425,   2855,
+      2285,   1714,   1143,    571,      0,   -571,  -1143,  -1714,  -2285,  -2855,  -3425,  -3993,  -4560,  -5125,  -5689,  -6252,
+     -6812,  -7370,  -7927,  -8480,  -9031,  -9580, -10125, -10667, -11206, -11742, -12274, -12803, -13327, -13847, -14364, -14875,
+    -15383, -15885, -16383, -16876, -17363, -17846, -18323, -18794, -19259, -19719, -20173, -20620, -21062, -21497, -21925, -22347,
+    -22761, -23169, -23570, -23964, -24350, -24729, -25100, -25464, -25820, -26168, -26509, -26841, -27165, -27480, -27787, -28086,
+    -28377, -28658, -28931, -29195, -29450, -29696, -29934, -30162, -30381, -30590, -30790, -30981, -31163, -31335, -31497, -31650,
+    -31793, -31927, -32050, -32164, -32269, -32363, -32448, -32522, -32587, -32642, -32687, -32722, -32747, -32762, -32767, -32762,
+    -32747, -32722, -32687, -32642, -32587, -32522, -32448, -32363, -32269, -32164, -32050, -31927, -31793, -31650, -31497, -31335,
+    -31163, -30981, -30790, -30590, -30381, -30162, -29934, -29696, -29450, -29195, -28931, -28658, -28377, -28086, -27787, -27480,
+    -27165, -26841, -26509, -26168, -25820, -25464, -25100, -24729, -24350, -23964, -23570, -23169, -22761, -22347, -21925, -21497,
+    -21062, -20620, -20173, -19719, -19259, -18794, -18323, -17846, -17363, -16876, -16383, -15885, -15383, -14875, -14364, -13847,
+    -13327, -12803, -12274, -11742, -11206, -10667, -10125,  -9580,  -9031,  -8480,  -7927,  -7370,  -6812,  -6252,  -5689,  -5125,
+     -4560,  -3993,  -3425,  -2855,  -2285,  -1714,  -1143,   -571
 };
 
 /** Linear frequency table. Value is 65536*2^(x/3072).  */
@@ -921,8 +924,7 @@ static const int32_t portamento_mask[8] = {
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN|AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA|AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN|AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE
 };
 
-static const int32_t portamento_trigger_mask[6] =
-{
+static const int32_t portamento_trigger_mask[6] = {
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN,
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN,
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN,
@@ -1032,3 +1034,4 @@ static const int32_t global_panning_slide_trigger_mask[4] = {
 };
 
 static const int8_t empty_waveform[256];
+
