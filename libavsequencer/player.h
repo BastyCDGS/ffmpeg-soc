@@ -30,6 +30,40 @@
 #include "libavutil/tree.h"
 
 /**
+ * Playback handler hook for allowing developers to execute customized
+ * code in the playback handler under certain conditions. Currently
+ * the hook can either be called once at song end found or each tick,
+ * as well as before execution of the playback handler or after it.
+ * New fields can be added to the end with minor version bumps.
+ * Removal, reordering and changes to existing fields require a major
+ * version bump.
+ */
+typedef struct AVSequencerPlayerHook {
+    /** Special flags for the hook which decide hook call time and
+       purpose.  */
+    int8_t flags;
+#define AVSEQ_PLAYER_HOOK_FLAG_SONG_END    0x01 ///< Hook is only called when song end is being detected instead of each tick
+#define AVSEQ_PLAYER_HOOK_FLAG_BEGINNING   0x02 ///< Hook is called before executing playback code instead of the end
+
+    /** The actual hook function to be called which gets passed the
+       associated AVSequencerContext and the module and sub-song
+       currently processed (i.e. triggered the hook).  */
+    void (*hook_func)( AVSequencerContext *avctx, AVSequencerModule *module,
+                       AVSequencerSong *song, void *hook_data, uint64_t hook_len );
+
+    /** The actual hook data to be passed to the hook function which
+       also gets passed the associated AVSequencerContext and the
+       module and sub-song currently processed (i.e. triggered the
+       hook).  */
+    void *hook_data;
+
+    /** Size of the hook data passed to the hook function which gets
+       passed the associated AVSequencerContext and the module and
+       sub-song currently processed (i.e. triggered the hook).  */
+    uint64_t hook_len;
+} AVSequencerPlayerHook;
+
+/**
  * Player envelope structure used by playback engine for processing
  * envelope playback in the module replay engine. This is initialized
  * when a new instrument is being played from the actual instrument
@@ -1028,6 +1062,7 @@ typedef struct AVSequencerPlayerHostChannel {
 #define AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_TREM_ENV 0x0D ///< Global tremolo envelope selected
 #define AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_PAN_ENV  0x0E ///< Global pannolo (panbrello) envelope selected
 #define AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_ARPEGGIO_ENV    0x0F ///< Arpeggio definition envelope selected
+#define AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_ARPEGGIO_ENV    0x10 ///< Resonance filter envelope selected
 
     /** Current type of envelope to be changed by the envelope control
        command or 0 if the envelope control effect was not used yet
@@ -1256,6 +1291,10 @@ typedef struct AVSequencerPlayerHostChannel {
        envelope.  */
     AVSequencerEnvelope *prev_slide_env;
 
+    /** Pointer to the previous envelope data interpreted as resonance
+       filter control or NULL if there was no previous envelope.  */
+    AVSequencerEnvelope *prev_resonance_env;
+
     /** Pointer to the previous auto vibrato envelope which was
        played by this host channel or NULL if there was no previous
        envelope.  */
@@ -1465,6 +1504,10 @@ typedef struct AVSequencerPlayerChannel {
     /** Current player slide envelope for the current virtual
        channel.  */
     AVSequencerPlayerEnvelope slide_env;
+
+    /** Pointer to player envelope data interpreted as resonance
+       filter for the current virtual channel.  */
+    AVSequencerPlayerEnvelope resonance_env;
 
     /** Current player auto vibrato envelope for the current
        virtual channel.  */
