@@ -22,9 +22,10 @@
 #ifndef AVSEQUENCER_MODULE_H
 #define AVSEQUENCER_MODULE_H
 
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
+#include "libavsequencer/instr.h"
 #include "libavsequencer/player.h"
-#include "libavutil/tree.h"
 
 /**
  * Sequencer module structure.
@@ -36,44 +37,50 @@ typedef struct AVSequencerModule {
     /** Metadata information: Original module file name, module name,
      *  module message, artist, genre, album, begin and finish date of
      * composition and comment.  */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
     /** AVSequencerPlayerChannel pointer to virtual channel data.  */
     AVSequencerPlayerChannel *channel_data;
 
-    /** Integer indexed tree root of sub-songs available in
-       this module with AVTreeNode->elem being a AVSequencerSong.  */
-    AVTreeNode *song_list;
+    /** Array of pointers containing every sub-song for this
+       module.  */
+    AVSequencerSong **song_list;
 
-    /** Integer indexed tree root of instruments available for
-       the whole module (shared between all sub-songs) with
-       AVTreeNode->elem being a AVSequencerInstrument.  */
-    AVTreeNode *instrument_list;
+    /** Array of pointers containing every instrument for this
+       module.  */
+    AVSequencerInstrument **instrument_list;
 
-    /** Integer indexed tree root of envelopes used by module
-       with AVTreeNode->elem being a AVSequencerEnvelope.
-       There can be vibrato, tremolo, panbrello, spenolo,
-       volume, panning, pitch, envelopes, a resonance filter and
-       finally the auto vibrato, tremolo and panbrello envelopes.  */
-    AVTreeNode *envelopes_list;
+    /** Array of pointers containing every evelope for this
+       module.  */
+    AVSequencerEnvelope **envelope_list;
 
-    /** Integer indexed tree root of keyboard definitions
-       with AVTreeNode->elem being a AVSequencerKeyboard.
-       A keyboard definition maps an instrument octave/note-pair
-       to the sample number being played.  */
-    AVTreeNode *keyboard_list;
+    /** Array of pointers containing every keyboard definitionb list
+       for this module.  */
+    AVSequencerKeyboard **keyboard_list;
 
-    /** Integer indexed tree root of arpeggio envelopes
-       with AVTreeNode->elem being a AVSequencerArpeggioEnvelope.
-       Arpeggio envelopes allow to fully customize the arpeggio
-       command by playing the envelope instead of only a 
-       repetive set of 3 different notes.  */
-    AVTreeNode *arp_env_list;
+    /** Array of pointers containing every arpeggio envelope
+       definition list for this module.  */
+    AVSequencerArpeggio **arpeggio_list;
 
     /** Duration of the module, in AV_TIME_BASE fractional
        seconds. This is the total sum of all sub-song durations
        this module contains.  */
     uint64_t duration;
+
+    /** Number of sub-songs attached to this module.  */
+    uint16_t songs;
+
+    /** Number of instruments attached to this module.  */
+    uint16_t instruments;
+
+    /** Number of envelopes attached to this module.  */
+    uint16_t envelopes;
+
+    /** Number of keyboard definitions attached to this module.  */
+    uint16_t keyboards;
+
+    /** Number of arpeggio definitions attached to this module.  */
+    uint16_t arpeggios;
 
     /** Maximum number of virtual channels, including NNA (New Note
        Action) background channels to be allocated and processed by
@@ -81,44 +88,29 @@ typedef struct AVSequencerModule {
     uint16_t channels;
 #define AVSEQ_MODULE_CHANNELS   64
 
-    /** Compatibility flags for playback. There are rare cases
-       where effect handling can not be mapped into internal
-       playback engine and have to be handled specially. For
-       each module which needs this, this will define new
-       flags which tag the player to handle it to that special
-       way.  */
-    int8_t compat_flags;
-
-    /** Module playback flags.  */
-    int8_t flags;
-
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for module in those
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
-
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for module in those chunks,
+       which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerModule;
 
 /**
- * Register a module to the AVSequencer.
+ * Opens and registers module to the AVSequencer.
  *
- * @param module the AVSequencerModule to be registered
- * @return >= 0 on success, error code otherwise
+ * @param avctx the AVSequencerContext to store the opened module into
+ * @param module the AVSequencerModule which has been opened to be registered
+ * @return >= 0 on success, a negative error code otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_module_register(AVSequencerModule *module);
+int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
 
 #endif /* AVSEQUENCER_MODULE_H */

@@ -22,6 +22,7 @@
 #ifndef AVSEQUENCER_TRACK_H
 #define AVSEQUENCER_TRACK_H
 
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavutil/tree.h"
 
@@ -125,7 +126,7 @@ typedef struct AVSequencerTrack {
     /** Metadata information: Original track file name, track
        title, track message, track artist, track album,
        track begin and finish date of composition and comment.  */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
     /** AVSequencerTrackData pointer to array of track data.  */
     AVSequencerTrackData *data;
@@ -1280,6 +1281,7 @@ typedef struct AVSequencerTrackEffect {
        0x0E | Select global pannolo envelope.
        0x0F | Select arpeggio envelope, an yy of 0x01, 0x11, 0x02 or
               0x12 will not have an effect for this kind of envelope.
+       0x10 | Select resonance filter envelope.
 
        yy selects the envelope type of which to change the value as
        declared by the following table:

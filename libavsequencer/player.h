@@ -1281,133 +1281,45 @@ typedef struct AVSequencerPlayerHostChannel {
        sound code.  */
     AVSequencerSynth *synth;
 
-    /** Current entry position (line number) of volume handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t volume_pos;
+    /** Current entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code or 0 if the
+       current sample does not use synth sound.  */
+    uint16_t entry_pos[4];
 
-    /** Current entry position (line number) of panning handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t panning_pos;
+    /** Current sustain entry position (line number) of volume [0],
+       panning [1], slide [2] and special [3] handling code. This will
+       position jump the code to the target line number of a key off
+       note is pressed or 0 if the current sample does not use synth
+       sound.  */
+    uint16_t sustain_pos[4];
 
-    /** Current entry position (line number) of slide handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t slide_pos;
+    /** Current entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code when NNA has been
+       triggered. This allows a complete custom new note action to be
+       defined or 0 if the current sample does not use synth
+       sound.  */
+    uint16_t nna_pos[4];
 
-    /** Current entry position (line number) of special handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t special_pos;
-
-    /** Current entry position (line number) of sustain volume
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t volume_sus_pos;
-
-    /** Current entry position (line number) of sustain panning
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t panning_sus_pos;
-
-    /** Current entry position (line number) of sustain slide
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t slide_sus_pos;
-
-    /** Current entry position (line number) of sustain special
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t special_sus_pos;
-
-    /** Current entry position (line number) of volume handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t vol_nna_pos;
-
-    /** Current entry position (line number) of panning handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t pan_nna_pos;
-
-    /** Current entry position (line number) of slide handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t slide_nna_pos;
-
-    /** Current entry position (line number) of special handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t special_nna_pos;
-
-    /** Current entry position (line number) of volume handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t vol_dna_pos;
-
-    /** Current entry position (line number) of panning handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t pan_dna_pos;
-
-    /** Current entry position (line number) of slide handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t slide_dna_pos;
-
-    /** Current entry position (line number) of special handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t special_dna_pos;
+    /** Current entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code when DNA has been
+       triggered. This allows a complete custom duplicate note action
+       to be defined or 0 if the current sample does not use synth
+       sound.  */
+    uint16_t dna_pos[4];
 
     /** Initial contents of the 16 variable registers (v0-v15) or 0
        if the current sample does not use synth sound.  */
     uint16_t variable[16];
 
-    /** Current status of volume variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t vol_cond_var;
-#define AVSEQ_PLAYER_HOST_CHANNEL_VOL_COND_VAR_CARRY       0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_VOL_COND_VAR_OVERFLOW    0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_VOL_COND_VAR_ZERO        0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_VOL_COND_VAR_NEGATIVE    0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_VOL_COND_VAR_EXTEND      0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Current status of panning variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t pan_cond_var;
-#define AVSEQ_PLAYER_HOST_CHANNEL_PAN_COND_VAR_CARRY       0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_PAN_COND_VAR_OVERFLOW    0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_PAN_COND_VAR_ZERO        0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_PAN_COND_VAR_NEGATIVE    0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_PAN_COND_VAR_EXTEND      0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Current status of slide variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t slide_cond_var;
-#define AVSEQ_PLAYER_HOST_CHANNEL_SLD_COND_VAR_CARRY       0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SLD_COND_VAR_OVERFLOW    0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SLD_COND_VAR_ZERO        0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SLD_COND_VAR_NEGATIVE    0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SLD_COND_VAR_EXTEND      0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Current status of special variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t special_cond_var;
-#define AVSEQ_PLAYER_HOST_CHANNEL_SPC_COND_VAR_CARRY       0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SPC_COND_VAR_OVERFLOW    0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SPC_COND_VAR_ZERO        0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SPC_COND_VAR_NEGATIVE    0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_HOST_CHANNEL_SPC_COND_VAR_EXTEND      0x10 ///< Extend (X) bit for volume condition variable
+    /** Current status of volume [0], panning [1], slide [2] and slide
+       [3] variable condition status register or 0 if the current
+       sample does not use synth sound.  */
+    uint16_t cond_var[4];
+#define AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_CARRY       0x01 ///< Carry (C) bit for condition variable
+#define AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_OVERFLOW    0x02 ///< Overflow (V) bit for condition variable
+#define AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_ZERO        0x04 ///< Zero (Z) bit for condition variable
+#define AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_NEGATIVE    0x08 ///< Negative (N) bit for condition variable
+#define AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_EXTEND      0x10 ///< Extend (X) bit for condition variable
 
     /** Bit numbers for the controlled channels from 0-255 where the
        first byte determines channel numbers 0-7, the second byte 8-15
@@ -1690,132 +1602,44 @@ typedef struct AVSequencerPlayerChannel {
        sound currently being played by this virtual channel.  */
     AVSequencerPlayerSynthWave *arpeggio_waveform;
 
-    /** Current entry position (line number) of volume handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t volume_pos;
+    /** Current entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code or 0 if the
+       current sample does not use synth sound.  */
+    uint16_t entry_pos[4];
 
-    /** Current entry position (line number) of panning handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t panning_pos;
+    /** Current sustain entry position (line number) of volume [0],
+       panning [1], slide [2] and special [3] handling code. This will
+       position jump the code to the target line number of a key off
+       note is pressed or 0 if the current sample does not use synth
+       sound.  */
+    uint16_t sustain_pos[4];
 
-    /** Current entry position (line number) of slide handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t slide_pos;
+    /** Current entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code when NNA has been
+       triggered. This allows a complete custom new note action to be
+       defined or 0 if the current sample does not use synth
+       sound.  */
+    uint16_t nna_pos[4];
 
-    /** Current entry position (line number) of special handling code
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t special_pos;
-
-    /** Current entry position (line number) of sustain volume
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t volume_sus_pos;
-
-    /** Current entry position (line number) of sustain panning
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t panning_sus_pos;
-
-    /** Current entry position (line number) of sustain slide
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t slide_sus_pos;
-
-    /** Current entry position (line number) of sustain special
-       handling code. This will position jump the code to the target
-       line number of a key off note is pressed or 0 if the current
-       sample does not use synth sound.  */
-    uint16_t special_sus_pos;
-
-    /** Current entry position (line number) of volume handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t vol_nna_pos;
-
-    /** Current entry position (line number) of panning handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t pan_nna_pos;
-
-    /** Current entry position (line number) of slide handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t slide_nna_pos;
-
-    /** Current entry position (line number) of special handling code
-       when NNA has been triggered. This allows a complete custom new
-       note action to be defined or 0 if the current sample does not
-       use synth sound.  */
-    uint16_t special_nna_pos;
-
-    /** Current entry position (line number) of volume handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t vol_dna_pos;
-
-    /** Current entry position (line number) of panning handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t pan_dna_pos;
-
-    /** Current entry position (line number) of slide handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t slide_dna_pos;
-
-    /** Current entry position (line number) of special handling code
-       when DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined or 0 if the current sample
-       does not use synth sound.  */
-    uint16_t special_dna_pos;
+    /** Current entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code when DNA has been
+       triggered. This allows a complete custom duplicate note action
+       to be defined or 0 if the current sample does not use synth
+       sound.  */
+    uint16_t dna_pos[4];
 
     /** Current contents of the 16 variable registers (v0-v15).  */
     uint16_t variable[16];
 
-    /** Current status of volume variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t vol_cond_var;
-#define AVSEQ_PLAYER_CHANNEL_VOL_COND_VAR_CARRY    0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_VOL_COND_VAR_OVERFLOW 0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_VOL_COND_VAR_ZERO     0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_VOL_COND_VAR_NEGATIVE 0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_VOL_COND_VAR_EXTEND   0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Current status of panning variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t pan_cond_var;
-#define AVSEQ_PLAYER_CHANNEL_PAN_COND_VAR_CARRY    0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_PAN_COND_VAR_OVERFLOW 0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_PAN_COND_VAR_ZERO     0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_PAN_COND_VAR_NEGATIVE 0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_PAN_COND_VAR_EXTEND   0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Current status of slide variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t slide_cond_var;
-#define AVSEQ_PLAYER_CHANNEL_SLD_COND_VAR_CARRY    0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SLD_COND_VAR_OVERFLOW 0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SLD_COND_VAR_ZERO     0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SLD_COND_VAR_NEGATIVE 0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SLD_COND_VAR_EXTEND   0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Current status of special variable condition status register
-       or 0 if the current sample does not use synth sound.  */
-    uint16_t special_cond_var;
-#define AVSEQ_PLAYER_CHANNEL_SPC_COND_VAR_CARRY    0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SPC_COND_VAR_OVERFLOW 0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SPC_COND_VAR_ZERO     0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SPC_COND_VAR_NEGATIVE 0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_PLAYER_CHANNEL_SPC_COND_VAR_EXTEND   0x10 ///< Extend (X) bit for volume condition variable
+    /** Current status of volume [0], panning [1], slide [2] and
+       special [3] variable condition status register or 0 if the
+       current sample does not use synth sound.  */
+    uint16_t cond_var[4];
+#define AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY    0x01 ///< Carry (C) bit for volume condition variable
+#define AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW 0x02 ///< Overflow (V) bit for volume condition variable
+#define AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO     0x04 ///< Zero (Z) bit for volume condition variable
+#define AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE 0x08 ///< Negative (N) bit for volume condition variable
+#define AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND   0x10 ///< Extend (X) bit for volume condition variable
 
     /** Current usage of NNA trigger entry fields. This will run
        custom synth sound code execution on a NNA trigger.  */
@@ -1882,81 +1706,27 @@ typedef struct AVSequencerPlayerChannel {
 #define AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SLIDE     0x04 ///< Slide handling code is running KILL
 #define AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SPECIAL   0x08 ///< Special handling code is running KILL
 
-    /** Current volume KILL count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t kill_vol_count;
+    /** Current volume [0], panning [1], slide [2] and special [3]
+       KILL count in number of ticks or 0 if the current sample does
+       not use synth sound.  */
+    uint16_t kill_count[4];
 
-    /** Current panning KILL count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t kill_pan_count;
+    /** Current volume [0], panning [1], slide [2] and special [3]
+       WAIT count in number of ticks or 0 if the current sample does
+       not use synth sound.  */
+    uint16_t wait_count[4];
 
-    /** Current slide KILL count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t kill_sld_count;
+    /** Current volume [0], panning [1], slide [2] and special [3]
+       WAIT line number to be reached to continue execution or 0 if
+       the current sample does not use synth sound.  */
+    uint16_t wait_line[4];
 
-    /** Current special KILL count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t kill_spc_count;
-
-    /** Current volume WAIT count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t wait_vol_count;
-
-    /** Current panning WAIT count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t wait_pan_count;
-
-    /** Current slide WAIT count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t wait_sld_count;
-
-    /** Current special WAIT count in number of ticks or 0 if the
-       current sample does not use synth sound.  */
-    uint16_t wait_spc_count;
-
-    /** Current volume WAIT line number to be reached to continue
-       execution or 0 if the current sample does not use synth
-       sound.  */
-    uint16_t wait_vol_line;
-
-    /** Current panning WAIT line number to be reached to continue
-       execution or 0 if the current sample does not use synth
-       sound.  */
-    uint16_t wait_pan_line;
-
-    /** Current slide WAIT line number to be reached to continue
-       execution or 0 if the current sample does not use synth
-       sound.  */
-    uint16_t wait_sld_line;
-
-    /** Current special WAIT line number to be reached to continue
-       execution or 0 if the current sample does not use synth
-       sound.  */
-    uint16_t wait_spc_line;
-
-    /** Current volume WAIT type (0 is WAITVOL, 1 is WAITPAN, 2 is
-       WAITSLD and 3 is WAITSPC) which has to reach the specified
-       target line number before to continue execution or 0 if the
-       current sample does not use synth sound.  */
-    uint8_t wait_vol_type;
-
-    /** Current panning WAIT type (0 is WAITVOL, 1 is WAITPAN, 2 is
-       WAITSLD and 3 is WAITSPC) which has to reach the specified
-       target line number before to continue execution or 0 if the
-       current sample does not use synth sound.  */
-    uint8_t wait_pan_type;
-
-    /** Current slide WAIT type (0 is WAITVOL, 1 is WAITPAN, 2 is
-       WAITSLD and 3 is WAITSPC) which has to reach the specified
-       target line number before to continue execution or 0 if the
-       current sample does not use synth sound.  */
-    uint8_t wait_sld_type;
-
-    /** Current special WAIT type (0 is WAITVOL, 1 is WAITPAN, 2 is
-       WAITSLD and 3 is WAITSPC) which has to reach the specified
-       target line number before to continue execution or 0 if the
-       current sample does not use synth sound.  */
-    uint8_t wait_spc_type;
+    /** Current volume [0], panning [1], slide [2] and special [3]
+       WAIT type (0 is WAITVOL, 1 is WAITPAN, 2 is WAITSLD and 3 is
+       WAITSPC) which has to reach the specified target line number
+       before to continue execution or 0 if the current sample does
+       not use synth sound.  */
+    uint8_t wait_type[4];
 
     /** Current PORTAUP synth sound instruction memory or 0 if the
        current sample does not use synth sound.  */

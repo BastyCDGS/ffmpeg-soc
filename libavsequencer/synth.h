@@ -22,8 +22,7 @@
 #ifndef AVSEQUENCER_SYNTH_H
 #define AVSEQUENCER_SYNTH_H
 
-#include "libavsequencer/instr.h"
-#include "libavutil/tree.h"
+#include "libavformat/avformat.h"
 
 /**
  * Synth table. Used for both assembling and disassembling.
@@ -41,7 +40,7 @@ typedef struct AVSequencerSynthTable {
     uint8_t code;
 
     /** Input and output flags for this synth code instruction.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_SYNTH_TABLE_SRC            0x01 ///< Source parameter required
 #define AVSEQ_SYNTH_TABLE_SRC_LINE       0x02 ///< Source parameter is a line number
 #define AVSEQ_SYNTH_TABLE_SRC_NO_V0      0x04 ///< Don't display source variable if v0
@@ -63,7 +62,7 @@ typedef struct AVSequencerSynthWave {
     /** Metadata information: Original waveform file name, waveform
      *  name, artist and comment.
      */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
     /** Pointer to raw waveform data, must be padded for
        perfect perfomance gain when accessing sample data.
@@ -89,13 +88,9 @@ typedef struct AVSequencerSynthWave {
        non-looping waveforms or allow switching between 8-bit
        and 16-bit waveforms which have to be taken care specially
        in the internal playback engine.  */
-    int16_t flags;
+    uint16_t flags;
 #define AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP    0x0080 ///< Don't loop the waveform
 #define AVSEQ_SYNTH_WAVE_FLAGS_8BIT      0x8000 ///< 8-bit waveform instead of a 16-bit one, the GETxxxW instructions return 8-bit values in the upper 8-bits of the 16-bit result
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
 } AVSequencerSynthWave;
 
 /**
@@ -1210,12 +1205,8 @@ typedef struct AVSequencerSynthSymbolTable {
     /** Special symbol flags for this symbol. These flags contains
        stuff like if the symbol is currently disabled or enabled so
        it can be turned off without deleting it.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_SYNTH_SYMBOL_TABLE_FLAGS_UNUSED    0x80 ///< Symbol is currently disabled, i.e. not evaluated
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
 } AVSequencerSynthSymbolTable;
 
 /**
@@ -1228,17 +1219,15 @@ typedef struct AVSequencerSynthSymbolTable {
 typedef struct AVSequencerSynth {
     /** Metadata information: Original synth file name, synth name,
      *  artist and comment.  */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
-    /** Integer indexed tree root of attached waveforms used by
-       this synth sound with AVTreeNode->elem of type
-       AVSequencerSynthWave.  */
-    AVTreeNode *waveform_list;
+    /** Array of pointers containing attached waveform used by this
+       synth sound.  */
+    AVSequencerSynthWave **waveform_list;
 
-    /** Integer indexed tree root of named symbols used by
-       this synth sound code with AVTreeNode->elem of type
-       AVSequencerSynthSymbolTable.  */
-    AVTreeNode *symbol_list;
+    /** Array of pointers containing named symbols used by this
+       synth sound code.  */
+    AVSequencerSynthSymbolTable **symbol_list;
 
     /** AVSequencerSynthCode pointer to synth sound code structure.  */
     AVSequencerSynthCode *code;
@@ -1249,121 +1238,51 @@ typedef struct AVSequencerSynth {
 #define AVSEQ_SYNTH_WAVEFORMS   1
 #define AVSEQ_SYNTH_WAVEFORMS_MAX   65535
 
+    /** Number of named symbols used by this synth sound code.  */
+    uint16_t symbols;
+
     /** Number of instructions (lines) in the synth sound execution
        code (defaults to one line).  */
     uint16_t size;
 #define AVSEQ_SYNTH_SIZE    1
 
-    /** Entry position (line number) of volume handling code.  */
-    uint16_t volume_pos;
+    /** Entry position (line number) of volume [0], panning [1], slide
+       [2] and special [3] handling code.  */
+    uint16_t entry_pos[4];
 
-    /** Entry position (line number) of panning handling code.  */
-    uint16_t panning_pos;
+    /** Sustain entry position (line number) of volume [0], panning
+       [1], slide [2] and special [3] handling code. This will
+       position jump the code to the target line number of a key off
+       note is pressed.  */
+    uint16_t sustain_pos[4];
 
-    /** Entry position (line number) of slide handling code.  */
-    uint16_t slide_pos;
+    /** Entry position (line number) of volume [0], panning [1], slide
+       [2] and special [3] handling code when NNA has been triggered.
+       This allows a complete custom new note action to be
+       defined.  */
+    uint16_t nna_pos[4];
 
-    /** Entry position (line number) of special handling code.  */
-    uint16_t special_pos;
-
-    /** Entry position (line number) of sustain volume handling
-       code. This will position jump the code to the target
-       line number of a key off note is pressed.  */
-    uint16_t volume_sus_pos;
-
-    /** Entry position (line number) of sustain panning handling
-       code. This will position jump the code to the target
-       line number of a key off note is pressed.  */
-    uint16_t panning_sus_pos;
-
-    /** Entry position (line number) of sustain slide handling
-       code. This will position jump the code to the target
-       line number of a key off note is pressed.  */
-    uint16_t slide_sus_pos;
-
-    /** Entry position (line number) of sustain special handling
-       code. This will position jump the code to the target
-       line number of a key off note is pressed.  */
-    uint16_t special_sus_pos;
-
-    /** Entry position (line number) of volume handling code when
-       NNA has been triggered. This allows a complete custom new
-       note action to be defined.  */
-    uint16_t vol_nna_pos;
-
-    /** Entry position (line number) of panning handling code when
-       NNA has been triggered. This allows a complete custom new
-       note action to be defined.  */
-    uint16_t pan_nna_pos;
-
-    /** Entry position (line number) of slide handling code when
-       NNA has been triggered. This allows a complete custom new
-       note action to be defined.  */
-    uint16_t slide_nna_pos;
-
-    /** Entry position (line number) of special handling code when
-       NNA has been triggered. This allows a complete custom new
-       note action to be defined.  */
-    uint16_t special_nna_pos;
-
-    /** Entry position (line number) of volume handling code when
-       DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined.  */
-    uint16_t vol_dna_pos;
-
-    /** Entry position (line number) of panning handling code when
-       DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined.  */
-    uint16_t pan_dna_pos;
-
-    /** Entry position (line number) of slide handling code when
-       DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined.  */
-    uint16_t slide_dna_pos;
-
-    /** Entry position (line number) of special handling code when
-       DNA has been triggered. This allows a complete custom
-       duplicate note action to be defined.  */
-    uint16_t special_dna_pos;
+    /** Entry position (line number) of volume [0], panning [1], slide
+       [2] and special [3] handling code when DNA has been triggered.
+       This allows a complete custom duplicate note action to be
+       defined.  */
+    uint16_t dna_pos[4];
 
     /** Contents of the 16 variable registers (v0-v15).  */
     uint16_t variable[16];
 
-    /** Initial status of volume variable condition status register.  */
-    uint16_t vol_cond_var;
-#define AVSEQ_SYNTH_VOL_COND_VAR_CARRY     0x01 ///< Carry (C) bit for volume condition variable
-#define AVSEQ_SYNTH_VOL_COND_VAR_OVERFLOW  0x02 ///< Overflow (V) bit for volume condition variable
-#define AVSEQ_SYNTH_VOL_COND_VAR_ZERO      0x04 ///< Zero (Z) bit for volume condition variable
-#define AVSEQ_SYNTH_VOL_COND_VAR_NEGATIVE  0x08 ///< Negative (N) bit for volume condition variable
-#define AVSEQ_SYNTH_VOL_COND_VAR_EXTEND    0x10 ///< Extend (X) bit for volume condition variable
-
-    /** Initial status of panning variable condition status register.  */
-    uint16_t pan_cond_var;
-#define AVSEQ_SYNTH_PAN_COND_VAR_CARRY     0x01 ///< Carry (C) bit for panning condition variable
-#define AVSEQ_SYNTH_PAN_COND_VAR_OVERFLOW  0x02 ///< Overflow (V) bit for panning condition variable
-#define AVSEQ_SYNTH_PAN_COND_VAR_ZERO      0x04 ///< Zero (Z) bit for panning condition variable
-#define AVSEQ_SYNTH_PAN_COND_VAR_NEGATIVE  0x08 ///< Negative (N) bit for panning condition variable
-#define AVSEQ_SYNTH_PAN_COND_VAR_EXTEND    0x10 ///< Extend (X) bit for panning condition variable
-
-    /** Initial status of slide variable condition status register.  */
-    uint16_t slide_cond_var;
-#define AVSEQ_SYNTH_SLD_COND_VAR_CARRY     0x01 ///< Carry (C) bit for slide condition variable
-#define AVSEQ_SYNTH_SLD_COND_VAR_OVERFLOW  0x02 ///< Overflow (V) bit for slide condition variable
-#define AVSEQ_SYNTH_SLD_COND_VAR_ZERO      0x04 ///< Zero (Z) bit for slide condition variable
-#define AVSEQ_SYNTH_SLD_COND_VAR_NEGATIVE  0x08 ///< Negative (N) bit for slide condition variable
-#define AVSEQ_SYNTH_SLD_COND_VAR_EXTEND    0x10 ///< Extend (X) bit for slide condition variable
-
-    /** Initial status of special variable condition status register.  */
-    uint16_t special_cond_var;
-#define AVSEQ_SYNTH_SPC_COND_VAR_CARRY     0x01 ///< Carry (C) bit for special condition variable
-#define AVSEQ_SYNTH_SPC_COND_VAR_OVERFLOW  0x02 ///< Overflow (V) bit for special condition variable
-#define AVSEQ_SYNTH_SPC_COND_VAR_ZERO      0x04 ///< Zero (Z) bit for special condition variable
-#define AVSEQ_SYNTH_SPC_COND_VAR_NEGATIVE  0x08 ///< Negative (N) bit for special condition variable
-#define AVSEQ_SYNTH_SPC_COND_VAR_EXTEND    0x10 ///< Extend (X) bit for special condition variable
+    /** Initial status of volume [0], panning [1], slide [2] and
+       special [3] variable condition status register.  */
+    uint16_t cond_var[4];
+#define AVSEQ_SYNTH_COND_VAR_CARRY     0x01 ///< Carry (C) bit for condition variable
+#define AVSEQ_SYNTH_COND_VAR_OVERFLOW  0x02 ///< Overflow (V) bit for condition variable
+#define AVSEQ_SYNTH_COND_VAR_ZERO      0x04 ///< Zero (Z) bit for condition variable
+#define AVSEQ_SYNTH_COND_VAR_NEGATIVE  0x08 ///< Negative (N) bit for condition variable
+#define AVSEQ_SYNTH_COND_VAR_EXTEND    0x10 ///< Extend (X) bit for condition variable
 
     /** Use NNA trigger entry fields. This will run custom synth sound
        code execution on a new note action trigger.  */
-    int8_t use_nna_flags;
+    uint8_t use_nna_flags;
 #define AVSEQ_SYNTH_USE_NNA_FLAGS_VOLUME_NNA   0x01 ///< Use NNA trigger entry field for volume
 #define AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_NNA  0x02 ///< Use NNA trigger entry field for panning
 #define AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_NNA    0x04 ///< Use NNA trigger entry field for slide
@@ -1375,7 +1294,7 @@ typedef struct AVSequencerSynth {
 
     /** Use sustain entry position fields. This will run custom synth
        sound code execution on a note off trigger.  */
-    int8_t use_sustain_flags;
+    uint8_t use_sustain_flags;
 #define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME       0x01 ///< Use sustain entry position field for volume
 #define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING      0x02 ///< Use sustain entry position field for panning
 #define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE        0x04 ///< Use sustain entry position field for slide
@@ -1412,20 +1331,16 @@ typedef struct AVSequencerSynth {
        values), e.g. bit 5 set will keep variable 5 (v5).  */
     int16_t var_keep_mask;
 
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for synth sounds in
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for synth sounds in those
+       chunks, which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerSynth;
 
 #endif /* AVSEQUENCER_SYNTH_H */

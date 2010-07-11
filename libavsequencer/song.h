@@ -22,10 +22,11 @@
 #ifndef AVSEQUENCER_SONG_H
 #define AVSEQUENCER_SONG_H
 
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/order.h"
+#include "libavsequencer/track.h"
 #include "libavsequencer/player.h"
-#include "libavutil/tree.h"
 
 /**
  * Sequencer song structure.
@@ -37,7 +38,7 @@ typedef struct AVSequencerSong {
     /** Metadata information: Original sub-song file name, sub-song
      * title, song message, artist, genre, album, begin and finish
      * date of composition and comment.  */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
     /** AVSequencerPlayerGlobals pointer to global channel data.  */
     AVSequencerPlayerGlobals *global_data;
@@ -48,22 +49,15 @@ typedef struct AVSequencerSong {
     /** AVSequencerOrderList pointer to list of order data.  */
     AVSequencerOrderList *order_list;
 
-    /** Integer indexed tree root of track data used by this sub-song
-       with AVTreeNode->elem being a AVSequencerTrack.  */
-    AVTreeNode *track_list;
-
-    /** Stack pointer for the GoSub command. This stores the
-       return values of the order data and track row for
-       recursive calls.  */
-    uint16_t *gosub_stack;
-
-    /** Stack pointer for the pattern loop command. This stores
-        the loop start and loop count for recursive loops.  */
-    uint16_t *loop_stack;
+    /** Array of pointers containing all tracks for this sub-song.  */
+    AVSequencerTrack **track_list;
 
     /** Duration of this sub-song, in AV_TIME_BASE fractional
        seconds.  */
     uint64_t duration;
+
+    /** Number of tracks attached to this sub-song.  */
+    uint16_t tracks;
 
     /** Stack size, i.e. maximum recursion depth of GoSub command which
        defaults to 4.  */
@@ -81,7 +75,7 @@ typedef struct AVSequencerSong {
        each sub-song which needs this, this will define new
        flags which tag the player to handle it to that special
        way.  */
-    int8_t compat_flags;
+    uint8_t compat_flags;
 #define AVSEQ_SONG_COMPAT_FLAG_SYNC             0x01 ///< Tracks are synchronous (linked together, pattern based)
 #define AVSEQ_SONG_COMPAT_FLAG_GLOBAL_LOOP      0x02 ///< Global pattern loop memory
 #define AVSEQ_SONG_COMPAT_FLAG_AMIGA_LIMITS     0x04 ///< Enforce AMIGA sound hardware limits (portamento)
@@ -92,7 +86,7 @@ typedef struct AVSequencerSong {
        different timing scheme which has to be taken care
        specially in the internal playback engine. Also
        sequencers differ in how they handle slides.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_SONG_FLAG_LINEAR_FREQ_TABLE   0x01 ///< Use linear instead of Amiga frequency table
 #define AVSEQ_SONG_FLAG_SPD                 0x02 ///< Use SPD (OctaMED style) timing instead of BpM
 #define AVSEQ_SONG_FLAG_MONO                0x04 ///< Use mono instead of stereo output
@@ -196,20 +190,16 @@ typedef struct AVSequencerSong {
     uint8_t global_sub_panning;
 #define AVSEQ_SONG_SUB_PANNING  0
 
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for sub-songs in
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for sub-songs in those
+       chunks, which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerSong;
 
 #endif /* AVSEQUENCER_SONG_H */

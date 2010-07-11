@@ -22,6 +22,7 @@
 #ifndef AVSEQUENCER_INSTR_H
 #define AVSEQUENCER_INSTR_H
 
+#include "libavformat/avformat.h"
 #include "libavutil/tree.h"
 
 /**
@@ -215,7 +216,7 @@ typedef struct AVSequencerArpeggio {
 typedef struct AVSequencerInstrument {
     /** Metadata information: Original instrument file name, instrument
      *  name, artist and comment.  */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
     /** Integer indexed tree root of attached samples used by
        this instrument with AVTreeNode->elem of type

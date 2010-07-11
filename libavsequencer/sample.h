@@ -22,6 +22,7 @@
 #ifndef AVSEQUENCER_SAMPLE_H
 #define AVSEQUENCER_SAMPLE_H
 
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/instr.h"
 #include "libavsequencer/synth.h"
@@ -37,7 +38,7 @@
 typedef struct AVSequencerSample {
     /** Metadata information: Original sample file name, sample name,
      *  artist and comment.  */
-    AVSequencerMetadata *metadata;
+    AVMetadata *metadata;
 
     /** AVSequencerSynth pointer to synth sound structure or NULL
        if this is neither a synth nor a hybrid.  */
