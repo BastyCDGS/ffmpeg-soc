@@ -1927,4 +1927,20 @@ typedef struct AVSequencerPlayerChannel {
     uint16_t pannolo_rate;
 } AVSequencerPlayerChannel;
 
+/**
+ * Executes one tick of the playback handler, calculating everything
+ * needed for the next step of the mixer. This function usually is
+ * called from the mixing engines when they processed all channel data
+ * and need to run the next tick of playback to further full their
+ * output buffers. This function might also be called from a hardware
+ * and/or software interrupts on some platforms.
+ *
+ * @param avctx the AVSequencerContext of which to process the next tick
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_playback_handler ( AVSequencerContext *avctx );
+
 #endif /* AVSEQUENCER_PLAYER_H */

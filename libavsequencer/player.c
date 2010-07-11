@@ -1035,3 +1035,587 @@ static const int32_t global_panning_slide_trigger_mask[4] = {
 
 static const int8_t empty_waveform[256];
 
+void avseq_playback_handler ( AVSequencerContext *avctx ) {
+    AVSequencerModule *module;
+    AVSequencerSong *song;
+    AVSequencerPlayerGlobals *player_globals;
+    AVSequencerPlayerHostChannel *player_host_channel;
+    AVSequencerPlayerChannel *player_channel;
+    AVSequencerMixerData *mixer = avctx->player_mixer_data;
+    AVSequencerPlayerHook *player_hook;
+    uint16_t channel, virtual_channel;
+
+    if (!(module = avctx->player_module))
+        return;
+
+    channel        = 0;
+    player_channel = module->channel_data;
+
+    do {
+        mixer_get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), channel, mixer->mixctx );
+
+        player_channel++;
+    } while (++channel < module->channels);
+
+    song           = avctx->player_song;
+    player_globals = song->global_data;
+
+    if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_TRACE_MODE) {
+        if (!player_globals->trace_count--)
+            player_globals->trace_count = 0;
+
+        return;
+    }
+
+    player_hook = avctx->playback_hook;
+
+    if (player_hook && (player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_BEGINNING) &&
+                       (((player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END) &&
+                       (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END)) ||
+                       (!(player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END))))
+        player_hook->hook_func ( avctx, module, song, player_hook->hook_data, player_hook->hook_len );
+
+    if (player_globals->play_type & AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG) {
+        uint32_t play_time_calc, play_time_advance, play_time_fraction;
+
+        play_time_calc                  = ((uint64_t) player_globals->tempo * player_globals->relative_speed) >> 16;
+        play_time_advance               = 65536000 / play_time_calc;
+        play_time_fraction              = ((uint64_t) (65536000 % play_time_calc) << 32) / play_time_calc;
+        player_globals->play_time_frac += play_time_fraction;
+
+        if (player_globals->play_time_frac < play_time_fraction)
+            play_time_advance++;
+
+        player_globals->play_time      += play_time_advance;
+        play_time_calc                  = player_globals->tempo;
+        play_time_advance               = 65536000 / play_time_calc;
+        play_time_fraction              = ((uint64_t) (65536000 % play_time_calc) << 32) / play_time_calc;
+        player_globals->play_tics_frac += play_time_fraction;
+
+        if (player_globals->play_tics_frac < play_time_fraction)
+            play_time_advance++;
+
+        player_globals->play_tics      += play_time_advance;
+    }
+
+    channel             = 0;
+    player_host_channel = song->channel_data;
+
+    do {
+        player_channel = module->channel_data + player_host_channel->virtual_channel;
+
+        if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) &&
+            (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE)) {
+            AVSequencerTrack *old_track        = player_host_channel->track;
+            AVSequencerTrackEffect *old_effect = player_host_channel->effect;
+            uint32_t old_tempo_counter         = player_host_channel->tempo_counter;
+            uint16_t old_row                   = player_host_channel->row;
+
+            player_host_channel->flags        &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT|AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE);
+            player_host_channel->track         = (AVSequencerTrack *) player_host_channel->instrument;
+            player_host_channel->effect        = NULL;
+            player_host_channel->row           = *(uint32_t *) &(player_host_channel->sample);
+            player_host_channel->instrument    = NULL;
+            player_host_channel->sample        = NULL;
+
+            get_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+
+            player_host_channel->tempo_counter = player_host_channel->note_delay;
+
+            get_note ( avctx, module, song, player_host_channel, player_channel, channel );
+            run_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+
+            player_host_channel->track         = old_track;
+            player_host_channel->effect        = old_effect;
+            player_host_channel->tempo_counter = old_tempo_counter;
+            player_host_channel->row           = old_row;
+        }
+
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) {
+            uint16_t note = (uint8_t) player_host_channel->instr_note;
+
+            player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT;
+
+            if ((int16_t) note < 0) {
+                switch (note) {
+                case AVSEQ_TRACK_DATA_AVSEQ_TRACK_DATA_NOTE_FADE :
+                    player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
+
+                    break;
+                case AVSEQ_TRACK_DATA_AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY :
+                    break;
+                case AVSEQ_TRACK_DATA_AVSEQ_TRACK_DATA_NOTE_KEYOFF :
+                    play_key_off ( player_channel );
+
+                    break;
+                case AVSEQ_TRACK_DATA_AVSEQ_TRACK_DATA_NOTE_OFF :
+                    player_channel->volume = 0;
+
+                    break;
+                case AVSEQ_TRACK_DATA_AVSEQ_TRACK_DATA_NOTE_KILL :
+                    player_host_channel->instrument = NULL;
+                    player_host_channel->sample     = NULL;
+                    player_host_channel->instr_note = 0;
+
+                    if (player_channel->host_channel == channel)
+                        player_channel->channel_data.flags = 0;
+
+                    break;
+                }
+            } else {
+                AVSequencerInstrument *instrument = player_host_channel->instrument;
+                AVSequencerSample *sample;
+                AVSequencerPlayerChannel *new_player_channel;
+
+                if ((new_player_channel = play_note ( avctx, module, instrument,
+                                                      player_host_channel, player_channel,
+                                                      note / AVSEQ_TRACK_DATA_NOTE_MAX,
+                                                      note % AVSEQ_TRACK_DATA_NOTE_MAX, channel )))
+                    player_channel = new_player_channel;
+
+                sample                  = player_host_channel->sample;
+                player_channel->volume  = player_host_channel->sample_note;
+                player_channel->sub_vol = 0;
+
+                init_new_instrument ( avctx, song, player_host_channel, player_channel );
+                init_new_sample ( avctx, player_host_channel, player_channel );
+            }
+        }
+
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE) {
+            AVSequencerInstrument *instrument;
+            AVSequencerSample *sample = player_host_channel->sample;
+            uint32_t frequency        = *(uint32_t *) &(player_host_channel->instrument), i;
+            uint16_t virtual_channel;
+
+            player_host_channel->flags   &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE;
+            player_host_channel->dct      = 0;
+            player_host_channel->nna      = AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CUT;
+            player_host_channel->finetune = sample->finetune;
+
+            player_host_channel->prev_auto_vib_env  = player_channel->auto_vib_env.envelope;
+            player_host_channel->prev_auto_trem_env = player_channel->auto_trem_env.envelope;
+            player_host_channel->prev_auto_pan_env  = player_channel->auto_pan_env.envelope;
+
+            player_channel = trigger_nna ( module, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel );
+
+            player_channel->channel_data.pos     = sample->start_offset;
+            player_host_channel->virtual_channel = virtual_channel;
+            player_channel->host_channel         = channel;
+            player_host_channel->instrument      = NULL;
+            player_channel->sample               = sample;
+            player_channel->frequency            = frequency;
+            player_channel->volume               = player_host_channel->instr_note;
+            player_channel->sub_vol              = 0;
+            player_host_channel->instr_note      = 0;
+
+            init_new_instrument ( avctx, song, player_host_channel, player_channel );
+
+            i = -1;
+
+            while (++i < module->instruments) {
+                uint16_t smp = -1;
+
+                if (!(instrument = module->instrument_list[i]))
+                    continue;
+
+                while (++smp < instrument->samples) {
+                    if (!(sample = instrument->sample_list[smp]))
+                        continue;
+
+                    if (sample == player_channel->sample) {
+                        player_host_channel->instrument = instrument;
+
+                        goto instrument_found;
+                    }
+                }
+            }
+instrument_found:
+            player_channel->instrument = player_host_channel->instrument;
+
+            init_new_sample ( avctx, player_host_channel, player_channel );
+        }
+
+        if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
+rescan_row:
+            process_row ( song, player_host_channel, player_channel, channel );
+            get_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+
+            if (player_channel->host_channel == channel) {
+                if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO)) {
+                    int32_t slide_value                = player_host_channel->vibrato_slide;
+
+                    player_host_channel->vibrato_slide = 0;
+                    player_channel->frequency         -= slide_value;
+                }
+
+                if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOLO)) {
+                    int16_t slide_value                = player_host_channel->tremolo_slide;
+
+                    player_host_channel->tremolo_slide = 0;
+
+                    if ((slide_value = ( player_channel->volume - slide_value)) < 0)
+                        slide_value = 0;
+
+                    if ((uint16_t) slide_value >= 255)
+                        slide_value = -1;
+
+                    player_channel->volume = slide_value;
+                }
+            }
+
+            if (get_note ( avctx, module, song, player_host_channel, player_channel, channel))
+                goto rescan_row;
+        }
+
+        player_host_channel->virtual_channels = 0;
+        player_host_channel++;
+    } while (++channel < song->channels);
+
+    channel             = 0;
+    player_host_channel = song->channel_data;
+
+    do {
+        if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
+            player_channel = module->channel_data + player_host_channel->virtual_channel;
+
+            run_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+        }
+
+        player_host_channel->virtual_channels = 0;
+        player_host_channel++;
+    } while (++channel < song->channels);
+
+    virtual_channel = 0;
+    channel         = 0;
+    player_channel  = module->channel_data;
+
+    do {
+        AVSequencerPlayerEnvelope *player_envelope;
+
+        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED)
+            player_channel->channel_data.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+
+        if (player_channel->channel_data.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
+            AVSequencerSample *sample;
+            uint32_t frequency, host_volume, virtual_volume;
+            uint32_t auto_vibrato_depth, auto_vibrato_count;
+            uint16_t flags, slide_envelope_value;
+            int16_t auto_vibrato_value, panning, abs_panning, panning_envelope_value;
+
+            player_host_channel = song->channel_data + player_channel->host_channel;
+            player_envelope     = (AVSequencerPlayerEnvelope *) &(player_channel->vol_env);
+
+            if (player_envelope->tempo) {
+                uint16_t volume = run_envelope ( avctx, player_envelope, 1, 0x8000 );
+
+                if (!player_envelope->tempo) {
+                    if (!(volume >> 8))
+                        goto turn_note_off;
+
+                    player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
+                }
+            }
+
+            run_envelope ( avctx, (AVSequencerPlayerEnvelope *) &(player_channel->pan_env), 1, 0 );
+            slide_envelope_value = run_envelope ( avctx, (AVSequencerPlayerEnvelope *) &(player_channel->slide_env), 1, 0 );
+
+            if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV) {
+                uint32_t old_frequency = player_channel->frequency;
+
+                player_channel->frequency += player_channel->slide_env_freq;
+
+                if ((frequency = player_channel->frequency)) {
+                    if ((int16_t) slide_envelope_value < 0) {
+                        slide_envelope_value = -slide_envelope_value;
+
+                        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV)
+                            frequency = linear_slide_down ( avctx, player_channel, frequency, slide_envelope_value );
+                        else
+                            frequency = amiga_slide_down ( player_channel, frequency, slide_envelope_value );
+                    } else if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV) {
+                        frequency = linear_slide_up ( avctx, player_channel, frequency, slide_envelope_value );
+                    } else {
+                        frequency = amiga_slide_up ( player_channel, frequency, slide_envelope_value );
+                    }
+
+                    old_frequency -= frequency;
+
+                    player_channel->slide_env_freq += old_frequency;
+                }
+            } else {
+                uint32_t *frequency_lut;
+                uint32_t frequency, next_frequency, slide_envelope_frequency, old_frequency;
+                int16_t octave, note;
+                int16_t slide_note = (int16_t) slide_envelope_value >> 8;
+                int16_t finetune   = slide_envelope_value & 0xFF;
+
+                octave             = slide_note / AVSEQ_TRACK_DATA_NOTE_MAX;
+                note               = slide_note % AVSEQ_TRACK_DATA_NOTE_MAX;
+
+                if (note < 0) {
+                    octave--;
+                    note += AVSEQ_TRACK_DATA_NOTE_MAX;
+
+                    finetune = -finetune;
+                }
+
+                frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+                frequency      = *frequency_lut++;
+                next_frequency = *frequency_lut - frequency;
+                frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 8;
+
+                if ((int16_t) octave < 0) {
+                    octave = -octave;
+                    frequency >>= octave;
+                } else {
+                    frequency <<= octave;
+                }
+
+                slide_envelope_frequency        = player_channel->slide_env_freq;
+                old_frequency                   = player_channel->frequency;
+                slide_envelope_frequency       += old_frequency;
+                player_channel->frequency       = frequency = ((uint64_t) frequency * slide_envelope_frequency) >> 16;
+                player_channel->slide_env_freq += old_frequency - frequency;
+            }
+
+            if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_FADING) {
+                int32_t fade_out = (uint32_t) player_channel->fade_out_count;
+
+                if ((fade_out -= player_channel->fade_out) <= 0)
+                    goto turn_note_off;
+
+                player_channel->fade_out_count = fade_out;
+            }
+
+            auto_vibrato_value = run_envelope ( avctx, (AVSequencerPlayerEnvelope *) &(player_channel->auto_vib_env), player_channel->auto_vibrato_rate, 0 );
+            auto_vibrato_depth = player_channel->auto_vibrato_depth << 8;
+            auto_vibrato_count = player_channel->auto_vibrato_count + player_channel->auto_vibrato_sweep;
+
+            if (auto_vibrato_count > auto_vibrato_depth)
+                auto_vibrato_count = auto_vibrato_depth;
+
+            player_channel->auto_vibrato_count = auto_vibrato_count;
+
+            auto_vibrato_count >>= 8;
+
+            if ((auto_vibrato_value *= (int16_t) -auto_vibrato_count)) {
+                uint32_t old_frequency = player_channel->frequency;
+
+                auto_vibrato_value >>= 7 - 2;
+
+                player_channel->frequency -= player_channel->auto_vibrato_freq;
+
+                if ((frequency = player_channel->frequency)) {
+                    if ((int16_t) auto_vibrato_value < 0) {
+                        auto_vibrato_value = -auto_vibrato_value;
+
+                        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV)
+                            frequency = linear_slide_up ( avctx, player_channel, frequency, auto_vibrato_value );
+                        else
+                            frequency = amiga_slide_up ( player_channel, frequency, auto_vibrato_value );
+                    } else if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV) {
+                        frequency = linear_slide_down ( avctx, player_channel, frequency, auto_vibrato_value );
+                    } else {
+                        frequency = amiga_slide_down ( player_channel, frequency, auto_vibrato_value );
+                    }
+
+                    old_frequency -= frequency;
+
+                    player_channel->auto_vibrato_freq -= old_frequency;
+                }
+            }
+
+            sample = player_channel->sample;
+
+            if (sample->synth) {
+                if (!(execute_synth ( avctx, player_host_channel, player_channel, channel, 0)))
+                    goto turn_note_off;
+
+                if (!(execute_synth ( avctx, player_host_channel, player_channel, channel, 1)))
+                    goto turn_note_off;
+
+                if (!(execute_synth ( avctx, player_host_channel, player_channel, channel, 2)))
+                    goto turn_note_off;
+
+                if (!(execute_synth ( avctx, player_host_channel, player_channel, channel, 3)))
+                    goto turn_note_off;
+            }
+
+            if (((!(player_channel->channel_data.data)) || (!(player_channel->channel_data.bits_per_sample))) && (player_channel->channel_data.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY)) {
+                player_channel->channel_data.pos             = 0;
+                player_channel->channel_data.len             = (sizeof (empty_waveform) / sizeof (empty_waveform[0]));
+                player_channel->channel_data.data            = (int16_t *) &(empty_waveform);
+                player_channel->channel_data.repeat_start    = 0;
+                player_channel->channel_data.repeat_length   = (sizeof (empty_waveform) / sizeof (empty_waveform[0]));
+                player_channel->channel_data.repeat_count    = 0;
+                player_channel->channel_data.repeat_counted  = 0;
+                player_channel->channel_data.bits_per_sample = (sizeof (empty_waveform[0]) * 8);
+                player_channel->channel_data.flags           = AVSEQ_MIXER_CHANNEL_FLAG_LOOP|AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+            }
+
+            frequency = player_channel->frequency;
+
+            if (frequency < sample->rate_min)
+                frequency = sample->rate_min;
+
+            if (frequency > sample->rate_max)
+                frequency = sample->rate_max;
+
+            if (!(player_channel->frequency = frequency)) {
+turn_note_off:
+                player_channel->channel_data.flags = 0;
+
+                goto not_calculate_no_playing;
+            }
+
+            if (!(player_channel->channel_data.rate = ((uint64_t) frequency * player_globals->relative_pitch) >> 16))
+                goto turn_note_off;
+
+            if (!(song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY)) {
+                player_channel->global_volume  = player_globals->global_volume;
+                player_channel->global_sub_vol = player_globals->global_sub_volume;
+                player_channel->global_panning = player_globals->global_panning;
+                player_channel->global_sub_pan = player_globals->global_sub_pan;
+            }
+
+            host_volume = player_channel->volume;
+
+            player_host_channel->virtual_channels++;
+            virtual_channel++;
+
+            if ((!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND)) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF))
+                host_volume = 0;
+
+            host_volume                        *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
+            virtual_volume                      = (((uint16_t) player_channel->vol_env.value >> 8) * (uint16_t) player_channel->global_volume) * (uint16_t) player_channel->fade_out_count;
+            player_channel->channel_data.volume = player_channel->final_volume = ((uint64_t) host_volume * virtual_volume) / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL);
+            flags                               = 0;
+            player_channel->flags              &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND;
+            player_channel->channel_data.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
+
+            if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
+                flags = AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
+
+            panning = player_channel->panning;
+
+            if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN) {
+                panning = player_host_channel->track_panning;
+                flags   = 0;
+
+                if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN) || (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHANNEL_SUR_PAN))
+                    flags = AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
+            }
+
+            player_channel->flags |= flags;
+
+            if (!(song->flags & AVSEQ_SONG_FLAG_MONO))
+                player_channel->channel_data.flags |= flags;
+
+            if (panning == 255)
+                panning++;
+
+            panning_envelope_value = panning;
+
+            if ((int16_t) (panning = (128 - panning)) < 0)
+                panning = -panning;
+
+            abs_panning = 128 - panning;
+            panning     = player_channel->pan_env.value >> 8;
+
+            if (panning == 127)
+                panning++;
+
+            panning     = 128 - (((panning * abs_panning) >> 7) + panning_envelope_value);
+            abs_panning = (uint16_t) player_host_channel->channel_panning;
+
+            if (abs_panning == 255)
+                abs_panning++;
+
+            abs_panning           -= 128;
+            panning_envelope_value = abs_panning = ((panning * abs_panning) >> 7) + 128;
+
+            if (panning_envelope_value > 255)
+                panning_envelope_value = 255;
+
+            player_channel->final_panning = panning_envelope_value;
+
+            panning = 128;
+
+            if (!(song->flags & AVSEQ_SONG_FLAG_MONO)) {
+                if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_GLOBAL_SUR_PAN)
+                    player_channel->channel_data.flags |= AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
+
+                panning -= abs_panning;
+
+                abs_panning = (uint16_t) player_channel->global_panning;
+
+                if (abs_panning == 255)
+                    abs_panning++;
+
+                abs_panning -= 128;
+                panning      = ((panning * abs_panning) >> 7) + 128;
+
+                if (panning == 256)
+                    panning--;
+            }
+
+            player_channel->channel_data.panning = panning;
+
+            mixer_set_channel_volume_panning_pitch ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), channel, mixer->mixctx );
+        }
+not_calculate_no_playing:
+        mixer_set_channel_position_repeat_flags ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), channel, mixer->mixctx );
+
+        player_channel++;
+    } while (++channel < module->channels);
+
+    player_globals->channels = virtual_channel;
+
+    if (virtual_channel > player_globals->max_channels)
+        player_globals->max_channels = virtual_channel;
+
+    channel             = 0;
+    player_host_channel = song->channel_data;
+
+    do {
+        if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END))
+            goto check_song_end_done;
+
+        player_host_channel++;
+    } while (++channel < song->channels);
+
+    player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END;
+check_song_end_done:
+
+    if (player_hook && (!(player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_BEGINNING)) &&
+                       (((player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END) &&
+                       (!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END))) ||
+                       (!(player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END))))
+        player_hook->hook_func ( avctx, module, song, player_hook->hook_data, player_hook->hook_len );
+
+    if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END) {
+        player_host_channel = song->channel_data;
+
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END) {
+            AVSequencerOrderList *order_list = song->order_list;
+            channel                          = song->channels;
+
+            do {
+                AVSequencerOrderData *order_data;
+                uint32_t i = -1;
+
+                if (player_host_channel->tempo)
+                    player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END;
+
+                while (i++ < order_list->orders) {
+                    if ((order_data = order_list->order_data[i]) && (order_data != player_host_channel->order))
+                        order_data->played = 0;
+                }
+
+                order_list++;
+                player_host_channel++;
+            } while (--channel);
+        }
+    }
+}
