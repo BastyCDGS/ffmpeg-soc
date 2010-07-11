@@ -3276,3 +3276,1025 @@ USE_ENVELOPE(arpeggio) {
 USE_ENVELOPE(resonance) {
     return (AVSequencerPlayerEnvelope *) &(player_channel->resonance_env);
 }
+
+static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+    AVSequencerTrack *track;
+
+    if ((track = player_host_channel->track) && player_host_channel->effect) {
+        AVSequencerTrackEffect *track_fx;
+        AVSequencerTrackData *track_data = track->data + player_host_channel->row;
+        uint32_t fx                      = -1;
+
+        while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
+            AVSequencerEffectsTable *fx_lut;
+            void (*check_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
+            uint16_t fx_byte, data_word, flags;
+            uint8_t channel_ctrl_type;
+
+            if (player_host_channel->effect == track_fx)
+                break;
+
+            fx_byte   = track_fx->command;
+            fx_lut    = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            data_word = track_fx->data;
+            flags     = fx_lut->flags;
+
+            if ((check_func = fx_lut->check_fx_func)) {
+                check_func ( avctx, player_host_channel, player_channel, channel, &fx_byte, &data_word, &flags );
+
+                fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            }
+
+            if (flags & AVSEQ_EFFECTS_TABLE_FLAG_EXEC_WHOLE_ROW)
+                continue;
+
+            flags = player_host_channel->exec_fx;
+
+            if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_EXEC_FX))
+                flags = fx_lut->std_exec_tick;
+
+            if (flags != player_host_channel->tempo_counter)
+                continue;
+
+            if (player_host_channel->effects_used[(fx_byte >> 3)] & (1 << (7 - (fx_byte & 7))))
+                continue;
+
+            fx_lut->effect_func ( avctx, player_host_channel, player_channel, channel, fx_byte, data_word );
+
+            if ((channel_ctrl_type = player_host_channel->ch_control_type)) {
+                if (player_host_channel->ch_control_affect & fx_lut->and_mask_ctrl) {
+                    AVSequencerPlayerHostChannel *new_player_host_channel;
+                    AVSequencerPlayerChannel *new_player_channel;
+                    uint16_t ctrl_fx_byte, ctrl_data_word, ctrl_flags, ctrl_channel;
+
+                    switch (channel_ctrl_type) {
+                    case CH_CTRL_NORMAL :
+                        if ((ctrl_channel = player_host_channel->ch_control_channel) != channel) {
+                            new_player_host_channel = song->channel_data + ctrl_channel;
+                            new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                            ctrl_fx_byte            = fx_byte;
+                            ctrl_data_word          = data_word;
+                            ctrl_flags              = flags;
+
+                            if ((check_func = fx_lut->check_fx_func)) {
+                                check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
+
+                                fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                            }
+
+                            fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                        }
+
+                        break;
+                    case CH_CTRL_MULTI :
+                        ctrl_channel = 0;
+
+                        do {
+                            if ((ctrl_channel != channel) && (player_host_channel->control_channels[(ctrl_channel >> 3)] & (1 << (7 - (ctrl_channel & 7))))) {
+                                new_player_host_channel = song->channel_data + ctrl_channel;
+                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+
+                                ctrl_fx_byte   = fx_byte;
+                                ctrl_data_word = data_word;
+                                ctrl_flags     = flags;
+
+                                if ((check_func = fx_lut->check_fx_func)) {
+                                    check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
+
+                                    fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                }
+
+                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                            }
+                        } while (++ctrl_channel < song->channels);
+
+                        break;
+                    default :
+                        ctrl_channel = 0;
+
+                        do {
+                            if (ctrl_channel != channel) {
+                                new_player_host_channel = song->channel_data + ctrl_channel;
+                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                ctrl_fx_byte            = fx_byte;
+                                ctrl_data_word          = data_word;
+                                ctrl_flags              = flags;
+
+                                if ((check_func = fx_lut->check_fx_func)) {
+                                    check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
+
+                                    fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                }
+
+                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                            }
+                        } while (++ctrl_channel < song->channels);
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        fx = -1;
+
+        while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
+            AVSequencerEffectsTable *fx_lut;
+            void (*check_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
+            uint16_t fx_byte, data_word, flags;
+            uint8_t channel_ctrl_type;
+
+            if (player_host_channel->effect == track_fx)
+                break;
+
+            fx_byte   = track_fx->command;
+            fx_lut    = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            data_word = track_fx->data;
+            flags     = fx_lut->flags;
+
+            if ((check_func = fx_lut->check_fx_func)) {
+                check_func ( avctx, player_host_channel, player_channel, channel, &fx_byte, &data_word, &flags );
+
+                fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            }
+
+            if (!(flags & AVSEQ_EFFECTS_TABLE_FLAG_EXEC_WHOLE_ROW))
+                continue;
+
+            flags = player_host_channel->exec_fx;
+
+            if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_EXEC_FX))
+                flags = fx_lut->std_exec_tick;
+
+            if (player_host_channel->tempo_counter < flags)
+                continue;
+
+            if (player_host_channel->effects_used[(fx_byte >> 3)] & (1 << (7 - (fx_byte & 7))))
+                continue;
+
+            fx_lut->effect_func ( avctx, player_host_channel, player_channel, channel, fx_byte, data_word );
+
+            if ((channel_ctrl_type = player_host_channel->ch_control_type)) {
+                if (player_host_channel->ch_control_affect & fx_lut->and_mask_ctrl) {
+                    AVSequencerPlayerHostChannel *new_player_host_channel;
+                    AVSequencerPlayerChannel *new_player_channel;
+                    uint16_t ctrl_fx_byte, ctrl_data_word, ctrl_flags, ctrl_channel;
+
+                    switch (channel_ctrl_type) {
+                    case CH_CTRL_NORMAL :
+                        if ((ctrl_channel = player_host_channel->ch_control_channel) != channel) {
+                            new_player_host_channel = song->channel_data + ctrl_channel;
+                            new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                            ctrl_fx_byte            = fx_byte;
+                            ctrl_data_word          = data_word;
+                            ctrl_flags              = flags;
+
+                            if ((check_func = fx_lut->check_fx_func)) {
+                                check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
+
+                                fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                            }
+
+                            if (new_player_host_channel->effects_used[(ctrl_fx_byte >> 3)] & (1 << (7 - (ctrl_fx_byte & 7))))
+                                continue;
+
+                            fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                        }
+
+                        break;
+                    case CH_CTRL_MULTI :
+                        ctrl_channel = 0;
+
+                        do {
+                            if ((ctrl_channel != channel) && (player_host_channel->control_channels[(ctrl_channel >> 3)] & (1 << (7 - (ctrl_channel & 7))))) {
+                                new_player_host_channel = song->channel_data + ctrl_channel;
+                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                ctrl_fx_byte            = fx_byte;
+                                ctrl_data_word          = data_word;
+                                ctrl_flags              = flags;
+
+                                if ((check_func = fx_lut->check_fx_func)) {
+                                    check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
+
+                                    fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                }
+
+                                if (new_player_host_channel->effects_used[(ctrl_fx_byte >> 3)] & (1 << (7 - (ctrl_fx_byte & 7))))
+                                    continue;
+
+                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                            }
+                        } while (++ctrl_channel < song->channels);
+
+                        break;
+                    default :
+                        ctrl_channel = 0;
+
+                        do {
+                            if (ctrl_channel != channel) {
+                                new_player_host_channel = song->channel_data + ctrl_channel;
+                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                ctrl_fx_byte            = fx_byte;
+                                ctrl_data_word          = data_word;
+                                ctrl_flags              = flags;
+
+                                if ((check_func = fx_lut->check_fx_func)) {
+                                    check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
+
+                                    fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                }
+
+                                if (new_player_host_channel->effects_used[(ctrl_fx_byte >> 3)] & (1 << (7 - (ctrl_fx_byte & 7))))
+                                    continue;
+
+                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                            }
+                        } while (++ctrl_channel < song->channels);
+
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static uint32_t linear_slide_up ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint32_t frequency, uint32_t slide_value ) {
+    uint32_t linear_slide_div  = slide_value / 3072;
+    uint32_t linear_slide_mod  = slide_value % 3072;
+    uint32_t linear_multiplier = (0x10000 + (avctx->linear_frequency_lut ? avctx->linear_frequency_lut[linear_slide_mod] : linear_frequency_lut[linear_slide_mod)) << linear_slide_div;
+    uint64_t slide_frequency   = ((uint64_t) linear_multiplier * frequency) >> 16;
+
+    if (slide_frequency > 0xFFFFFFFF)
+        slide_frequency = -1;
+
+    return (player_channel->frequency = slide_frequency);
+}
+
+static uint32_t amiga_slide_up ( AVSequencerPlayerChannel *player_channel, uint32_t frequency, uint32_t slide_value ) {
+    uint32_t period = AVSEQ_SLIDE_CONST / frequency;
+
+    if (period <= slide_value)
+        return 1;
+
+    period -= slide_value;
+
+    return (player_channel->frequency = (AVSEQ_SLIDE_CONST / period));
+}
+
+static uint32_t linear_slide_down ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint32_t frequency, uint32_t slide_value ) {
+    uint32_t linear_slide_div  = slide_value / 3072;
+    uint32_t linear_slide_mod  = slide_value % 3072;
+    uint32_t linear_multiplier = 0x10000;
+
+    if (!(linear_slide_mod))
+        linear_multiplier <<= 1;
+
+    linear_multiplier += (avctx->linear_frequency_lut ? avctx->linear_frequency_lut[-linear_slide_mod + 3072] : linear_frequency_lut[-linear_slide_mod + 3072);
+
+    return (player_channel->frequency = ((uint64_t) linear_multiplier * frequency) >> (17 + linear_slide_div));
+}
+
+static uint32_t amiga_slide_down ( AVSequencerPlayerChannel *player_channel, uint32_t frequency, uint32_t slide_value ) {
+    uint32_t period = AVSEQ_SLIDE_CONST / frequency;
+    uint32_t new_frequency;
+
+    period += slide_value;
+
+    if (period < slide_value)
+        return 0;
+
+    new_frequency = AVSEQ_SLIDE_CONST / period;
+
+    if (frequency == new_frequency) {
+        if (!(new_frequency--))
+            new_frequency = 0;
+    }
+
+    return (player_channel->frequency = new_frequency);
+}
+
+static void portamento_slide_up ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t data_word, uint32_t carry_add, uint32_t portamento_shift, uint16_t channel ) {
+    if (player_channel->host_channel == channel) {
+        uint32_t portamento_slide_value;
+        uint8_t portamento_sub_slide_value = data_word;
+
+        if ((portamento_slide_value = (data_word & 0xFFFFFF00) >> portamento_shift)) {
+            player_host_channel->sub_slide += portamento_sub_slide_value;
+
+            if (player_host_channel->sub_slide < portamento_sub_slide_value)
+                portamento_slide_value += carry_add;
+
+            if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+                linear_slide_up ( avctx, player_channel, player_channel->frequency, portamento_slide_value );
+            else
+                amiga_slide_up ( player_channel, player_channel->frequency, portamento_slide_value );
+        }
+    }
+}
+
+static void portamento_slide_down ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t data_word, uint32_t carry_add, uint32_t portamento_shift, uint16_t channel ) {
+    if (player_channel->host_channel == channel) {
+        uint32_t portamento_slide_value;
+        uint8_t portamento_sub_slide_value = data_word;
+
+        if ((int32_t) data_word < 0) {
+            portamento_slide_up ( avctx, player_host_channel, player_channel, -data_word, carry_add, portamento_shift, channel );
+
+            return;
+        }
+
+        if ((portamento_slide_value = ( data_word & 0xFFFFFF00 ) >> portamento_shift)) {
+            if (player_host_channel->sub_slide < portamento_sub_slide_value) {
+                portamento_slide_value += carry_add;
+
+                if (portamento_slide_value < carry_add)
+                    portamento_slide_value = -1;
+            }
+
+            player_host_channel->sub_slide -= portamento_sub_slide_value;
+
+            if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+                linear_slide_down ( avctx, player_channel, player_channel->frequency, portamento_slide_value );
+            else
+                amiga_slide_down ( player_channel, player_channel->frequency, portamento_slide_value );
+        }
+    }
+}
+
+static void portamento_up_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v1, v3, v4, v5, v8;
+
+    v0 = player_host_channel->fine_porta_up;
+    v1 = player_host_channel->fine_porta_down;
+    v3 = player_host_channel->porta_up_once;
+    v4 = player_host_channel->porta_down_once;
+    v5 = player_host_channel->fine_porta_up_once;
+    v8 = player_host_channel->fine_porta_down_once;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+        v0 = data_word;
+        v3 = data_word;
+        v5 = data_word;
+    }
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES)) {
+        player_host_channel->porta_down = data_word;
+        v1 = v0;
+        v4 = v3;
+        v8 = v5;
+    }
+
+    player_host_channel->porta_up             = data_word;
+    player_host_channel->fine_porta_up        = v0;
+    player_host_channel->fine_porta_down      = v1;
+    player_host_channel->porta_up_once        = v3;
+    player_host_channel->porta_down_once      = v4;
+    player_host_channel->fine_porta_up_once   = v5;
+    player_host_channel->fine_porta_down_once = v8;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA) {
+        v1 = player_host_channel->fine_tone_porta;
+        v4 = player_host_channel->tone_porta_once;
+        v8 = player_host_channel->fine_tone_porta_once;
+
+        if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+            v1 = v0;
+            v4 = v3;
+            v8 = v5;
+        }
+
+        player_host_channel->tone_porta           = data_word;
+        player_host_channel->fine_tone_porta      = v1;
+        player_host_channel->tone_porta_once      = v4;
+        player_host_channel->fine_tone_porta_once = v8;
+    }
+}
+
+static void portamento_down_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word )
+{
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v1, v3, v4, v5, v8;
+
+    v0 = player_host_channel->fine_porta_up;
+    v1 = player_host_channel->fine_porta_down;
+    v3 = player_host_channel->porta_up_once;
+    v4 = player_host_channel->porta_down_once;
+    v5 = player_host_channel->fine_porta_up_once;
+    v8 = player_host_channel->fine_porta_down_once;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+        v1 = data_word;
+        v4 = data_word;
+        v8 = data_word;
+    }
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES)) {
+        player_host_channel->porta_up = data_word;
+        v0 = v1;
+        v3 = v4;
+        v5 = v8;
+    }
+
+    player_host_channel->porta_down           = data_word;
+    player_host_channel->fine_porta_up        = v0;
+    player_host_channel->fine_porta_down      = v1;
+    player_host_channel->porta_up_once        = v3;
+    player_host_channel->porta_down_once      = v4;
+    player_host_channel->fine_porta_up_once   = v5;
+    player_host_channel->fine_porta_down_once = v8;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA) {
+        v0 = player_host_channel->fine_tone_porta;
+        v3 = player_host_channel->tone_porta_once;
+        v5 = player_host_channel->fine_tone_porta_once;
+
+        if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+            v0 = v1;
+            v3 = v4;
+            v5 = v8;
+        }
+
+        player_host_channel->tone_porta           = data_word;
+        player_host_channel->fine_tone_porta      = v0;
+        player_host_channel->tone_porta_once      = v3;
+        player_host_channel->fine_tone_porta_once = v5;
+    }
+}
+
+static void portamento_up_once_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v1, v3, v4, v5, v8;
+
+    v0 = player_host_channel->porta_up;
+    v1 = player_host_channel->porta_down;
+    v3 = player_host_channel->fine_porta_up;
+    v4 = player_host_channel->fine_porta_down;
+    v5 = player_host_channel->fine_porta_up_once;
+    v8 = player_host_channel->fine_porta_down_once;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+        v0 = data_word;
+        v3 = data_word;
+        v5 = data_word;
+    }
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES)) {
+        player_host_channel->porta_down_once = data_word;
+        v1 = v0;
+        v4 = v3;
+        v8 = v5;
+    }
+
+    player_host_channel->porta_up_once        = data_word;
+    player_host_channel->porta_up             = v0;
+    player_host_channel->porta_down           = v1;
+    player_host_channel->fine_porta_up        = v3;
+    player_host_channel->fine_porta_down      = v4;
+    player_host_channel->fine_porta_up_once   = v5;
+    player_host_channel->fine_porta_down_once = v8;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA) {
+        v1 = player_host_channel->tone_porta;
+        v4 = player_host_channel->fine_tone_porta;
+        v8 = player_host_channel->fine_tone_porta_once;
+
+        if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+            v1 = v0;
+            v4 = v3;
+            v8 = v5;
+        }
+
+        player_host_channel->tone_porta           = v1;
+        player_host_channel->fine_tone_porta      = v4;
+        player_host_channel->tone_porta_once      = data_word;
+        player_host_channel->fine_tone_porta_once = v8;
+    }
+}
+
+static void portamento_down_once_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v1, v3, v4, v5, v8;
+
+    v0 = player_host_channel->porta_up;
+    v1 = player_host_channel->porta_down;
+    v3 = player_host_channel->fine_porta_up;
+    v4 = player_host_channel->fine_porta_down;
+    v5 = player_host_channel->fine_porta_up_once;
+    v8 = player_host_channel->fine_porta_down_once;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+        v1 = data_word;
+        v4 = data_word;
+        v8 = data_word;
+    }
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES)) {
+        player_host_channel->porta_up_once = data_word;
+        v0 = v1;
+        v3 = v4;
+        v5 = v8;
+    }
+
+    player_host_channel->porta_down_once      = data_word;
+    player_host_channel->porta_up             = v0;
+    player_host_channel->porta_down           = v1;
+    player_host_channel->fine_porta_up        = v3;
+    player_host_channel->fine_porta_down      = v4;
+    player_host_channel->fine_porta_up_once   = v5;
+    player_host_channel->fine_porta_down_once = v8;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA) {
+        v0 = player_host_channel->tone_porta;
+        v3 = player_host_channel->fine_tone_porta;
+        v5 = player_host_channel->fine_tone_porta_once;
+
+        if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_SLIDES) {
+            v0 = v1;
+            v3 = v4;
+            v5 = v8;
+        }
+
+        player_host_channel->tone_porta           = v0;
+        player_host_channel->fine_tone_porta      = v3;
+        player_host_channel->tone_porta_once      = data_word;
+        player_host_channel->fine_tone_porta_once = v5;
+    }
+}
+
+static void do_vibrato ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t vibrato_rate, int16_t vibrato_depth ) {
+    int32_t vibrato_slide_value;
+
+    if (!vibrato_depth)
+        vibrato_depth = player_host_channel->vibrato_depth;
+
+    player_host_channel->vibrato_depth = vibrato_depth;
+
+    vibrato_slide_value = ((-vibrato_depth * run_envelope ( avctx, (AVSequencerPlayerEnvelope *) &(player_host_channel->vibrato_env), vibrato_rate, 0 )) >> (7 - 2)) << 8;
+
+    if (player_channel->host_channel == channel) {
+        uint32_t old_frequency     = player_channel->frequency;
+        player_channel->frequency -= player_host_channel->vibrato_slide;
+
+        portamento_slide_down ( avctx, player_host_channel, player_channel, vibrato_slide_value, 1, 8, channel );
+
+        player_host_channel->vibrato_slide -= old_frequency - player_channel->frequency;
+    }
+}
+
+static uint32_t check_old_volume ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint16_t *data_word, uint16_t channel ) {
+    AVSequencerSong *song;
+
+    if (channel != player_channel->host_channel)
+        return 0;
+
+    song = avctx->player_song;
+
+    if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES) {
+        if (*data_word < 0x4000)
+            *data_word = ((*data_word & 0xFF00) << 2) | (*data_word & 0xFF);
+        else
+            *data_word = 0xFFFF;
+    }
+
+    return 1;
+}
+
+static void do_volume_slide ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel ) {
+    if (check_old_volume ( avctx, player_channel, &data_word, channel)) {
+        uint16_t slide_volume = (player_channel->volume << 8U) + player_channel->sub_vol;
+
+        if ((slide_volume += data_word) < data_word)
+            slide_volume = 0xFFFF;
+
+        player_channel->volume  = slide_volume >> 8;
+        player_channel->sub_vol = slide_volume;
+    }
+}
+
+static void do_volume_slide_down ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel ) {
+    if (check_old_volume ( avctx, player_channel, &data_word, channel )) {
+        uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_vol;
+
+        if (slide_volume < data_word)
+            data_word = slide_volume;
+
+        slide_volume -= data_word;
+
+        player_channel->volume  = slide_volume >> 8;
+        player_channel->sub_vol = slide_volume;
+    }
+}
+
+static void volume_slide_up_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v3, v4, v5;
+
+    v3 = player_host_channel->vol_slide_down;
+    v4 = player_host_channel->fine_vol_slide_up;
+    v5 = player_host_channel->fine_vol_slide_down;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES)
+        v4 = data_word;
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
+        v3 = data_word;
+        v5 = v4;
+    }
+
+    player_host_channel->vol_slide_up        = data_word;
+    player_host_channel->vol_slide_down      = v3;
+    player_host_channel->fine_vol_slide_up   = v4;
+    player_host_channel->fine_vol_slide_down = v5;
+}
+
+static void volume_slide_down_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v3, v4;
+
+    v0 = player_host_channel->vol_slide_up;
+    v3 = player_host_channel->fine_vol_slide_up;
+    v4 = player_host_channel->fine_vol_slide_down;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES)
+        v4 = data_word;
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
+        v0 = data_word;
+        v3 = v4;
+    }
+
+    player_host_channel->vol_slide_up        = v0;
+    player_host_channel->vol_slide_down      = data_word;
+    player_host_channel->fine_vol_slide_up   = v3;
+    player_host_channel->fine_vol_slide_down = v4;
+}
+
+static void fine_volume_slide_up_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v1, v4;
+
+    v0 = player_host_channel->vol_slide_up;
+    v1 = player_host_channel->vol_slide_down;
+    v4 = player_host_channel->fine_vol_slide_down;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES)
+        v0 = data_word;
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
+        v1 = v0;
+        v4 = data_word;
+    }
+
+    player_host_channel->vol_slide_up        = v0;
+    player_host_channel->vol_slide_down      = v1;
+    player_host_channel->fine_vol_slide_up   = data_word;
+    player_host_channel->fine_vol_slide_down = v4;
+}
+
+static void fine_volume_slide_down_ok ( AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    AVSequencerTrack *track = player_host_channel->track;
+    uint16_t v0, v1, v3;
+
+    v0 = player_host_channel->vol_slide_up;
+    v1 = player_host_channel->vol_slide_down;
+    v3 = player_host_channel->fine_vol_slide_up;
+
+    if (track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES)
+        v1 = data_word;
+
+    if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
+        v0 = v1;
+        v3 = data_word;
+    }
+
+    player_host_channel->vol_slide_up        = v0;
+    player_host_channel->vol_slide_down      = v1;
+    player_host_channel->fine_vol_slide_up   = data_word;
+    player_host_channel->fine_vol_slide_down = v3;
+}
+
+static uint32_t check_old_track_volume ( AVSequencerContext *avctx, uint16_t *data_word ) {
+    AVSequencerSong *song = avctx->player_song;
+
+    if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES) {
+        if (*data_word < 0x4000)
+            *data_word = ((*data_word & 0xFF00) << 2) | (*data_word & 0xFF);
+        else
+            *data_word = 0xFFFF;
+    }
+
+    return 1;
+}
+
+static void do_track_volume_slide ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    if (check_old_track_volume ( avctx, &data_word )) {
+        uint16_t track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+
+        if ((track_volume += data_word) < data_word)
+            track_volume = 0xFFFF;
+
+        player_host_channel->track_volume  = track_volume >> 8;
+        player_host_channel->track_sub_vol = track_volume;
+    }
+}
+
+static void do_track_volume_slide_down ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    if (check_old_track_volume ( avctx, &data_word )) {
+        uint16_t track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+
+        if (track_volume < data_word)
+            data_word = track_volume;
+
+        track_volume                      -= data_word;
+        player_host_channel->track_volume  = track_volume >> 8;
+        player_host_channel->track_sub_vol = track_volume;
+    }
+}
+
+static void do_panning_slide ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel ) {
+    if (player_channel->host_channel == channel) {
+        uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+
+        if (panning < data_word)
+            data_word = panning;
+
+        panning -= data_word;
+
+        player_host_channel->track_panning = player_channel->panning = panning >> 8;
+        player_host_channel->track_sub_pan = player_channel->sub_pan = panning;
+    } else {
+        uint16_t track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+
+        if (track_panning < data_word)
+            data_word = track_panning;
+
+        track_panning                     -= data_word;
+        player_host_channel->track_panning = track_panning >> 8;
+        player_host_channel->track_sub_pan = track_panning;
+    }
+
+    player_host_channel->track_note_pan     = player_host_channel->track_panning;
+    player_host_channel->track_note_sub_pan = player_host_channel->track_sub_pan;
+}
+
+static void do_panning_slide_right ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel ) {
+    if (player_channel->host_channel == channel) {
+        uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+
+        if ((panning += data_word) < data_word)
+            panning = 0xFFFF;
+
+        player_host_channel->track_panning = player_channel->panning = panning >> 8;
+        player_host_channel->track_sub_pan = player_channel->sub_pan = panning;
+    } else {
+        uint16_t track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+
+        if ((track_panning += data_word) < data_word)
+            track_panning = 0xFFFF;
+
+        player_host_channel->track_panning = track_panning >> 8U;
+        player_host_channel->track_sub_pan = track_panning;
+    }
+
+    player_host_channel->track_note_pan     = player_host_channel->track_panning;
+    player_host_channel->track_note_sub_pan = player_host_channel->track_sub_pan;
+}
+
+static void do_track_panning_slide ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    uint16_t channel_panning = (player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
+
+    if (channel_panning < data_word)
+        data_word = channel_panning;
+
+    channel_panning -= data_word;
+
+    player_host_channel->channel_panning = channel_panning >> 8;
+    player_host_channel->channel_sub_pan = channel_panning;
+}
+
+static void do_track_panning_slide_right ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word ) {
+    uint16_t channel_panning = (player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
+
+    if ((channel_panning += data_word) < data_word)
+        channel_panning = 0xFFFF;
+
+    player_host_channel->channel_panning = channel_panning >> 8;
+    player_host_channel->channel_sub_pan = channel_panning;
+}
+
+static uint32_t check_surround_track_panning ( AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint8_t channel_ctrl_byte ) {
+    if (player_channel->host_channel == channel) {
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN)
+            return 1;
+
+        if (channel_ctrl_byte)
+            player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+        else
+            player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+    } else if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN) {
+        player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+
+        if (channel_ctrl_byte)
+            player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+    }
+
+    return 0;
+}
+
+static uint16_t *get_speed_address ( AVSequencerSong *song, uint16_t speed_type, uint16_t *speed_min_value, uint16_t *speed_max_value ) {
+    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    uint16_t *speed_adr = NULL;
+
+    switch (speed_type & 0x07) {
+    case 0x00 :
+        *speed_min_value = song->bpm_speed_min;
+        *speed_max_value = song->bpm_speed_max;
+
+        speed_adr = (uint16_t *) &(player_globals->bpm_speed);
+
+        break;
+    case 0x01 :
+        *speed_min_value = song->bpm_tempo_min;
+        *speed_max_value = song->bpm_tempo_max;
+
+        speed_adr = (uint16_t *) &(player_globals->bpm_tempo);
+
+        break;
+    case 0x02 :
+        *speed_min_value = song->spd_min;
+        *speed_max_value = song->spd_max;
+
+        speed_adr = (uint16_t *) &(player_globals->spd_speed);
+
+        break;
+    case 0x07 :
+        *speed_min_value = 1;
+        *speed_max_value = 0xFFFF;
+
+        speed_adr = (uint16_t *) &(player_globals->speed_mul);
+
+        break;
+    }
+
+    return speed_adr;
+}
+
+static void speed_val_ok ( AVSequencerContext *avctx, uint16_t *speed_adr, uint16_t speed_value, uint8_t speed_type, uint16_t speed_min_value, uint16_t speed_max_value ) {
+    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+
+    if (speed_value < speed_min_value)
+        speed_value = speed_min_value;
+
+    if (speed_value > speed_max_value)
+        speed_value = speed_max_value;
+
+    if ((speed_type & 0x07) == 0x07) {
+        player_globals->speed_mul = speed_value >> 8;
+        player_globals->speed_div = speed_value;
+    } else {
+        *speed_adr = speed_value;
+    }
+
+    if (!((player_globals->speed_type = speed_type) & 0x08)) {
+        AVSequencerMixerData *mixer = avctx->player_mixer_data;
+        uint64_t tempo = 0;
+        uint8_t speed_multiplier;
+
+        switch (speed_type & 0x07) {
+        case 0x00 :
+            player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING;
+
+            break;
+        case 0x02 :
+            player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING;
+
+            break;
+        }
+
+        if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING) {
+            if (player_globals->spd_speed > 10) {
+                tempo = (uint32_t) 989156 * player_globals->spd_speed;
+
+                if ((speed_multiplier = player_globals->speed_mul))
+                    tempo *= speed_multiplier;
+
+                if ((speed_multiplier = player_globals->speed_div))
+                    tempo /= speed_multiplier;
+            } else {
+                tempo = (avctx->old_st_lut ? avctx->old_st_lut[player_globals->spd_speed] : old_st_lut[player_globals->spd_speed]);
+            }
+        } else {
+            tempo = (player_globals->bpm_speed) * (player_globals->bpm_tempo) << 16;
+
+            if ((speed_multiplier = player_globals->speed_mul))
+                tempo *= speed_multiplier;
+
+            if ((speed_multiplier = player_globals->speed_div))
+                tempo /= speed_multiplier;
+        }
+
+        player_globals->tempo = tempo;
+        tempo                *= player_globals->relative_speed;
+        tempo               >>= 16;
+
+        mixer_set_tempo ( mixer, tempo, mixer->mixctx );
+    }
+}
+
+static void do_speed_slide ( AVSequencerContext *avctx, uint16_t data_word ) {
+    AVSequencerSong *song = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    uint16_t *speed_ptr;
+    uint16_t speed_min_value, speed_max_value;
+
+    if ((speed_ptr = get_speed_address ( song, player_globals->speed_type, &speed_min_value, &speed_max_value ))) {
+        uint16_t speed_value;
+
+        if ((player_globals->speed_type & 0x07) == 0x07)
+            speed_value = (player_globals->speed_mul << 8) + player_globals->speed_div;
+        else
+            speed_value = *speed_ptr;
+
+        if ((speed_value += data_word) < data_word)
+            speed_value = 0xFFFF;
+
+        speed_val_ok ( avctx, speed_ptr, speed_value, player_globals->speed_type, speed_min_value, speed_max_value );
+    }
+}
+
+static void do_speed_slide_slower ( AVSequencerContext *avctx, uint16_t data_word )
+{
+    AVSequencerSong *song = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    uint16_t *speed_ptr;
+    uint16_t speed_min_value, speed_max_value;
+
+    if ((speed_ptr = get_speed_address ( song, player_globals->speed_type, &speed_min_value, &speed_max_value ))) {
+        uint16_t speed_value;
+
+        if ((player_globals->speed_type & 0x07) == 0x07)
+            speed_value = (player_globals->speed_mul << 8) + player_globals->speed_div;
+        else
+            speed_value = *speed_ptr;
+
+        if (speed_value < data_word)
+            data_word = speed_value;
+
+        speed_value -= data_word;
+
+        speed_val_ok ( avctx, speed_ptr, speed_value, player_globals->speed_type, speed_min_value, speed_max_value );
+    }
+}
+
+static void do_global_volume_slide ( AVSequencerContext *avctx, AVSequencerPlayerGlobals *player_globals, uint16_t data_word ) {
+    if (check_old_track_volume ( avctx, &data_word )) {
+        uint16_t global_volume = (player_globals->global_volume << 8) + player_globals->global_sub_volume;
+
+        if ((global_volume += data_word) < data_word)
+            global_volume = 0xFFFF;
+
+        player_globals->global_volume     = global_volume >> 8;
+        player_globals->global_sub_volume = global_volume;
+    }
+}
+
+static void do_global_volume_slide_down ( AVSequencerContext *avctx, AVSequencerPlayerGlobals *player_globals, uint16_t data_word ) {
+    if (check_old_track_volume ( avctx, &data_word )) {
+        uint16_t global_volume = (player_globals->global_volume << 8) + player_globals->global_sub_volume;
+
+        if (global_volume < data_word)
+            data_word = global_volume;
+
+        global_volume -= data_word;
+
+        player_globals->global_volume     = global_volume >> 8;
+        player_globals->global_sub_volume = global_volume;
+    }
+}
+
+static void do_global_panning_slide ( AVSequencerPlayerGlobals *player_globals, uint16_t data_word ) {
+    uint16_t global_panning = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+
+    player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
+
+    if ((global_panning += data_word) < data_word)
+        global_panning = 0xFFFF;
+
+    player_globals->global_panning     = global_panning >> 8;
+    player_globals->global_sub_panning = global_panning;
+}
+
+static void do_global_panning_slide_right ( AVSequencerPlayerGlobals *player_globals, uint16_t data_word ) {
+    uint16_t global_panning = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+
+    player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
+
+    if (global_panning < data_word)
+        data_word = global_panning;
+
+    global_panning                    -= data_word;
+    player_globals->global_panning     = global_panning >> 8;
+    player_globals->global_sub_panning = global_panning;
+}
