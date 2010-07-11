@@ -7619,3 +7619,2271 @@ static void se_pannolo_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel 
     player_channel->panning                 = pannolo_slide_value;
     player_channel->pannolo_slide          -= pannolo_slide_value - panning;
 }
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(stop) {
+    instruction_data += player_channel->variable[src_var];
+
+    if (instruction_data & 0x8000)
+        player_channel->stop_forbid_mask &= ~instruction_data;
+    else
+        player_channel->stop_forbid_mask |= instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(kill) {
+    instruction_data                              += player_channel->variable[src_var];
+    player_channel->kill_count[synth_type]         = instruction_data;
+    player_channel->synth_flags                   |= 1 << synth_type;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(wait) {
+    instruction_data                      += player_channel->variable[src_var];
+    player_channel->wait_count[synth_type] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(waitvol) {
+    instruction_data                     += player_channel->variable[src_var];
+    player_channel->wait_line[synth_type] = instruction_data;
+    player_channel->wait_type[synth_type] = ~0;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(waitpan) {
+    instruction_data                     += player_channel->variable[src_var];
+    player_channel->wait_line[synth_type] = instruction_data;
+    player_channel->wait_type[synth_type] = ~1;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(waitsld) {
+    instruction_data                     += player_channel->variable[src_var];
+    player_channel->wait_line[synth_type] = instruction_data;
+    player_channel->wait_type[synth_type] = ~2;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(waitspc) {
+    instruction_data                     += player_channel->variable[src_var];
+    player_channel->wait_line[synth_type] = instruction_data;
+    player_channel->wait_type[synth_type] = ~3;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jump) {
+    instruction_data += player_channel->variable[src_var];
+
+    return instruction_data;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpeq) {
+    if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpne) {
+    if (!(player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO)) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumppl) {
+    if (!(player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE)) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpmi) {
+    if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumplt) {
+    uint16_t synth_cond_var = player_channel->cond_var[synth_type] & (AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE);
+
+    if ((synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW) || (synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE)) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumple) {
+    uint16_t synth_cond_var = player_channel->cond_var[synth_type];
+
+    if (synth_cond_var & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO) {
+        synth_cond_var = player_channel->cond_var[synth_type] & (AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE);
+
+        if ((synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW) || (synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE)) {
+            instruction_data += player_channel->variable[src_var];
+
+            return instruction_data;
+        }
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpgt) {
+    uint16_t synth_cond_var = player_channel->cond_var[synth_type];
+
+    if (!(synth_cond_var & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO)) {
+        synth_cond_var = player_channel->cond_var[synth_type] & (AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE);
+
+        if (!((synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW) || (synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE))) {
+            instruction_data += player_channel->variable[src_var];
+
+            return instruction_data;
+        }
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpge) {
+    uint16_t synth_cond_var = player_channel->cond_var[synth_type] & (AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE);
+
+    if (!((synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW) || (synth_cond_var == AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE))) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpvs) {
+    if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpvc) {
+    if (!(player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW)) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpcs) {
+    if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpcc) {
+    if (!(player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpls) {
+    uint16_t synth_cond_var = player_channel->cond_var[synth_type];
+
+    if ((synth_cond_var & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO) && (synth_cond_var & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumphi) {
+    uint16_t synth_cond_var = player_channel->cond_var[synth_type];
+
+    if (!((synth_cond_var & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO) && (synth_cond_var & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY))) {
+        instruction_data += player_channel->variable[src_var];
+
+        return instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpvol) {
+    if (!(player_channel->stop_forbid_mask & 1)) {
+        instruction_data            += player_channel->variable[src_var];
+        player_channel->entry_pos[0] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumppan) {
+    if (!(player_channel->stop_forbid_mask & 2)) {
+        instruction_data            += player_channel->variable[src_var];
+        player_channel->entry_pos[1] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpsld) {
+    if (!(player_channel->stop_forbid_mask & 4)) {
+        instruction_data            += player_channel->variable[src_var];
+        player_channel->entry_pos[2] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(jumpspc) {
+    if (!(player_channel->stop_forbid_mask & 8)) {
+        instruction_data            += player_channel->variable[src_var];
+        player_channel->entry_pos[3] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(call) {
+    player_channel->variable[dst_var] = synth_code_line;
+    instruction_data                 += player_channel->variable[src_var];
+
+    return instruction_data;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ret) {
+    instruction_data                 += player_channel->variable[src_var];
+    player_channel->variable[dst_var] = --synth_code_line;
+
+    return instruction_data;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(posvar) {
+    player_channel->variable[src_var] += synth_code_line + --instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(load) {
+    instruction_data                 += player_channel->variable[src_var];
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(add) {
+    uint16_t flags = 0;
+    int32_t add_data;
+
+    instruction_data                 += player_channel->variable[src_var];
+    add_data                          = (int16_t) player_channel->variable[dst_var] + (int16_t) instruction_data;
+    player_channel->variable[dst_var] = add_data;
+
+    if (player_channel->variable[dst_var] < instruction_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if ((add_data < -0x8000) || (add_data >= 0x8000))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    if (!add_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (add_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(addx) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+    uint32_t add_unsigned_data;
+    int32_t add_data;
+
+    instruction_data += player_channel->variable[src_var];
+    add_data          = (int16_t) player_channel->variable[dst_var] + (int16_t) instruction_data;
+    add_unsigned_data = instruction_data;
+
+    if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
+        add_data++;
+        add_unsigned_data++;
+    }
+
+    player_channel->variable[dst_var] = add_data;
+
+    if ((player_channel->variable[dst_var] < add_unsigned_data))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if ((add_data < -0x8000) || (add_data >= 0x8000))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    if (add_data)
+        flags &= ~AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (add_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(sub) {
+    uint16_t flags = 0;
+    int32_t sub_data;
+
+    instruction_data += player_channel->variable[src_var];
+    sub_data          = (int16_t) player_channel->variable[dst_var] - (int16_t) instruction_data;
+
+    if (player_channel->variable[dst_var] < instruction_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    player_channel->variable[dst_var] = sub_data;
+
+    if ((sub_data < -0x8000) || (sub_data >= 0x8000))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    if (!sub_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (sub_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(subx) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+    uint32_t sub_unsigned_data;
+    int32_t sub_data;
+
+    instruction_data += player_channel->variable[src_var];
+    sub_data          = (int16_t) player_channel->variable[dst_var] - (int16_t) instruction_data;
+    sub_unsigned_data = instruction_data;
+
+    if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
+        sub_data--;
+        sub_unsigned_data++;
+    }
+
+    if (player_channel->variable[dst_var] < sub_unsigned_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    player_channel->variable[dst_var] = sub_data;
+
+    if ((sub_data < -0x8000) || (sub_data >= 0x8000))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    if (sub_data)
+        flags &= ~AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (sub_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(cmp) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int32_t sub_data;
+
+    instruction_data += player_channel->variable[src_var];
+    sub_data          = (int16_t) player_channel->variable[dst_var] - (int16_t) instruction_data;
+
+    if (player_channel->variable[dst_var] < instruction_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY;
+
+    if ((sub_data < -0x8000) || (sub_data >= 0x8000))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    if (!sub_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (sub_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(mulu) {
+    uint16_t umult_res, flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    instruction_data                 += player_channel->variable[src_var];
+    player_channel->variable[dst_var] = umult_res = (uint8_t) player_channel->variable[dst_var] * (uint8_t) instruction_data;
+
+    if (!umult_res)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if ((int16_t) umult_res < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(muls) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int16_t smult_res;
+
+    instruction_data                 += player_channel->variable[src_var];
+    player_channel->variable[dst_var] = smult_res = (int8_t) player_channel->variable[dst_var] * (int8_t) instruction_data;
+
+    if (!smult_res)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (smult_res < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(dmulu) {
+    uint32_t umult_res;
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    instruction_data |= player_channel->variable[src_var];
+    umult_res         = player_channel->variable[dst_var] * instruction_data;
+
+    if (dst_var == 15) {
+        player_channel->variable[dst_var] = umult_res;
+
+        if (umult_res >= 0x10000)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+        umult_res <<= 16;
+    } else {
+        player_channel->variable[dst_var++] = umult_res >> 16;
+        player_channel->variable[dst_var]   = umult_res;
+    }
+
+    if (!umult_res)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if ((int32_t) umult_res < 0)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(dmuls) {
+    int32_t smult_res;
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    instruction_data += player_channel->variable[src_var];
+    smult_res         = (int16_t) player_channel->variable[dst_var] * (int16_t) instruction_data;
+
+    if (dst_var == 15) {
+        player_channel->variable[dst_var] = smult_res;
+
+        if ((smult_res <= -0x10000) || (smult_res >= 0x10000))
+            flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+        smult_res <<= 16;
+    } else {
+        player_channel->variable[dst_var++] = smult_res >> 16;
+        player_channel->variable[dst_var]   = smult_res;
+    }
+
+    if (!smult_res)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (smult_res < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(divu) {
+    uint16_t udiv_res, flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if ((instruction_data += player_channel->variable[src_var])) {
+        player_channel->variable[dst_var] = udiv_res = player_channel->variable[dst_var] / instruction_data;
+
+        if (!udiv_res)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+        if ((int16_t) udiv_res < 0)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    } else {
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    }
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(divs) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int16_t sdiv_res;
+
+    if ((instruction_data += player_channel->variable[src_var])) {
+        player_channel->variable[dst_var] = sdiv_res = (int16_t) player_channel->variable[dst_var] / (int16_t) instruction_data;
+
+        if (!sdiv_res)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+        if (sdiv_res < 0)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    } else {
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    }
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(modu) {
+    uint16_t umod_res, flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if ((instruction_data += player_channel->variable[src_var])) {
+        player_channel->variable[dst_var] = umod_res = player_channel->variable[dst_var] % instruction_data;
+
+        if (!umod_res)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+        if ((int16_t) umod_res < 0)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    } else {
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    }
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(mods) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int16_t smod_res;
+
+    if ((instruction_data += player_channel->variable[src_var])) {
+        player_channel->variable[dst_var] = smod_res = (int16_t) player_channel->variable[dst_var] % (int16_t) instruction_data;
+
+        if (!smod_res)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+        if (smod_res < 0)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    } else
+    {
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    }
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ddivu) {
+    uint32_t udiv_res;
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if ((instruction_data += player_channel->variable[src_var])) {
+        if (dst_var == 15) {
+            player_channel->variable[dst_var] = udiv_res = (player_channel->variable[dst_var] << 16) / instruction_data;
+
+            if (udiv_res < 0x10000) {
+                if (!udiv_res)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+                if ((int32_t) udiv_res < 0)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+            } else {
+                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+            }
+        } else {
+            uint32_t dividend = (player_channel->variable[dst_var++] << 16) + player_channel->variable[dst_var];
+
+            if ((udiv_res = (dividend / instruction_data)) < 0x10000) {
+                player_channel->variable[dst_var--] = udiv_res;
+                player_channel->variable[dst_var]   = dividend % instruction_data;
+
+                if (!udiv_res)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+                if ((int32_t) udiv_res < 0)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+            } else
+            {
+                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+            }
+        }
+    } else {
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    }
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ddivs) {
+    int32_t sdiv_res;
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if ((instruction_data += player_channel->variable[src_var])) {
+        if (dst_var == 15) {
+            player_channel->variable[dst_var] = sdiv_res = ((int16_t) player_channel->variable[dst_var] << 16) / (int16_t) instruction_data;
+
+            if ((sdiv_res < -0x10000) || (sdiv_res < 0x10000)) {
+                if (!sdiv_res)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+                if ((int32_t) sdiv_res < 0)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+            } else {
+                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+            }
+        } else {
+            int32_t dividend = ((int16_t) player_channel->variable[dst_var++] << 16) + (int16_t) player_channel->variable[dst_var];
+            sdiv_res         = dividend / instruction_data;
+
+            if ((sdiv_res < -0x10000) || (sdiv_res < 0x10000)) {
+                player_channel->variable[dst_var--] = sdiv_res;
+                player_channel->variable[dst_var]   = dividend % instruction_data;
+
+                if (!sdiv_res)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+                if ((int32_t) sdiv_res < 0)
+                    flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+            } else {
+                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+            }
+        }
+    } else {
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW|AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO|AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+    }
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ashl)
+{
+    uint16_t flags      = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND, high_bit;
+    int16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    high_bit = shift_value & 0x8000;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+
+        if (shift_value & 0x8000)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+        shift_value <<= 1;
+
+        if (high_bit != (shift_value & 0x8000))
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+    }
+
+    if (shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ashr) {
+    uint16_t flags      = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+
+        if (shift_value & 1)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+        shift_value >>= 1;
+    }
+
+    if (shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(lshl) {
+    uint16_t flags       = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+
+        if (shift_value & 0x8000)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+        shift_value <<= 1;
+    }
+
+    if ((int16_t) shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(lshr) {
+    uint16_t flags       = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+
+        if (shift_value & 1)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+        shift_value >>= 1;
+    }
+
+    if ((int16_t) shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(rol) {
+    uint16_t flags       = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY);
+
+        if (shift_value & 0x8000)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY;
+
+        shift_value <<= 1;
+
+        if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)
+            shift_value++;
+    }
+
+    if ((int16_t) shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ror) {
+    uint16_t flags       = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY);
+
+        if (shift_value & 1)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY;
+
+        shift_value >>= 1;
+
+        if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)
+            shift_value += 0x8000;
+    }
+
+    if ((int16_t) shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(rolx) {
+    uint16_t flags       = player_channel->cond_var[synth_type] & (AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+    uint16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY);
+
+        if (shift_value & 0x8000)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY;
+
+        shift_value <<= 1;
+
+        if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND)
+        {
+            if (!(flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY))
+                flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+
+            shift_value++;
+        } else
+        {
+            if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)
+                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+        }
+    }
+
+    if ((int16_t) shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(rorx) {
+    uint16_t flags       = player_channel->cond_var[synth_type] & (AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+    uint16_t shift_value = player_channel->variable[dst_var];
+
+    instruction_data += player_channel->variable[src_var];
+    instruction_data &= 0x3F;
+
+    while (instruction_data--) {
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY);
+
+        if (shift_value & 1)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY;
+
+        shift_value >>= 1;
+
+        if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
+            if (!(flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY))
+                flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
+
+            shift_value += 0x8000;
+        } else {
+            if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)
+                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+        }
+    }
+
+    if ((int16_t) shift_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!shift_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->variable[dst_var]             = shift_value;
+    player_channel->cond_var[synth_type]          = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(or) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t logic_value;
+
+    instruction_data += player_channel->variable[src_var];
+    logic_value       = (player_channel->variable[dst_var] |= instruction_data );
+
+    if ((int16_t) logic_value < 0)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!logic_value)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(and) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t logic_value;
+
+    instruction_data += player_channel->variable[src_var];
+    logic_value       = (player_channel->variable[dst_var] &= instruction_data );
+
+    if ((int16_t) logic_value < 0)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!logic_value)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(xor) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t logic_value;
+
+    instruction_data += player_channel->variable[src_var];
+    logic_value       = (player_channel->variable[dst_var] ^= instruction_data );
+
+    if ((int16_t) logic_value < 0)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    if (!logic_value)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(not) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t logic_value;
+
+    instruction_data                 += player_channel->variable[src_var];
+    logic_value                       = ~player_channel->variable[dst_var];
+    player_channel->variable[dst_var] = logic_value + instruction_data;
+
+    if (!logic_value)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if ((int16_t) logic_value < 0)
+        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(neg) {
+    uint16_t flags = 0;
+    int16_t sub_data;
+
+    instruction_data += player_channel->variable[src_var];
+
+    sub_data                          = -player_channel->variable[dst_var];
+    player_channel->variable[dst_var] = sub_data + instruction_data;
+
+    if (sub_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if (sub_data == -0x8000)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    if (!sub_data)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (sub_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(negx) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+    int16_t sub_data;
+
+    instruction_data += player_channel->variable[src_var];
+    sub_data          = -player_channel->variable[dst_var];
+
+    if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND)
+        sub_data--;
+
+    player_channel->variable[dst_var] = sub_data + instruction_data;
+
+    if ((sub_data == -0x8000) && (!(flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND)))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+
+    flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY);
+
+    if (sub_data || (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND))
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+
+    if (sub_data)
+        flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO);
+
+    if (sub_data < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(extb) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int16_t extend_value;
+
+    instruction_data += player_channel->variable[src_var];
+
+    extend_value                      = (int8_t) player_channel->variable[dst_var];
+    player_channel->variable[dst_var] = extend_value + instruction_data;
+
+    if (!extend_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (extend_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(ext) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    int32_t extend_value = 0;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if (dst_var != 15)
+        extend_value = (int16_t) player_channel->variable[dst_var + 1];
+
+    player_channel->variable[dst_var] = (extend_value >> 16) + instruction_data;
+
+    if (!extend_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if (extend_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(xchg) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint32_t exchange_value;
+
+    exchange_value                    = (player_channel->variable[dst_var] << 16) + player_channel->variable[src_var];
+    player_channel->variable[dst_var] = exchange_value + instruction_data;
+    player_channel->variable[src_var] = exchange_value >> 16;
+
+    if (!exchange_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if ((int32_t) exchange_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(swap) {
+    uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+    uint16_t swap_value;
+
+    instruction_data                 += player_channel->variable[src_var];
+    player_channel->variable[dst_var] = swap_value = (player_channel->variable[dst_var] << 8) + (player_channel->variable[dst_var] >> 8);
+
+    if (!swap_value)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+
+    if ((int16_t) swap_value < 0)
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+
+    player_channel->cond_var[synth_type] = flags;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getwave) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = player_channel->sample_waveform;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform == waveform_list[waveform_num]) {
+            instruction_data += waveform_num;
+
+            break;
+        }
+    }
+
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getwlen) {
+    uint16_t sample_length = -1;
+
+    if (player_channel->channel_data.len < 0x10000)
+        sample_length = player_channel->channel_data.len;
+
+    instruction_data                 += player_channel->variable[src_var] + sample_length;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getwpos) {
+    uint16_t sample_pos = -1;
+
+    if (player_channel->channel_data.pos < 0x10000)
+        sample_pos = player_channel->channel_data.pos;
+
+    instruction_data                 += player_channel->variable[src_var] + sample_pos;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getchan) {
+    instruction_data                 += player_channel->variable[src_var] + player_channel->host_channel;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getnote) {
+    uint16_t note = player_channel->sample_note;
+
+    instruction_data                 += player_channel->variable[src_var] + --note;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getrans) {
+    uint16_t note = player_channel->sample_note;
+
+    instruction_data                 += player_channel->variable[src_var] + player_channel->final_note - --note;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getptch) {
+    uint32_t frequency = player_channel->frequency;
+
+    instruction_data += player_channel->variable[src_var];
+    frequency        += instruction_data;
+
+    if (dst_var != 15)
+        player_channel->variable[dst_var++] = frequency >> 16;
+
+    player_channel->variable[dst_var] = frequency;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getper) {
+    uint32_t frequency = player_channel->frequency, period = 0;
+
+    if (frequency)
+        period = AVSEQ_SLIDE_CONST / frequency;
+
+    instruction_data += player_channel->variable[src_var];
+    period           += instruction_data;
+
+    if (dst_var != 15)
+        player_channel->variable[dst_var++] = period >> 16;
+
+    player_channel->variable[dst_var] = period;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getfx) {
+
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getarpw) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = player_channel->arpeggio_waveform;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform == waveform_list[waveform_num]) {
+            instruction_data += waveform_num;
+
+            break;
+        }
+    }
+
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getarpv) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->arpeggio_waveform)) {
+        uint32_t waveform_pos = instruction_data % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            player_channel->variable[dst_var] = waveform->data[waveform_pos];
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getarpl) {
+    AVSequencerSynthWave *waveform;
+
+    if ((waveform = player_channel->arpeggio_waveform)) {
+        uint16_t waveform_length = -1;
+
+        if (waveform->samples < 0x10000)
+            waveform_length = waveform->samples;
+
+        instruction_data                 += player_channel->variable[src_var] + waveform_length;
+        player_channel->variable[dst_var] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getarpp) {
+    instruction_data                 += player_channel->variable[src_var] + player_channel->arpeggio_pos;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getvibw) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = player_channel->vibrato_waveform;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform == waveform_list[waveform_num]) {
+            instruction_data += waveform_num;
+
+            break;
+        }
+    }
+
+    instruction_data += player_channel->variable[src_var];
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getvibv) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->vibrato_waveform)) {
+        uint32_t waveform_pos = instruction_data % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            player_channel->variable[dst_var] = waveform->data[waveform_pos];
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getvibl) {
+    AVSequencerSynthWave *waveform;
+
+    if ((waveform = player_channel->vibrato_waveform)) {
+        uint16_t waveform_length = -1;
+
+        if (waveform->samples < 0x10000)
+            waveform_length = waveform->samples;
+
+        instruction_data                 += player_channel->variable[src_var] + waveform_length;
+        player_channel->variable[dst_var] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getvibp) {
+    instruction_data                 += player_channel->variable[src_var] + player_channel->vibrato_pos;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(gettrmw) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = player_channel->tremolo_waveform;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform == waveform_list[waveform_num]) {
+            instruction_data += waveform_num;
+
+            break;
+        }
+    }
+
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(gettrmv) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->tremolo_waveform)) {
+        uint32_t waveform_pos = instruction_data % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            player_channel->variable[dst_var] = waveform->data[waveform_pos];
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(gettrml) {
+    AVSequencerSynthWave *waveform;
+
+    if ((waveform = player_channel->tremolo_waveform)) {
+        uint16_t waveform_length = -1;
+
+        if (waveform->samples < 0x10000)
+            waveform_length = waveform->samples;
+
+        instruction_data                 += player_channel->variable[src_var] + waveform_length;
+        player_channel->variable[dst_var] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(gettrmp) {
+    instruction_data                 += player_channel->variable[src_var] + player_channel->tremolo_pos;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getpanw) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = player_channel->pannolo_waveform;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform == waveform_list[waveform_num]) {
+            instruction_data += waveform_num;
+
+            break;
+        }
+    }
+
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getpanv) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->pannolo_waveform)) {
+        uint32_t waveform_pos = instruction_data % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            player_channel->variable[dst_var] = waveform->data[waveform_pos];
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getpanl) {
+    AVSequencerSynthWave *waveform;
+
+    if ((waveform = player_channel->pannolo_waveform)) {
+        uint16_t waveform_length = -1;
+
+        if (waveform->samples < 0x10000)
+            waveform_length = waveform->samples;
+
+        instruction_data                 += player_channel->variable[src_var] + waveform_length;
+        player_channel->variable[dst_var] = instruction_data;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getpanp) {
+    instruction_data                 += player_channel->variable[src_var] + player_channel->pannolo_pos;
+    player_channel->variable[dst_var] = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getrnd) {
+    uint32_t seed;
+
+    instruction_data                 += player_channel->variable[src_var];
+    avctx->seed                       = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
+    player_channel->variable[dst_var] = ((uint64_t) seed * instruction_data) >> 32;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(getsine) {
+    int16_t degrees;
+
+    instruction_data += player_channel->variable[src_var];
+    degrees           = (int16_t) instruction_data % 360;
+
+    if (degrees < 0)
+        degrees += 360;
+
+    player_channel->variable[dst_var] = (avctx->sine_lut ? avctx->sine_lut[degrees] : sine_lut[degrees]);
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(portaup) {
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+
+    if (!(instruction_data += player_channel->variable[src_var]))
+        instruction_data = player_channel->porta_up;
+
+    player_channel->porta_up    = instruction_data;
+    player_channel->portamento += instruction_data;
+
+    if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+        linear_slide_up ( avctx, player_channel, player_channel->frequency, instruction_data );
+    else
+        amiga_slide_up ( player_channel, player_channel->frequency, instruction_data );
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(portadn) {
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+
+    if (!(instruction_data += player_channel->variable[src_var]))
+        instruction_data = player_channel->porta_dn;
+
+    player_channel->porta_dn    = instruction_data;
+    player_channel->portamento -= instruction_data;
+
+    if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+        linear_slide_down ( avctx, player_channel, player_channel->frequency, instruction_data );
+    else
+        amiga_slide_down ( player_channel, player_channel->frequency, instruction_data );
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(vibspd) {
+    instruction_data               += player_channel->variable[src_var];
+    player_channel->vibrato_rate = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(vibdpth) {
+    instruction_data                += player_channel->variable[src_var];
+    player_channel->vibrato_depth    = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(vibwave) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+    player_channel->vibrato_waveform     = NULL;
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform_num == instruction_data) {
+            player_channel->vibrato_waveform = waveform_list[waveform_num];
+
+            break;
+        }
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(vibwavp) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->vibrato_waveform))
+        player_channel->vibrato_pos = instruction_data % waveform->samples;
+    else
+        player_channel->vibrato_pos = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(vibrato) {
+    AVSequencerSynthWave *waveform;
+    uint16_t vibrato_rate;
+    int16_t vibrato_depth;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if (!(vibrato_rate = (instruction_data >> 8)))
+        vibrato_rate = player_channel->vibrato_rate;
+
+    player_channel->vibrato_rate = vibrato_rate;
+    vibrato_depth                = (instruction_data & 0xFF) << 2;
+
+    if (!vibrato_depth)
+        vibrato_depth = player_channel->vibrato_depth;
+
+    player_channel->vibrato_depth = vibrato_depth;
+
+    if ((waveform = player_channel->vibrato_waveform)) {
+        uint32_t waveform_pos;
+        int32_t vibrato_slide_value;
+
+        waveform_pos = player_channel->vibrato_pos % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            vibrato_slide_value = ((int8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            vibrato_slide_value = waveform->data[waveform_pos];
+
+        vibrato_slide_value        *= -vibrato_depth;
+        vibrato_slide_value       >>= (7 - 2);
+        player_channel->vibrato_pos = (waveform_pos + vibrato_rate) % waveform->samples;
+
+        se_vibrato_do ( avctx, player_channel, vibrato_slide_value );
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(vibval) {
+    int32_t vibrato_slide_value;
+
+    instruction_data   += player_channel->variable[src_var];
+    vibrato_slide_value = (int16_t) instruction_data;
+
+    se_vibrato_do ( avctx, player_channel, vibrato_slide_value );
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(arpspd) {
+    instruction_data                 += player_channel->variable[src_var];
+    player_channel->arpeggio_speed    = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(arpwave) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+    player_channel->arpeggio_waveform    = NULL;
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform_num == instruction_data) {
+            player_channel->arpeggio_waveform = waveform_list[waveform_num];
+
+            break;
+        }
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(arpwavp) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->arpeggio_waveform))
+        player_channel->arpeggio_pos = instruction_data % waveform->samples;
+    else
+        player_channel->arpeggio_pos = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(arpegio) {
+    AVSequencerSynthWave *waveform;
+    uint16_t arpeggio_speed;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if (!(arpeggio_speed = ( instruction_data >> 8)))
+        arpeggio_speed = player_channel->arpeggio_speed;
+
+    player_channel->arpeggio_speed = arpeggio_speed;
+
+    if ((waveform = player_channel->arpeggio_waveform)) {
+        uint32_t waveform_pos;
+        int8_t arpeggio_transpose;
+        uint8_t arpeggio_finetune;
+
+        waveform_pos = player_channel->arpeggio_pos % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            arpeggio_transpose = ((int8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            arpeggio_transpose = waveform->data[waveform_pos];
+
+        player_channel->arpeggio_finetune  = arpeggio_finetune = arpeggio_transpose;
+        player_channel->arpeggio_transpose = (arpeggio_transpose >>= 8);
+        player_channel->arpeggio_pos       = (waveform_pos + arpeggio_speed) % waveform->samples;
+
+        se_arpegio_do ( avctx, player_channel, arpeggio_transpose, arpeggio_finetune );
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(arpval) {
+    int8_t arpeggio_transpose;
+    uint8_t arpeggio_finetune;
+
+    instruction_data += player_channel->variable[src_var];
+
+    player_channel->arpeggio_finetune  = arpeggio_finetune  = instruction_data;
+    player_channel->arpeggio_transpose = arpeggio_transpose = (arpeggio_transpose >>= 8);
+
+    se_arpegio_do ( avctx, player_channel, arpeggio_transpose, arpeggio_finetune );
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(setwave) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = NULL;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform_num == instruction_data) {
+            player_channel->vibrato_waveform = waveform_list[waveform_num];
+
+            break;
+        }
+    }
+
+    if (waveform) {
+        AVSequencerMixerData *mixer;
+        uint8_t flags;
+
+        player_channel->sample_waveform             = waveform;
+        player_channel->channel_data.pos            = 0;
+        player_channel->channel_data.len            = waveform->samples;
+        player_channel->channel_data.data           = waveform->data;
+        player_channel->channel_data.repeat_start   = waveform->repeat;
+        player_channel->channel_data.repeat_length  = waveform->repeat_len;
+        player_channel->channel_data.repeat_count   = 0;
+        player_channel->channel_data.repeat_counted = 0;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            player_channel->channel_data.bits_per_sample = 8;
+        else
+            player_channel->channel_data.bits_per_sample = 16;
+
+        flags = player_channel->channel_data.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
+
+        if ((!(waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP)) && (waveform->repeat_len))
+            flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+
+        flags                             |= AVSEQ_MIXER_CHANNEL_FLAG_SYNTH;
+        player_channel->channel_data.flags = flags;
+        mixer                              = avctx->player_mixer_data;
+
+        mixer_set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), virtual_channel, mixer->mixctx );
+        mixer_get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), virtual_channel, mixer->mixctx );
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    AVSequencerSynthWave *waveform       = NULL;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform_num == instruction_data) {
+            player_channel->vibrato_waveform = waveform_list[waveform_num];
+
+            break;
+        }
+    }
+
+    if (waveform) {
+        AVSequencerMixerData *mixer;
+        uint8_t flags;
+
+        player_channel->sample_waveform             = waveform;
+        player_channel->channel_data.pos            = 0;
+        player_channel->channel_data.len            = waveform->samples;
+        player_channel->channel_data.data           = waveform->data;
+        player_channel->channel_data.repeat_start   = waveform->repeat;
+        player_channel->channel_data.repeat_length  = waveform->repeat_len;
+        player_channel->channel_data.repeat_count   = 0;
+        player_channel->channel_data.repeat_counted = 0;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            player_channel->channel_data.bits_per_sample = 8;
+        else
+            player_channel->channel_data.bits_per_sample = 16;
+
+        flags = player_channel->channel_data.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
+
+        if ((!(waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP)) && waveform->repeat_len)
+            flags += AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+
+        player_channel->channel_data.flags = flags;
+        mixer                              = avctx->player_mixer_data;
+
+        mixer_set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), virtual_channel, mixer->mixctx );
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(setwavp) {
+    instruction_data += player_channel->variable[src_var];
+
+    player_channel->channel_data.pos = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(setrans) {
+    uint32_t *frequency_lut;
+    uint32_t frequency, next_frequency;
+    uint16_t octave;
+    int16_t note;
+    int8_t finetune;
+
+    player_channel->final_note = (instruction_data += player_channel->variable[src_var] + player_channel->sample_note);
+
+    octave = (int16_t) instruction_data / AVSEQ_TRACK_DATA_NOTE_MAX;
+    note   = (int16_t) instruction_data % AVSEQ_TRACK_DATA_NOTE_MAX;
+
+    if (note < 0) {
+        octave--;
+
+        note += AVSEQ_TRACK_DATA_NOTE_MAX;
+    }
+
+    if ((finetune = player_channel->finetune) < 0) {
+        finetune += -0x80;
+
+        note--;
+    }
+
+    frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+    frequency      = *frequency_lut++;
+    next_frequency = *frequency_lut - frequency;
+    frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 7;
+
+    if ((int16_t) (octave -= 4) < 0) {
+        octave = -octave;
+
+        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> (16 + octave);
+    } else {
+        frequency <<= octave;
+
+        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> 16;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(setnote) {
+    uint32_t *frequency_lut;
+    uint32_t frequency, next_frequency;
+    uint16_t octave;
+    int16_t note;
+    int8_t finetune;
+
+    instruction_data += player_channel->variable[src_var];
+    octave            = (int16_t) instruction_data / AVSEQ_TRACK_DATA_NOTE_MAX;
+    note              = (int16_t) instruction_data % AVSEQ_TRACK_DATA_NOTE_MAX;
+
+    if (note < 0) {
+        octave--;
+
+        note += AVSEQ_TRACK_DATA_NOTE_MAX;
+    }
+
+    if ((finetune = player_channel->finetune) < 0) {
+        finetune += -0x80;
+
+        note--;
+    }
+
+    frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+    frequency      = *frequency_lut++;
+    next_frequency = *frequency_lut - frequency;
+    frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 7;
+
+    if ((int16_t) (octave -= 4) < 0) {
+        octave = -octave;
+
+        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> (16 + octave);
+    } else {
+        frequency <<= octave;
+
+        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> 16;
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(setptch) {
+    uint32_t frequency;
+
+    frequency = instruction_data + player_channel->variable[src_var];
+
+    if (dst_var == 15)
+        frequency += player_channel->variable[dst_var];
+    else
+        frequency += (player_channel->variable[dst_var++] << 16) + player_channel->variable[dst_var];
+
+    player_channel->frequency = frequency;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(setper) {
+    uint32_t period;
+
+    period = instruction_data + player_channel->variable[src_var];
+
+    if (dst_var == 15)
+        period += player_channel->variable[dst_var];
+    else
+        period += (player_channel->variable[dst_var++] << 16) + player_channel->variable[dst_var];
+
+    if (period)
+        player_channel->frequency = AVSEQ_SLIDE_CONST / period;
+    else
+        player_channel->frequency = 0;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(reset) {
+    instruction_data += player_channel->variable[src_var];
+
+    if (!(instruction_data & 0x01))
+        player_channel->arpeggio_slide = 0;
+
+    if (!(instruction_data & 0x02))
+        player_channel->vibrato_slide  = 0;
+
+    if (!(instruction_data & 0x04))
+        player_channel->tremolo_slide  = 0;
+
+    if (!(instruction_data & 0x08))
+        player_channel->pannolo_slide  = 0;
+
+    if (!(instruction_data & 0x10)) {
+        AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+        int32_t portamento_value                          = player_channel->portamento;
+
+        if (portamento_value < 0) {
+            portamento_value = -portamento_value;
+
+            if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ) {
+                linear_slide_down ( avctx, player_channel, player_channel->frequency, portamento_value );
+            else
+                amiga_slide_down ( player_channel, player_channel->frequency, portamento_value );
+        } else if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ) {
+            linear_slide_up ( avctx, player_channel, player_channel->frequency, portamento_value );
+        } else {
+            amiga_slide_up ( player_channel, player_channel->frequency, portamento_value );
+        }
+    }
+
+    if (!(instruction_data & 0x20))
+        player_channel->portamento = 0;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(volslup) {
+    uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_vol;
+
+    if (!(instruction_data += player_channel->variable[src_var]))
+        instruction_data = player_channel->vol_sl_up;
+
+    player_channel->vol_sl_up = instruction_data;
+
+    if ((slide_volume += instruction_data) < instruction_data)
+        slide_volume = 0xFFFF;
+
+    player_channel->volume  = slide_volume >> 8;
+    player_channel->sub_vol = slide_volume;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(volsldn) {
+    uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_vol;
+
+    if (!(instruction_data += player_channel->variable[src_var]))
+        instruction_data = player_channel->vol_sl_dn;
+
+    player_channel->vol_sl_dn = instruction_data;
+
+    if (slide_volume < instruction_data)
+        instruction_data = slide_volume;
+
+    slide_volume           -= instruction_data;
+    player_channel->volume  = slide_volume >> 8;
+    player_channel->sub_vol = slide_volume;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(trmspd) {
+    instruction_data            += player_channel->variable[src_var];
+    player_channel->tremolo_rate = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(trmdpth) {
+    instruction_data            += player_channel->variable[src_var];
+    player_channel->tremolo_rate = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(trmwave) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+    player_channel->tremolo_waveform     = NULL;
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform_num == instruction_data) {
+            player_channel->tremolo_waveform = waveform_list[waveform_num];
+
+            break;
+        }
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(trmwavp) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->tremolo_waveform))
+        player_channel->tremolo_pos = instruction_data % waveform->samples;
+    else
+        player_channel->tremolo_pos = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(tremolo) {
+    AVSequencerSynthWave *waveform;
+    uint16_t tremolo_rate;
+    int16_t tremolo_depth;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if (!(tremolo_rate = ( instruction_data >> 8)))
+        tremolo_rate = player_channel->tremolo_rate;
+
+    player_channel->tremolo_rate = tremolo_rate;
+
+    tremolo_depth = (instruction_data & 0xFF) << 2;
+
+    if (!tremolo_depth)
+        tremolo_depth = player_channel->tremolo_depth;
+
+    player_channel->tremolo_depth = tremolo_depth;
+
+    if ((waveform = player_channel->vibrato_waveform)) {
+        uint32_t waveform_pos;
+        int32_t tremolo_slide_value;
+
+        waveform_pos = player_channel->tremolo_pos % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            tremolo_slide_value = ((int8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            tremolo_slide_value = waveform->data[waveform_pos];
+
+        tremolo_slide_value        *= -tremolo_depth;
+        tremolo_slide_value       >>= 7 - 2;
+        player_channel->tremolo_pos = (waveform_pos + tremolo_rate) % waveform->samples;
+
+        se_tremolo_do ( avctx, player_channel, tremolo_slide_value );
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(trmval) {
+    int32_t tremolo_slide_value;
+
+    instruction_data   += player_channel->variable[src_var];
+    tremolo_slide_value = (int16_t) instruction_data;
+
+    se_tremolo_do ( avctx, player_channel, tremolo_slide_value );
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(panleft) {
+    uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+
+    if (!(instruction_data += player_channel->variable[src_var]))
+        instruction_data = player_channel->pan_sl_left;
+
+    player_channel->pan_sl_left = instruction_data;
+
+    if (panning < instruction_data)
+        instruction_data = panning;
+
+    panning -= instruction_data;
+
+    player_channel->panning = panning >> 8;
+    player_channel->sub_pan = panning;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(panrght) {
+    uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+
+    if (!(instruction_data += player_channel->variable[src_var]))
+        instruction_data = player_channel->pan_sl_right;
+
+    player_channel->pan_sl_right = instruction_data;
+
+    if ((panning += instruction_data) < instruction_data)
+        panning = 0xFFFF;
+
+    player_channel->panning = panning >> 8;
+    player_channel->sub_pan = panning;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(panspd) {
+    instruction_data            += player_channel->variable[src_var];
+    player_channel->pannolo_rate = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(pandpth) {
+    instruction_data             += player_channel->variable[src_var];
+    player_channel->pannolo_depth = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(panwave) {
+    AVSequencerSynthWave **waveform_list = player_channel->waveform_list;
+    uint32_t waveform_num                = -1;
+
+    instruction_data                    += player_channel->variable[src_var];
+    player_channel->pannolo_waveform     = NULL;
+
+    while ((++waveform_num < waveform_list->waveforms) && waveform_list[waveform_num) {
+        if (waveform_num == instruction_data) {
+            player_channel->pannolo_waveform = waveform_list[waveform_num];
+
+            break;
+        }
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(panwavp) {
+    AVSequencerSynthWave *waveform;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if ((waveform = player_channel->pannolo_waveform))
+        player_channel->pannolo_pos = instruction_data % waveform->samples;
+    else
+        player_channel->pannolo_pos = instruction_data;
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(pannolo) {
+    AVSequencerSynthWave *waveform;
+    uint16_t pannolo_rate;
+    int16_t pannolo_depth;
+
+    instruction_data += player_channel->variable[src_var];
+
+    if (!(pannolo_rate = ( instruction_data >> 8)))
+        pannolo_rate = player_channel->pannolo_rate;
+
+    player_channel->pannolo_rate = pannolo_rate;
+    pannolo_depth                = (instruction_data & 0xFF) << 2;
+
+    if (!pannolo_depth)
+        pannolo_depth = player_channel->pannolo_depth;
+
+    player_channel->pannolo_depth = pannolo_depth;
+
+    if ((waveform = player_channel->vibrato_waveform)) {
+        uint32_t waveform_pos;
+        int32_t pannolo_slide_value;
+
+        waveform_pos = player_channel->pannolo_pos % waveform->samples;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+            pannolo_slide_value = ((int8_t *) waveform->data)[waveform_pos] << 8;
+        else
+            pannolo_slide_value = waveform->data[waveform_pos];
+
+        pannolo_slide_value        *= -pannolo_depth;
+        pannolo_slide_value       >>= 7 - 2;
+        player_channel->pannolo_pos = (waveform_pos + pannolo_rate) % waveform->samples;
+
+        se_pannolo_do ( avctx, player_channel, pannolo_slide_value );
+    }
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(panval) {
+    int32_t pannolo_slide_value;
+
+    instruction_data   += player_channel->variable[src_var];
+    pannolo_slide_value = (int16_t) instruction_data;
+
+    se_pannolo_do ( avctx, player_channel, pannolo_slide_value );
+
+    return synth_code_line;
+}
+
+EXECUTE_SYNTH_CODE_INSTRUCTION(nop) {
+    return synth_code_line;
+}
