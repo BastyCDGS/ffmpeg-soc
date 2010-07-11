@@ -1189,11 +1189,10 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
             uint32_t frequency        = *(uint32_t *) &(player_host_channel->instrument), i;
             uint16_t virtual_channel;
 
-            player_host_channel->flags   &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE;
-            player_host_channel->dct      = 0;
-            player_host_channel->nna      = AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CUT;
-            player_host_channel->finetune = sample->finetune;
-
+            player_host_channel->flags             &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE;
+            player_host_channel->dct                = 0;
+            player_host_channel->nna                = AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CUT;
+            player_host_channel->finetune           = sample->finetune;
             player_host_channel->prev_auto_vib_env  = player_channel->auto_vib_env.envelope;
             player_host_channel->prev_auto_trem_env = player_channel->auto_trem_env.envelope;
             player_host_channel->prev_auto_pan_env  = player_channel->auto_pan_env.envelope;
@@ -5503,7 +5502,7 @@ EXECUTE_EFFECT(extended_ctrl) {
 EXECUTE_EFFECT(invert_loop) {
 }
 
-EXECUTE_EFFECT(exec_fX) {
+EXECUTE_EFFECT(exec_fx) {
 }
 
 EXECUTE_EFFECT(stop_fx) {
@@ -5601,8 +5600,7 @@ EXECUTE_EFFECT(volume_slide_to) {
     player_host_channel->volume_slide_to        = volume_slide_to_value;
     player_host_channel->volume_slide_to_slide &= 0x00FF;
     player_host_channel->volume_slide_to_slide += volume_slide_to_value << 8;
-
-    volume_slide_to_volume = data_word >> 8;
+    volume_slide_to_volume                      = data_word >> 8;
 
     if (volume_slide_to_volume && (volume_slide_to_volume < 0xFF)) {
         player_host_channel->volume_slide_to_volume = volume_slide_to_volume;
@@ -6293,33 +6291,33 @@ EXECUTE_EFFECT(track_panning_slide_to) {
 }
 
 EXECUTE_EFFECT(track_pannolo) {
-    int32_t track_panńolo_slide_value;
-    uint8_t track_panńolo_rate;
-    int16_t track_panńolo_depth;
+    int32_t track_pannolo_slide_value;
+    uint8_t track_pannolo_rate;
+    int16_t track_pannolo_depth;
     uint16_t track_panning;
 
-    if (!(track_panńolo_rate = (data_word >> 8)))
-        track_panńolo_rate = player_host_channel->track_pan_rate;
+    if (!(track_pannolo_rate = (data_word >> 8)))
+        track_pannolo_rate = player_host_channel->track_pan_rate;
 
-    player_host_channel->track_pan_rate = track_panńolo_rate;
+    player_host_channel->track_pan_rate = track_pannolo_rate;
 
-    if (!(track_panńolo_depth = data_word))
-        track_panńolo_depth = player_host_channel->track_pan_depth;
+    if (!(track_pannolo_depth = data_word))
+        track_pannolo_depth = player_host_channel->track_pan_depth;
 
-    player_host_channel->track_pan_depth = track_panńolo_depth;
-    track_panńolo_slide_value            = (-track_panńolo_depth * run_envelope ( avctx, (AVSequencerPlayerEnvelope *) &(player_host_channel->track_pan_env), track_panńolo_rate, 0 )) >> 7;
+    player_host_channel->track_pan_depth = track_pannolo_depth;
+    track_pannolo_slide_value            = (-track_pannolo_depth * run_envelope ( avctx, (AVSequencerPlayerEnvelope *) &(player_host_channel->track_pan_env), track_pannolo_rate, 0 )) >> 7;
 
     track_panning              = player_host_channel->track_panning;
-    track_panńolo_slide_value -= player_host_channel->track_pan_slide;
+    track_pannolo_slide_value -= player_host_channel->track_pan_slide;
 
-    if ((track_panńolo_slide_value += track_panning) < 0)
-        track_panńolo_slide_value = 0;
+    if ((track_pannolo_slide_value += track_panning) < 0)
+        track_pannolo_slide_value = 0;
 
-    if (track_panńolo_slide_value > 255)
-        track_panńolo_slide_value = 255;
+    if (track_pannolo_slide_value > 255)
+        track_pannolo_slide_value = 255;
 
-    player_host_channel->track_panning    = track_panńolo_slide_value;
-    player_host_channel->track_pan_slide -= track_panńolo_slide_value - track_panning;
+    player_host_channel->track_panning    = track_pannolo_slide_value;
+    player_host_channel->track_pan_slide -= track_pannolo_slide_value - track_panning;
 }
 
 EXECUTE_EFFECT(set_tempo) {
@@ -7021,7 +7019,7 @@ EXECUTE_EFFECT(set_global_volume) {
     AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
 
     if (check_old_track_volume ( avctx, &data_word )) {
-        player_globals->global_volume = data_word >> 8;
+        player_globals->global_volume     = data_word >> 8;
         player_globals->global_sub_volume = data_word;
     }
 }
@@ -8103,10 +8101,10 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(dmulu) {
     }
 
     if (!umult_res)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
     if ((int32_t) umult_res < 0)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
 
     player_channel->cond_var[synth_type] = flags;
 
@@ -8124,7 +8122,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(dmuls) {
         player_channel->variable[dst_var] = smult_res;
 
         if ((smult_res <= -0x10000) || (smult_res >= 0x10000))
-            flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
 
         smult_res <<= 16;
     } else {
@@ -8578,10 +8576,10 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(or) {
     logic_value       = (player_channel->variable[dst_var] |= instruction_data );
 
     if ((int16_t) logic_value < 0)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
 
     if (!logic_value)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
     player_channel->cond_var[synth_type] = flags;
 
@@ -8596,10 +8594,10 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(and) {
     logic_value       = (player_channel->variable[dst_var] &= instruction_data );
 
     if ((int16_t) logic_value < 0)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
 
     if (!logic_value)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
     player_channel->cond_var[synth_type] = flags;
 
@@ -8614,10 +8612,10 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(xor) {
     logic_value       = (player_channel->variable[dst_var] ^= instruction_data );
 
     if ((int16_t) logic_value < 0)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
 
     if (!logic_value)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
     player_channel->cond_var[synth_type] = flags;
 
@@ -8633,10 +8631,10 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(not) {
     player_channel->variable[dst_var] = logic_value + instruction_data;
 
     if (!logic_value)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
     if ((int16_t) logic_value < 0)
-        flags += AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
+        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
 
     player_channel->cond_var[synth_type] = flags;
 
@@ -9448,7 +9446,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav) {
         flags = player_channel->channel_data.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
 
         if ((!(waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP)) && waveform->repeat_len)
-            flags += AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+            flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
 
         player_channel->channel_data.flags = flags;
         mixer                              = avctx->player_mixer_data;
