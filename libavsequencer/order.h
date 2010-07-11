@@ -23,7 +23,6 @@
 #define AVSEQUENCER_ORDER_H
 
 #include "libavsequencer/track.h"
-#include "libavutil/tree.h"
 
 /**
  * Song order list structure, This structure is actually for one channel
@@ -34,9 +33,12 @@
  * version bump.
  */
 typedef struct AVSequencerOrderList {
-    /** Integer indexed tree root of order list data used by this
-       channel with AVTreeNode->elem being an AVSequencerOrderData.  */
-    AVTreeNode *order_data;
+    /** Array of pointers containing all order list data used by this
+      channel.  */
+    AVSequencerOrderData **order_data;
+
+    /** Number of order list data used for this channel.  */
+    uint16_t orders;
 
     /** Number of order list data entries to use for this channel.  */
     uint16_t length;
@@ -82,13 +84,13 @@ typedef struct AVSequencerOrderList {
        each order list which needs this, this will define new
        flags which tag the player to handle it to that special
        way.  */
-    int8_t compat_flags;
+    uint8_t compat_flags;
 
     /** Order list playback flags. Some sequencers feature
        surround panning or allow initial muting. which has to
        be taken care specially in the internal playback engine.
        Also sequencers differ in how they handle slides.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_ORDER_LIST_FLAG_CHANNEL_SURROUND  0x01 ///< Initial channel surround instead of stereo panning
 #define AVSEQ_ORDER_LIST_FLAG_TRACK_SURROUND    0x02 ///< Initial track surround instead of stereo panning
 #define AVSEQ_ORDER_LIST_FLAG_MUTED             0x04 ///< Initial muted channel
@@ -138,7 +140,7 @@ typedef struct AVSequencerOrderData {
        playback), mark synchronization points or temporary
        change volume), which has to be taken care specially
        in the internal playback engine.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_ORDER_DATA_FLAG_END_ORDER     0x01 ///< Order data indicates end of order
 #define AVSEQ_ORDER_DATA_FLAG_END_SONG      0x02 ///< Order data indicates end of whole song
 #define AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE   0x04 ///< Order data will be skipped if you're playing in one-time mode
@@ -169,10 +171,6 @@ typedef struct AVSequencerOrderData {
        divided by 256, but the sub-volume doesn't account
        into actual mixer output (this overrides AVSequencerTrack).  */
     uint8_t sub_volume;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
 } AVSequencerOrderData;
 
 #endif /* AVSEQUENCER_ORDER_H */

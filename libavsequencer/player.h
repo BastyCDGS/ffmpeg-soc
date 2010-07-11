@@ -27,7 +27,46 @@
 #include "libavsequencer/instr.h"
 #include "libavsequencer/sample.h"
 #include "libavsequencer/synth.h"
-#include "libavutil/tree.h"
+
+typedef struct AVSequencerPlayerEffects {
+    /** Function pointer to the actual effect to be executed for this
+       effect. Can be NULL if this effect number is unused. This
+       structure is actually for one effect and there actually
+       pointed as an array with size of number of total effects.  */
+    void (*effect_func)( AVSequencerContext *avctx,
+        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
+        uint16_t channel, uint16_t fx_byte, uint16_t data_word );
+
+    /** Function pointer for pre-pattern evaluation. Some effects
+       require a pre-initialization stage. Can be NULL if the effect
+       number either is not used or the effect does not require a
+       pre-initialization stage.  */
+    void (*pre_pattern_func)( AVSequencerContext *avctx,
+        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
+        uint16_t channel, uint16_t data_word );
+
+    /** Function pointer for parameter checking for an effect. Can
+       be NULL if the effect number either is not used or the effect
+       does not require pre-checking.  */
+    void (*check_fx_func)( AVSequencerContext *avctx,
+        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
+        uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
+
+    /** Special flags for this effect, this currently defines if the
+       effect is executed during the whole row each tick or just only
+       once per row.  */
+    uint8_t flags;
+#define AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW    0x80 // Effect will be executed during the whole row instead of only once
+
+    /** Logical AND filter mask for the channel control command
+       filtering the affected channel.  */
+    uint8_t and_mask_ctrl;
+
+    /** Standard execution tick when this effect starts to be executed
+       and there is no execute effect command issued which is in most
+       case tick 0 (immediately) or 1 (skip first tick at row).  */
+    uint16_t std_exec_tick;
+} AVSequencerPlayerEffects;
 
 /**
  * Playback handler hook for allowing developers to execute customized
@@ -167,6 +206,15 @@ typedef struct AVSequencerPlayerEnvelope {
  * version bump.
  */
 typedef struct AVSequencerPlayerGlobals {
+    /** Stack pointer for the GoSub command. This stores the
+       return values of the order data and track row for
+       recursive calls.  */
+    uint16_t *gosub_stack;
+
+    /** Stack pointer for the pattern loop command. This stores
+        the loop start and loop count for recursive loops.  */
+    uint16_t *loop_stack;
+
     /** Player envelope flags. Some sequencers allow envelopes
        to operate in different modes, e.g. different loop types,
        randomization, processing modes which have to be taken
@@ -205,13 +253,23 @@ typedef struct AVSequencerPlayerGlobals {
 
     /** Current playing time of the module, in AV_TIME_BASE
        fractional seconds scaled by relative speed.  */
-    uint64_t play_time;
+    uint32_t play_time;
+
+    /** Current playing time fraction of the module, in AV_TIME_BASE
+       fractional seconds scaled by relative speed.  */
+    uint32_t play_time_frac;
 
     /** Current playing ticks of the module, in AV_TIME_BASE
        fractional seconds not scaled by relative speed, i.e.
        you can always determine the exact module position by
        using playing ticks instead of playing time.  */
-    uint64_t play_tics;
+    uint32_t play_tics;
+
+    /** Current playing ticks fraction of the module, in AV_TIME_BASE
+       fractional seconds not scaled by relative speed, i.e.
+       you can always determine the exact module position by
+       using playing ticks instead of playing time.  */
+    uint32_t play_tics_frac;
 
     /** Current final tempo (after done all BpM / SPD calculations)
        in AV_TIME_BASE fractional seconds.  */
@@ -441,7 +499,9 @@ typedef struct AVSequencerPlayerGlobals {
  * Player host channel data structure used by playback engine for
  * processing the host channels which are the channels associated
  * to tracks and the note data is encountered upon. This contains
- * effect memories and all data required for track playback.
+ * effect memories and all data required for track playback. This
+ * structure is actually for one host channel and therefore actually
+ * pointed as an array with size of number of host channels.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
  * version bump.
@@ -488,7 +548,7 @@ typedef struct AVSequencerPlayerHostChannel {
        can play a simple instrument or sample only or even play a
        single note on a single row if both set instrument and set
        sample bits are set (0x00300000).  */
-    int32_t flags;
+    uint32_t flags;
 #define AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ      0x00000001 ///< Use linear frequency table instead of Amiga
 #define AVSEQ_PLAYER_HOST_CHANNEL_FLAG_BACKWARDS        0x00000002 ///< Playing back track in backwards direction
 #define AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_BREAK    0x00000004 ///< Pattern break encountered
@@ -517,7 +577,7 @@ typedef struct AVSequencerPlayerHostChannel {
        about the slide commands, i.e. which direction and invoke state
        to be handled for the playback engine, i.e. execution of the
        actual slides while remaining expected behaviour.  */
-    int32_t fine_slide_flags;
+    uint32_t fine_slide_flags;
 #define AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN           0x00000001 ///< Fine portamento is directed downwards
 #define AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE_DOWN           0x00000002 ///< Portamento once is directed downwards
 #define AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN      0x00000004 ///< Fine portamento once is directed downwards
@@ -1036,7 +1096,7 @@ typedef struct AVSequencerPlayerHostChannel {
 
     /** Current new transpose value in semitones or 0 if the set
        transpose effect was not used yet during playback.  */
-    uint8_t transpose;
+    int8_t transpose;
 
     /** Current new finetune value in 1/128th of a semitone or 0 if
        the set transpose effect was not used yet during playback.  */
@@ -1174,7 +1234,7 @@ typedef struct AVSequencerPlayerHostChannel {
     /** Current channel control flags which decide how note related
        effects affect volume and panning, etc. and how non-note
        related effects affect pattern loops and breaks, etc.  */
-    int8_t ch_control_flags;
+    uint8_t ch_control_flags;
 #define AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_FLAG_NOTES     0x01   ///< Affect note related effects (volume, panning, etc.)
 #define AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_FLAG_NON_NOTES 0x02   ///< Affect non-note related effects (pattern loops and breaks, etc.)
 
@@ -1310,15 +1370,17 @@ typedef struct AVSequencerPlayerHostChannel {
        no previous envelope.  */
     AVSequencerEnvelope *prev_auto_pan_env;
 
-    /** Integer indexed tree root of attached waveforms used
-       by this host channel with AVTreeNode->elem of type
-       AVSequencerSynthWave.  */
-    AVTreeNode *waveform_list;
+    /** Array of pointers containing attached waveforms used by this
+       host channel.  */
+    AVSequencerSynthWave **waveform_list;
 
     /** Pointer to player synth sound definition for the
        current host channel for obtaining the synth
        sound code.  */
     AVSequencerSynth *synth;
+
+    /** Number of attached waveforms used by this host channel.  */
+    uint16_t waveforms;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the
@@ -1378,7 +1440,10 @@ typedef struct AVSequencerPlayerHostChannel {
  * channels associated by the tracks taking the new note actions
  * (NNAs) into account so one host channel can have none to multiple
  * virtual channels. This also contains the synth sound processing
- * stuff since these operate mostly on virtual channels.
+ * stuff since these operate mostly on virtual channels. This
+ * structure is actually for one virtual channel and therefore
+ * actually pointed as an array with size of number of virtual
+ * channels.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
  * version bump.
@@ -1479,7 +1544,7 @@ typedef struct AVSequencerPlayerChannel {
        about the current virtual channel based upon the host channel
        which allocated this virtual channel. The virtual channels are
        allocated according to the new note action (NNA) mechanism.  */
-    int16_t flags;
+    uint16_t flags;
 #define AVSEQ_PLAYER_CHANNEL_FLAG_SUSTAIN               0x0001 ///< Sustain triggered, i.e. release sustain loop points
 #define AVSEQ_PLAYER_CHANNEL_FLAG_FADING                0x0002 ///< Current virtual channel is fading out
 #define AVSEQ_PLAYER_CHANNEL_FLAG_DECAY                 0x0004 ///< Note decay action is running
@@ -1616,10 +1681,9 @@ typedef struct AVSequencerPlayerChannel {
        octave * 12 + current note where C-0 equals to one.  */
     uint8_t sample_note;
 
-    /** Integer indexed tree root of attached waveforms used
-       by this virtual channel with AVTreeNode->elem of type
-       AVSequencerSynthWave.  */
-    AVTreeNode *waveform_list;
+    /** Array of pointers containing attached waveforms used by this
+       virtual channel.  */
+    AVSequencerSynthWave **waveform_list;
 
     /** Pointer to sequencer sample synth sound currently being played
        by this virtual channel for obtaining the synth sound code.  */
@@ -1644,6 +1708,9 @@ typedef struct AVSequencerPlayerChannel {
     /** Pointer to current arpeggio data waveform used by the synth
        sound currently being played by this virtual channel.  */
     AVSequencerPlayerSynthWave *arpeggio_waveform;
+
+    /** Number of attached waveforms used by this virtual channel.  */
+    uint16_t waveforms;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the
@@ -1686,7 +1753,7 @@ typedef struct AVSequencerPlayerChannel {
 
     /** Current usage of NNA trigger entry fields. This will run
        custom synth sound code execution on a NNA trigger.  */
-    int8_t use_nna_flags;
+    uint8_t use_nna_flags;
 #define AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_NNA  0x01 ///< Use NNA trigger entry field for volume
 #define AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_NNA 0x02 ///< Use NNA trigger entry field for panning
 #define AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_NNA   0x04 ///< Use NNA trigger entry field for slide
@@ -1698,7 +1765,7 @@ typedef struct AVSequencerPlayerChannel {
 
     /** Current usage of sustain entry position fields. This will run
        custom synth sound code execution on a note off trigger.  */
-    int8_t use_sustain_flags;
+    uint8_t use_sustain_flags;
 #define AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_VOLUME          0x01 ///< Use sustain entry position field for volume
 #define AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_PANNING         0x02 ///< Use sustain entry position field for panning
 #define AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SLIDE           0x04 ///< Use sustain entry position field for slide
@@ -1743,7 +1810,7 @@ typedef struct AVSequencerPlayerChannel {
     /** Current player channel synth sound flags. The indicate certain
        status flags for some synth code instructions. Currently they
        are only defined for the KILL instruction.  */
-    int16_t synth_flags;
+    uint16_t synth_flags;
 #define AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_VOLUME    0x01 ///< Volume handling code is running KILL
 #define AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_PANNING   0x02 ///< Panning handling code is running KILL
 #define AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SLIDE     0x04 ///< Slide handling code is running KILL

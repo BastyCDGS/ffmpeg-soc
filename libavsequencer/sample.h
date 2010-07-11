@@ -26,7 +26,6 @@
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/instr.h"
 #include "libavsequencer/synth.h"
-#include "libavutil/tree.h"
 
 /**
  * Sample structure used by all instruments which are either
@@ -124,7 +123,7 @@ typedef struct AVSequencerSample {
     /** Compatibility flags for playback. There are rare cases
        where sample loop control has to be handled a different
        way, or a different policy for no sample specified cases.  */
-    int8_t compat_flags;
+    uint8_t compat_flags;
 #define AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN     0x01 ///< Sample panning affects channel panning (IT compatibility)
 #define AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY            0x02 ///< If a note without a sample is played, only the sample volume will be left unchanged
 #define AVSEQ_SAMPLE_COMPAT_FLAG_START_TONE_PORTAMENTO  0x04 ///< If a tone portamento with a note is executed but no note is currently played, the tone portamento will be ignored and start playing the note normally
@@ -134,7 +133,7 @@ typedef struct AVSequencerSample {
        surround panning or allow different types of loop control
        differend types of frequency tables which have to be taken
        care specially in the internal playback engine.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_SAMPLE_FLAG_REDIRECT          0x01 ///< Sample is a redirection (symbolic link)
 #define AVSEQ_SAMPLE_FLAG_LOOP              0x02 ///< Use normal loop points
 #define AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP      0x04 ///< Use sustain loop points
@@ -202,7 +201,7 @@ typedef struct AVSequencerSample {
     /** Auto vibrato / tremolo / pannolo envelope usage flags.
        Some sequencers feature reloading of envelope data when
        a new note is played.  */
-    int8_t env_usage_flags;
+    uint8_t env_usage_flags;
 #define AVSEQ_SAMPLE_FLAG_USE_AUTO_VIBRATO_ENV  0x01 ///< Use (reload) auto vibrato envelope
 #define AVSEQ_SAMPLE_FLAG_USE_AUTO_TREMOLO_ENV  0x02 ///< Use (reload) auto tremolo envelope
 #define AVSEQ_SAMPLE_FLAG_USE_AUTO_PANNOLO_ENV  0x04 ///< Use (reload) auto pannolo envelope
@@ -211,7 +210,7 @@ typedef struct AVSequencerSample {
        Sequencers differ in the way how they handle envelopes.
        Some first increment envelope node and then get the data and
        others first get the data and then increment the envelope data.  */
-    int8_t env_proc_flags;
+    uint8_t env_proc_flags;
 #define AVSEQ_SAMPLE_FLAG_PROC_AUTO_VIBRATO_ENV 0x01 ///< Add first, then get auto vibrato envelope value
 #define AVSEQ_SAMPLE_FLAG_PROC_AUTO_TREMOLO_ENV 0x02 ///< Add first, then get auto tremolo envelope value
 #define AVSEQ_SAMPLE_FLAG_PROC_AUTO_PANNOLO_ENV 0x04 ///< Add first, then get auto pannolo envelope value
@@ -222,7 +221,7 @@ typedef struct AVSequencerSample {
        Some continue the previous instrument envelope when a new
        instrument does not define an envelope, others disable this
        envelope instead.  */
-    int8_t env_retrig_flags;
+    uint8_t env_retrig_flags;
 #define AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_VIBRATO_ENV   0x01 ///< Not retrigger auto vibrato envelope
 #define AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_TREMOLO_ENV   0x02 ///< Not retrigger auto tremolo envelope
 #define AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_PANNOLO_ENV   0x04 ///< Not retrigger auto pannolo envelope
@@ -231,7 +230,7 @@ typedef struct AVSequencerSample {
        Sequencers allow to use data from a pseudo random number generator.
        If the approciate bit is set, the envelope data will be
        randomized each access.  */
-    int8_t env_random_flags;
+    uint8_t env_random_flags;
 #define AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_VIBRATO_ENV   0x01 ///< Randomize auto vibrato envelope
 #define AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_TREMOLO_ENV   0x02 ///< Randomize auto tremolo envelope
 #define AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_PANNOLO_ENV   0x04 ///< Randomize auto pannolo envelope
@@ -263,20 +262,16 @@ typedef struct AVSequencerSample {
     /** Auto pannolo rate (speed).  */
     uint8_t pannolo_rate;
 
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for samples in
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for samples in those
+       chunks, which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerSample;
 
 #endif /* AVSEQUENCER_SAMPLE_H */

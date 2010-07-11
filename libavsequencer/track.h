@@ -24,7 +24,6 @@
 
 #include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
-#include "libavutil/tree.h"
 
 /**
  * Song track data structure, This structure is actually for one row
@@ -35,6 +34,10 @@
  * version bump.
  */
 typedef struct AVSequencerTrackData {
+    /** Array of pointers containing all effects used by this
+       track.  */
+    AVSequencerTrack **effects_data;
+
     /** Which octave the note is played upon, if note is a
        positive value (defaults to 4).  */
     uint8_t octave;
@@ -111,9 +114,8 @@ typedef struct AVSequencerTrackData {
     /** C-4 = default tone  */
 #define AVSEQ_TRACK_DATA_TONE               ((FF_AVSEQ_TRACK_DATA_OCTAVE << 8) | FF_AVSEQ_TRACK_DATA_NOTE)
 
-    /** Integer indexed tree root of effects used by this track
-       with AVTreeNode->elem being a AVSequencerTrackEffect.  */
-    AVTreeNode *effects_data;
+    /** Number of effects used by this track.  */
+    uint16_t effects;
 } AVSequencerTrackData;
 
 /**
@@ -171,7 +173,7 @@ typedef struct AVSequencerTrack {
        each sub-song which needs this, this will define new
        flags which tag the player to handle it to that special
        way.  */
-    int8_t compat_flags;
+    uint8_t compat_flags;
 #define AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       0x01 ///< Sample offset beyond end of sample will be ignored (IT compatibility)
 #define AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          0x02 ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
 #define AVSEQ_TRACK_COMPAT_FLAG_SLIDES              0x04 ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
@@ -184,7 +186,7 @@ typedef struct AVSequencerTrack {
        surround panning or allow initial reverse playback,
        different timing methods which have all to be taken
        care specially in the internal playback engine.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_TRACK_FLAG_USE_TIMING             0x01 ///< Use track timing fields
 #define AVSEQ_TRACK_FLAG_SPD_TIMING             0x02 ///< SPD speed timing instead of BpM
 #define AVSEQ_TRACK_FLAG_PANNING                0x04 ///< Use track panning and sub-panning fields
@@ -219,20 +221,16 @@ typedef struct AVSequencerTrack {
     uint16_t bpm_speed;
 #define AVSEQ_SONG_BPM_SPEED   125
 
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for tracks in
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for tracks in those chunks,
+       which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerTrack;
 
 /**

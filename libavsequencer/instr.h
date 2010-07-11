@@ -23,7 +23,7 @@
 #define AVSEQUENCER_INSTR_H
 
 #include "libavformat/avformat.h"
-#include "libavutil/tree.h"
+#include "libavsequencer/sample.h"
 
 /**
  * Envelope structure used by instruments to apply volume / panning
@@ -62,7 +62,7 @@ typedef struct AVSequencerEnvelope {
     /** Instrument envelope flags. Some sequencers feature
        loop points of various kinds, which have to be taken
        care specially in the internal playback engine.  */
-    int16_t flags;
+    uint16_t flags;
 #define AVSEQ_ENVELOPE_LOOP             0x0001 ///< Envelope uses loop nodes
 #define AVSEQ_ENVELOPE_SUSTAIN          0x0002 ///< Envelope uses sustain nodes
 #define AVSEQ_ENVELOPE_PINGPONG         0x0004 ///< Envelope loop is in ping pong mode
@@ -97,20 +97,16 @@ typedef struct AVSequencerEnvelope {
     /** Randomized highest value allowed.  */
     int16_t value_max;
 
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for envelopes in
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for envelopes in those
+       chunks, which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerEnvelope;
 
 /**
@@ -171,7 +167,7 @@ typedef struct AVSequencerArpeggio {
     /** Instrument arpeggio control flags. Some sequencers feature
        customized arpeggio command control.which have to be taken
        care specially in the internal playback engine.  */
-    int16_t flags;
+    uint16_t flags;
 #define AVSEQ_ARPEGGIO_FLAG_LOOP                0x0001   ///< Arpeggio control is looped
 #define AVSEQ_ARPEGGIO_FLAG_SUSTAIN             0x0002   ///< Arpeggio control has a sustain loop
 #define AVSEQ_ARPEGGIO_FLAG_PINGPONG            0x0004   ///< Arpeggio control will be looped in ping pong mpde
@@ -201,10 +197,6 @@ typedef struct AVSequencerArpeggio {
     /** Loop count number of how often to repeat loop of arpeggio
        control.  */
     uint16_t loop_count;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
 } AVSequencerArpeggio;
 
 /**
@@ -218,10 +210,9 @@ typedef struct AVSequencerInstrument {
      *  name, artist and comment.  */
     AVMetadata *metadata;
 
-    /** Integer indexed tree root of attached samples used by
-       this instrument with AVTreeNode->elem of type
-       AVSequencerSample.  */
-    AVTreeNode *samples;
+    /** Array of pointers containing every sample used by this
+       instrument.  */
+    AVSequencerSample **sample_list;
 
     /** Pointer to envelope data interpreted as volume control
        or NULL if volume envelope control is not used.  */
@@ -335,7 +326,7 @@ typedef struct AVSequencerInstrument {
        where instrument to sample mapping has to be handled
        a different way, or a different policy for no sample
        specified cases.  */
-    int8_t compat_flags;
+    uint8_t compat_flags;
 #define AVSEQ_INSTRUMENT_COMPAT_FLAG_LOCK_INSTR_WAVE    0x01 ///< Instrument wave is locked as in MOD, but volume / panning / etc. is taken, if both bits are clear it will handle like S3M/IT, i.e. instrument is changed
 #define AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN 0x02 ///< Instrument panning affects channel panning (IT compatibility)
 #define AVSEQ_INSTRUMENT_COMPAT_FLAG_PREV_SAMPLE        0x04 ///< If no sample in keyboard definitions, use previous one
@@ -345,7 +336,7 @@ typedef struct AVSequencerInstrument {
        surround panning or allow different types of envelope
        interpretations, differend types of slides which have to
        be taken care specially in the internal playback engine.  */
-    int8_t flags;
+    uint8_t flags;
 #define AVSEQ_INSTRUMENT_FLAG_NO_TRANSPOSE          0x01 ///< Instrument can't be transpoed by the order list
 #define AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV       0x02 ///< Slide envelopes will be portamento values, otherwise transpose + finetune
 #define AVSEQ_INSTRUMENT_FLAG_LINEAR_SLIDE_ENV      0x04 ///< Use linear freqency table for slide envelope for portamento mode
@@ -355,7 +346,7 @@ typedef struct AVSequencerInstrument {
 
     /** Envelope usage flags. Some sequencers feature
        reloading of envelope data when a new note is played.  */
-    int16_t env_usage_flags;
+    uint16_t env_usage_flags;
 #define AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV            0x0001   ///< Use (reload) volume envelope
 #define AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV           0x0002   ///< Use (reload) panning envelope
 #define AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV             0x0004   ///< Use (reload) slide envelope
@@ -374,7 +365,7 @@ typedef struct AVSequencerInstrument {
        way how they handle envelopes. Some first increment
        envelope node and then get the data and some do first
        get the data and then increment the envelope data.  */
-    int16_t env_proc_flags;
+    uint16_t env_proc_flags;
 #define AVSEQ_INSTRUMENT_FLAG_PROC_VOLUME_ENV           0x0001   ///< Add first, then get volume envelope value
 #define AVSEQ_INSTRUMENT_FLAG_PROC_PANNING_ENV          0x0002   ///< Add first, then get panning envelope value
 #define AVSEQ_INSTRUMENT_FLAG_PROC_SLIDE_ENV            0x0004   ///< Add first, then get slide envelope value
@@ -394,7 +385,7 @@ typedef struct AVSequencerInstrument {
        the previous instrument envelope when an new instrument
        does not define an envelope, others disable this
        envelope instead.  */
-    int16_t env_retrig_flags;
+    uint16_t env_retrig_flags;
 #define AVSEQ_INSTRUMENT_FLAG_RETRIG_VOLUME_ENV         0x0001   ///< Not retrigger volume envelope
 #define AVSEQ_INSTRUMENT_FLAG_RETRIG_PANNING_ENV        0x0002   ///< Not retrigger panning envelope
 #define AVSEQ_INSTRUMENT_FLAG_RETRIG_SLIDE_ENV          0x0004   ///< Not retrigger slide envelope
@@ -413,7 +404,7 @@ typedef struct AVSequencerInstrument {
        data from a pseudo random number generator. If the
        approciate bit is set, the envelope data will be
        randomized each access.  */
-    int16_t env_random_flags;
+    uint16_t env_random_flags;
 #define AVSEQ_INSTRUMENT_FLAG_RANDOM_VOLUME_ENV         0x0001   ///< Randomize volume envelope
 #define AVSEQ_INSTRUMENT_FLAG_RANDOM_PANNING_ENV        0x0002   ///< Randomize panning envelope
 #define AVSEQ_INSTRUMENT_FLAG_RANDOM_SLIDE_ENV          0x0004   ///< Randomize slide envelope
@@ -431,7 +422,7 @@ typedef struct AVSequencerInstrument {
     /** Envelope randomize delay flags. Some sequencers allow
        to specify a time interval when a new random value
        can be read.  */
-    int16_t env_rnd_delay_flags;
+    uint16_t env_rnd_delay_flags;
 #define AVSEQ_INSTRUMENT_FLAG_RND_DELAY_VOLUME_ENV          0x0001   ///< Speed is randomized delay for volume envelope
 #define AVSEQ_INSTRUMENT_FLAG_RND_DELAY_PANNING_ENV         0x0002   ///< Speed is randomized delay for panning envelope
 #define AVSEQ_INSTRUMENT_FLAG_RND_DELAY_SLIDE_ENV           0x0004   ///< Speed is randomized delay for slide envelope
@@ -473,7 +464,7 @@ typedef struct AVSequencerInstrument {
     /** MIDI flags. Some sequencers allow general MIDI support
        and can play certain instruments directly through a MIDI
        channel.  */
-    int8_t midi_flags;
+    uint8_t midi_flags;
 #define AVSEQ_INSTRUMENT_FLAG_MIDI_TICK_QUANTIZE    0x01 ///< Tick quantize (insert note delays)
 #define AVSEQ_INSTRUMENT_FLAG_MIDI_NOTE_OFF         0x02 ///< Record note off (keyoff note)
 #define AVSEQ_INSTRUMENT_FLAG_MIDI_VELOCITY         0x04 ///< Record velocity
@@ -490,20 +481,16 @@ typedef struct AVSequencerInstrument {
     /** MIDI pitch bender (in half-tones).  */
     uint8_t midi_pitch_bender;
 
-    /** 64-bit integer indexed unique key tree root of unknown data
-       fields for input file reading with AVTreeNode->elem being
-       unsigned 8-bit integer data. Some formats are chunk based
+    /** Array of pointers containing every unknown data field where
+       the last element is indicated by a NULL pointer reference. The
+       first 64-bit of the unknown data contains an unique identifier
+       for this chunk and the second 64-bit data is actual unsigned
+       length of the following raw data. Some formats are chunk based
        and can store information, which can't be handled by some
-       other, in case of a transition the unknown data is kept as
-       is. Some programs write editor settings for instruments in
-       chunks, which won't get lost then. The first 8 bytes of this
-       data is an unsigned 64-bit integer length in bytes of
-       the unknown data.  */
-    AVTreeNode *unknown_data;
-
-    /** This is just a data field where the user solely
-       decides, what the usage (if any) will be.  */
-    uint8_t *user_data;
+       other, in case of a transition the unknown data is kept as is.
+       Some programs write editor settings for instruments in those
+       chunks, which then won't get lost in that case.  */
+    uint8_t **unknown_data;
 } AVSequencerInstrument;
 
 #endif /* AVSEQUENCER_INSTR_H */
