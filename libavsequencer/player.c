@@ -7448,3 +7448,174 @@ EXECUTE_EFFECT(global_pannolo) {
 
 EXECUTE_EFFECT(user_sync) {
 }
+
+static uint32_t execute_synth ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint32_t synth_type ) {
+    uint16_t synth_count = 0, bit_mask = 1 << synth_type;
+
+    do {
+        AVSequencerSynth *synth          = player_channel->synth;
+        AVSequencerSynthCode *synth_code = synth->code;
+        uint16_t synth_code_line         = player_channel->entry_pos[synth_type], instruction_data, i;
+        int8_t instruction;
+        uint8_t src_var, dst_var;
+
+        synth_code += synth_code_line;
+
+        if (player_channel->wait_count[synth_type]--) {
+exec_synth_done:
+
+            if ((player_channel->synth_flags & bit_mask) && (!(player_channel->kill_count[synth_type]--)))
+                return 0;
+
+            return 1;
+        }
+
+        player_channel->wait_count[synth_type] = 0;
+
+        if ((synth_code_line >= synth->size) || ((int8_t) player_channel->wait_type[synth_type] < 0))
+            goto exec_synth_done;
+
+        i = 4 - 1;
+
+        do {
+            int8_t wait_volume_type;
+
+            if (((wait_volume_type = ~player_channel->wait_type[synth_type]) >= 0) && (wait_volume_type == i) && (player_channel->wait_line[synth_type] == synth_code_line))
+                player_channel->wait_type[synth_type] = 0;
+
+        } while (i--);
+
+        instruction      = synth_code->instruction;
+        dst_var          = synth_code->src_dst_var;
+        instruction_data = synth_code->data;
+
+        if (!instruction && !dst_var && !instruction_data)
+            goto exec_synth_done;
+
+        src_var  = dst_var >> 4;
+        dst_var &= 0x0F;
+
+        synth_code_line++;
+
+        if (instruction < 0) {
+            AVSequencerEffectsTable *fx_lut;
+            void (*check_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
+            uint16_t fx_byte, data_word, flags;
+
+            fx_byte   = ~instruction;
+            fx_lut    = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            data_word = instruction_data + player_channel->variable[src_var];
+            flags     = fx_lut->flags;
+
+            if ((check_func = fx_lut->check_fx_func)) {
+                check_func ( avctx, player_host_channel, player_channel, player_channel->host_channel, &fx_byte, &data_word, &flags );
+
+                fx_lut = (AVSequencerEffectsTable *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            }
+
+            if (!fx_lut->pre_pattern_func) {
+                instruction_data                     = player_host_channel->virtual_channel;
+                player_host_channel->virtual_channel = channel;
+
+                fx_lut->effect_func ( avctx, player_host_channel, player_channel, player_channel->host_channel, fx_byte, data_word );
+
+                player_host_channel->virtual_channel = instruction_data;
+            }
+
+            player_channel->entry_pos[synth_type] = synth_code_line;
+        } else {
+            uint16_t (**fx_exec_func)( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint16_t virtual_channel, uint16_t synth_code_line, uint32_t src_var, uint32_t dst_var, uint16_t instruction_data, uint32_t synth_type );
+
+            fx_exec_func = (void *) (avctx->synth_code_exec_lut ? avctx->synth_code_exec_lut : se_lut);
+
+            player_channel->entry_pos[synth_type] = fx_exec_func[(uint8_t) instruction] ( avctx, player_channel, channel, synth_code_line, src_var, dst_var, instruction_data, synth_type );
+        }
+    } while (++synth_count);
+
+    return 0;
+}
+
+static void se_vibrato_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t vibrato_slide_value ) {
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+    uint32_t old_frequency = player_channel->frequency;
+
+    player_channel->frequency -= player_channel->vibrato_slide;
+
+    if (vibrato_slide_value < 0) {
+        vibrato_slide_value = -vibrato_slide_value;
+
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+            linear_slide_up ( avctx, player_channel, player_channel->frequency, vibrato_slide_value );
+        else
+            amiga_slide_up ( player_channel, player_channel->frequency, vibrato_slide_value );
+    } else if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ) {
+        linear_slide_down ( avctx, player_channel, player_channel->frequency, vibrato_slide_value );
+    } else {
+        amiga_slide_down ( player_channel, player_channel->frequency, vibrato_slide_value );
+    }
+
+    player_channel->vibrato_slide -= old_frequency - player_channel->frequency;
+}
+
+static void se_arpegio_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int16_t arpeggio_transpose, uint16_t arpeggio_finetune ) {
+    uint32_t *frequency_lut;
+    uint32_t frequency, next_frequency, slide_frequency, old_frequency;
+    uint16_t octave;
+    int16_t note;
+
+    octave = arpeggio_transpose / AVSEQ_TRACK_DATA_NOTE_MAX;
+    note   = arpeggio_transpose % AVSEQ_TRACK_DATA_NOTE_MAX;
+
+    if (note < 0) {
+        octave--;
+        note             += AVSEQ_TRACK_DATA_NOTE_MAX;
+        arpeggio_finetune = -arpeggio_finetune;
+    }
+
+    frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+    frequency      = *frequency_lut++;
+    next_frequency = *frequency_lut - frequency;
+    frequency     += (int32_t) (arpeggio_finetune * (int16_t) next_frequency) >> 8;
+
+    if ((int16_t) (octave) < 0) {
+        octave      = -octave;
+        frequency >>= octave;
+    } else {
+        frequency <<= octave;
+    }
+
+    old_frequency                           = player_channel->frequency;
+    slide_frequency                         = player_channel->arpeggio_slide + old_frequency;
+    player_channel->frequency               = frequency = ((uint64_t) frequency * slide_frequency) >> 16;
+    player_channel->arpeggio_slide         += old_frequency - frequency;
+}
+
+static void se_tremolo_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t tremolo_slide_value ) {
+    uint16_t volume      = player_channel->volume;
+
+    tremolo_slide_value -= player_channel->tremolo_slide;
+
+    if ((tremolo_slide_value += volume) < 0)
+        tremolo_slide_value = 0;
+
+    if (tremolo_slide_value > 255)
+        tremolo_slide_value = 255;
+
+    player_channel->volume                  = tremolo_slide_value;
+    player_channel->tremolo_slide          -= tremolo_slide_value - volume;
+}
+
+static void se_pannolo_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t pannolo_slide_value ) {
+    uint16_t panning = player_channel->panning;
+
+    pannolo_slide_value -= player_channel->pannolo_slide;
+
+    if ((pannolo_slide_value += panning) < 0)
+        pannolo_slide_value = 0;
+
+    if (pannolo_slide_value > 255)
+        pannolo_slide_value = 255;
+
+    player_channel->panning                 = pannolo_slide_value;
+    player_channel->pannolo_slide          -= pannolo_slide_value - panning;
+}
