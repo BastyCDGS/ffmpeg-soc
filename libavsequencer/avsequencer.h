@@ -81,6 +81,12 @@ enum MixerID {
  * version bump.
  */
 typedef struct AVSequencerMixerContext {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Certain metadata describing this mixer, i.e. who developed
        it (artist) and a brief description of the features
        (comment).  */
@@ -270,6 +276,12 @@ typedef struct AVSequencerMixerChannel {
  * version bump.
  */
 typedef struct AVSequencerContext {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Associated decoder packet for this sequencer context.  */
     AVPacket *pkt;
 
