@@ -1370,17 +1370,17 @@ typedef struct AVSequencerPlayerHostChannel {
        no previous envelope.  */
     AVSequencerEnvelope *prev_auto_pan_env;
 
-    /** Array of pointers containing attached waveforms used by this
-       host channel.  */
+    /** Array (of size waveforms) of pointers containing attached
+       waveforms used by this host channel.  */
     AVSequencerSynthWave **waveform_list;
+
+    /** Number of attached waveforms used by this host channel.  */
+    uint16_t waveforms;
 
     /** Pointer to player synth sound definition for the
        current host channel for obtaining the synth
        sound code.  */
     AVSequencerSynth *synth;
-
-    /** Number of attached waveforms used by this host channel.  */
-    uint16_t waveforms;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the
@@ -1681,9 +1681,12 @@ typedef struct AVSequencerPlayerChannel {
        octave * 12 + current note where C-0 equals to one.  */
     uint8_t sample_note;
 
-    /** Array of pointers containing attached waveforms used by this
-       virtual channel.  */
+    /** Array (of size waveforms) of pointers containing attached
+       waveforms used by this virtual channel.  */
     AVSequencerSynthWave **waveform_list;
+
+    /** Number of attached waveforms used by this virtual channel.  */
+    uint16_t waveforms;
 
     /** Pointer to sequencer sample synth sound currently being played
        by this virtual channel for obtaining the synth sound code.  */
@@ -1708,9 +1711,6 @@ typedef struct AVSequencerPlayerChannel {
     /** Pointer to current arpeggio data waveform used by the synth
        sound currently being played by this virtual channel.  */
     AVSequencerPlayerSynthWave *arpeggio_waveform;
-
-    /** Number of attached waveforms used by this virtual channel.  */
-    uint16_t waveforms;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the

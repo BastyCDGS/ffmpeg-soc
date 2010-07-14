@@ -210,9 +210,16 @@ typedef struct AVSequencerInstrument {
      *  name, artist and comment.  */
     AVMetadata *metadata;
 
-    /** Array of pointers containing every sample used by this
-       instrument.  */
+    /** Array (of size samples) of pointers containing every sample
+       used by this instrument.  */
     AVSequencerSample **sample_list;
+
+    /** Number of samples associated with this instrument
+       (a maximum number of 255 attached samples is allowed).
+       The default is one attached sample.  */
+    uint8_t samples;
+#define AVSEQ_INSTRUMENT_SAMPLES    1
+#define AVSEQ_INSTRUMENT_SAMPLES_MAX    255
 
     /** Pointer to envelope data interpreted as volume control
        or NULL if volume envelope control is not used.  */
@@ -258,13 +265,6 @@ typedef struct AVSequencerInstrument {
     /** Pointer to instrument keyboard definitions which maps
        the octave/instrument-pair to an associated sample.  */
     AVSequencerKeyboard *keyboard_defs;
-
-    /** Number of samples associated with this instrument
-       (a maximum number of 255 attached samples is allowed).
-       The default is one attached sample.  */
-    uint8_t samples;
-#define AVSEQ_INSTRUMENT_SAMPLES    1
-#define AVSEQ_INSTRUMENT_SAMPLES_MAX    255
 
     /** Global volume scaling instrument samples.  */
     uint8_t global_volume;

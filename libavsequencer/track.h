@@ -34,12 +34,18 @@
  * version bump.
  */
 typedef struct AVSequencerTrackData {
-    /** Array of pointers containing all effects used by this
-       track.  */
+    /** Array (of size effects) of pointers containing all effects
+       used by this track.  */
     AVSequencerTrack **effects_data;
 
-    /** Which octave the note is played upon, if note is a
-       positive value (defaults to 4).  */
+    /** Number of effects used by this track.  */
+    uint16_t effects;
+
+    /** Which octave the note is played upon, if note is a positive
+       value (defaults to 4). Allowed values are in the [0:9] range,
+       since the keyboard definition table has 120 entries (10 octave
+       range * 12 notes per octave), also expect trouble with most
+       trackers if values outside this range are used.  */
     uint8_t octave;
 #define AVSEQ_TRACK_DATA_OCTAVE     4
 #define AVSEQ_TRACK_DATA_OCTAVE_MIN 0
@@ -113,9 +119,6 @@ typedef struct AVSequencerTrackData {
     uint16_t instrument;
     /** C-4 = default tone  */
 #define AVSEQ_TRACK_DATA_TONE               ((FF_AVSEQ_TRACK_DATA_OCTAVE << 8) | FF_AVSEQ_TRACK_DATA_NOTE)
-
-    /** Number of effects used by this track.  */
-    uint16_t effects;
 } AVSequencerTrackData;
 
 /**
@@ -242,39 +245,8 @@ typedef struct AVSequencerTrack {
  * version bump.
  */
 typedef struct AVSequencerTrackEffect {
-    /** Unused and reserved for future expansions, leave 0 for now.  */
-    uint8_t reserved;
-
     /** Effect command byte.  */
     uint8_t command;
-    /** Command types.  */
-
-    /** Note effects (00-1F).  */
-#define AVSEQ_TRACK_EFFECT_NOTE_MIN          0x00
-#define AVSEQ_TRACK_EFFECT_NOTE_MAX          0x1F
-
-    /** Volume control related effects (20-2F).  */
-#define AVSEQ_TRACK_EFFECT_VOLUME_MIN        0x20
-#define AVSEQ_TRACK_EFFECT_VOLUME_MAX        0x2F
-
-    /** Panning control related effects (30-3F).  */
-#define AVSEQ_TRACK_EFFECT_PANNING_MIN       0x30
-#define AVSEQ_TRACK_EFFECT_PANNING_MAX       0x3F
-
-    /** Track and channel control related effects (40-4F).  */
-#define AVSEQ_TRACK_EFFECT_TRACK_MIN         0x40
-#define AVSEQ_TRACK_EFFECT_TRACK_MAX         0x4F
-
-    /** Instrument, sample and synth control related effects (50-5F).  */
-#define AVSEQ_TRACK_EFFECT_INSTRUMENT_MIN    0x50
-#define AVSEQ_TRACK_EFFECT_INSTRUMENT_MAX    0x5F
-
-    /** Global control related effects (60-7E).  */
-#define AVSEQ_TRACK_EFFECT_GLOBAL_MIN        0x60
-#define AVSEQ_TRACK_EFFECT_GLOBAL_MAX        0x7E
-
-    /** User customized effect for trigger in demos, etc.  */
-#define AVSEQ_TRACK_EFFECT_USER              0x7F
 
     /** Note effect commands.
        0x00 - Arpeggio:
@@ -592,7 +564,8 @@ typedef struct AVSequencerTrackEffect {
        Both xx and yy are unsigned values.  */
 #define AVSEQ_TRACK_EFFECT_CMD_STOP_FX       0x1D
 
-    /** Volume effect commands.  */
+    /* Volume effect commands.  */
+
     /** 0x20 - Set volume:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the volume level (ranging either from
@@ -756,7 +729,8 @@ typedef struct AVSequencerTrackEffect {
        means that the tremolo envelope values will be inverted.  */
 #define AVSEQ_TRACK_EFFECT_CMD_T_TREMO_ONCE  0x2F
 
-    /** Panning effect commands.  */
+    /* Panning effect commands.  */
+
     /** 0x30 - Set panning position:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning position ranging from 0x00 (full stereo left
@@ -929,7 +903,8 @@ typedef struct AVSequencerTrackEffect {
 #define AVSEQ_TRACK_EFFECT_CMD_TPANOLO_ONCE      0x3F
 #define AVSEQ_TRACK_EFFECT_CMD_TPANBRELO_ONCE    AVSEQ_TRACK_EFFECT_CMD_TPANOLO_ONCE
 
-    /** Track effect commands.  */
+    /* Track effect commands.  */
+
     /** 0x40 - Set channel tempo:
        Data word consists of a 16-bit unsigned value which
        represents the number of ticks per row to change to
@@ -1059,7 +1034,8 @@ typedef struct AVSequencerTrackEffect {
     /**  Set global panning sub-slide to yy.  */
 #define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_GLOBAL_PANNING   0x20
 
-    /** Instrument, sample and synth effect commands.  */
+    /* Instrument, sample and synth effect commands.  */
+
     /** 0x50 - Sample offset high word:
        Data word consists of a 16-bit unsigned value which
        is the high word (upper 16 bits) of the target
@@ -1390,7 +1366,8 @@ typedef struct AVSequencerTrackEffect {
              indicates a simple inversion of playback direction,  */
 #define AVSEQ_TRACK_EFFECT_CMD_SET_LOOP          0x5C
 
-    /** Global effect commands.  */
+    /* Global effect commands.  */
+
     /** 0x60 - Set speed:
        Data word consists of one upper 4-bit nibble named x and of a
        12-bit value named yyy. All values are considered unsigned and
@@ -1769,6 +1746,9 @@ typedef struct AVSequencerTrackEffect {
        means that the pannolo envelope values will be inverted.  */
 #define AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO_O      0x78
 #define AVSEQ_TRACK_EFFECT_CMD_G_PANBRELLO_O    AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO_O
+
+    /** User customized effect for trigger in demos, etc.  */
+#define AVSEQ_TRACK_EFFECT_CMD_USER             0x7F
 
     /** Effect command data word.  */
     uint16_t data;

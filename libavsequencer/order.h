@@ -33,8 +33,8 @@
  * version bump.
  */
 typedef struct AVSequencerOrderList {
-    /** Array of pointers containing all order list data used by this
-      channel.  */
+    /** Array (of size orders) of pointers containing all order list
+       data used by this channel.  */
     AVSequencerOrderData **order_data;
 
     /** Number of order list data used for this channel.  */
@@ -77,14 +77,6 @@ typedef struct AVSequencerOrderList {
        doesn't account into actual mixer output (defaults 0).  */
     uint8_t channel_sub_panning;
 #define AVSEQ_ORDER_LIST_SUB_PANNING    0
-
-    /** Compatibility flags for playback. There are rare cases
-       where order handling can not be mapped into internal
-       playback engine and have to be handled specially. For
-       each order list which needs this, this will define new
-       flags which tag the player to handle it to that special
-       way.  */
-    uint8_t compat_flags;
 
     /** Order list playback flags. Some sequencers feature
        surround panning or allow initial muting. which has to
@@ -156,7 +148,9 @@ typedef struct AVSequencerOrderData {
        mapped to this if this is non-zero.  */
     int16_t instr_transpose;
 
-    /** Tempo change or zero to skip tempo change.  */
+    /** Tempo change or zero to skip tempo change. A tempo value of
+       zero would be zero, since that would mean literally execute
+       unlimited rows and tracks in just one tick.  */
     uint16_t tempo;
 
     /** Played nesting level (GoSub command maximum nesting depth).  */
@@ -164,7 +158,9 @@ typedef struct AVSequencerOrderData {
 
     /** Track volume (this overrides settings in AVSequencerTrack).
        To enable this, the flag AVSEQ_ORDER_DATA_FLAG_SET_VOLUME
-       must be set in flags.  */
+       must be set in flags. This allows have a basic default track
+       volume by still allowing to override the track volume in case
+       the track is used multiple times, e.g. for creating echoes.  */
     uint8_t volume;
 
     /** Track sub-volume. This is basically track volume

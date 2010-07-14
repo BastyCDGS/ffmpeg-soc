@@ -1221,16 +1221,9 @@ typedef struct AVSequencerSynth {
      *  artist and comment.  */
     AVMetadata *metadata;
 
-    /** Array of pointers containing attached waveform used by this
-       synth sound.  */
+    /** Array (of size waveforms) of pointers containing attached
+       waveform used by this synth sound.  */
     AVSequencerSynthWave **waveform_list;
-
-    /** Array of pointers containing named symbols used by this
-       synth sound code.  */
-    AVSequencerSynthSymbolTable **symbol_list;
-
-    /** AVSequencerSynthCode pointer to synth sound code structure.  */
-    AVSequencerSynthCode *code;
 
     /** Number of waveforms. Can be 0 if this is a hybrid, the normal
        sample data is used in that case. Default is one waveform.  */
@@ -1238,8 +1231,15 @@ typedef struct AVSequencerSynth {
 #define AVSEQ_SYNTH_WAVEFORMS   1
 #define AVSEQ_SYNTH_WAVEFORMS_MAX   65535
 
+    /** Array (of size symbols) of pointers containing named symbols
+       used by this synth sound code.  */
+    AVSequencerSynthSymbolTable **symbol_list;
+
     /** Number of named symbols used by this synth sound code.  */
     uint16_t symbols;
+
+    /** AVSequencerSynthCode pointer to synth sound code structure.  */
+    AVSequencerSynthCode *code;
 
     /** Number of instructions (lines) in the synth sound execution
        code (defaults to one line).  */

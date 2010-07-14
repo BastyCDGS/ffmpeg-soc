@@ -49,15 +49,16 @@ typedef struct AVSequencerSong {
     /** AVSequencerOrderList pointer to list of order data.  */
     AVSequencerOrderList *order_list;
 
-    /** Array of pointers containing all tracks for this sub-song.  */
+    /** Array (of size tracks) of pointers containing all tracks for
+       this sub-song.  */
     AVSequencerTrack **track_list;
+
+    /** Number of tracks attached to this sub-song.  */
+    uint16_t tracks;
 
     /** Duration of this sub-song, in AV_TIME_BASE fractional
        seconds.  */
     uint64_t duration;
-
-    /** Number of tracks attached to this sub-song.  */
-    uint16_t tracks;
 
     /** Stack size, i.e. maximum recursion depth of GoSub command which
        defaults to 4.  */
@@ -65,7 +66,9 @@ typedef struct AVSequencerSong {
 #define AVSEQ_SONG_GOSUB_STACK  4
 
     /** Stack size, i.e. maximum recursion depth of the pattern loop
-       command, which defaults to 1 to imitate most trackers.  */
+       command, which defaults to 1 to imitate most trackers (most
+       trackers do not even support any other value than one, i.e.
+       the pattern loop command is not nestable).  */
     uint16_t loop_stack_size;
 #define AVSEQ_SONG_PATTERN_LOOP_STACK   1
 
@@ -100,7 +103,9 @@ typedef struct AVSequencerSong {
 #define AVSEQ_SONG_CHANNELS_MAX 256
 
     /** Initial number of frames per row, i.e. sequencer tempo
-       (defaults to 6 as in most tracker formats).  */
+       (defaults to 6 as in most tracker formats), a value of
+       zero is pointless, since that would mean to play unlimited
+       rows and tracks in just one tick.  */
     uint16_t frames;
 #define AVSEQ_SONG_FRAMES   6
 
@@ -128,12 +133,17 @@ typedef struct AVSequencerSong {
 #define AVSEQ_SONG_BPM_SPEED    125
 
     /** Minimum and lower limit of number of frames per row
-       (defaults to 1).  */
+       (defaults to 1), a value of zero is pointless, since
+       that would mean to play unlimited rows and tracks in
+       just one tick.  */
     uint16_t frames_min;
 #define AVSEQ_SONG_FRAMES_MIN   1
 
     /** Maximum and upper limit of number of frames per row
-       (defaults to 255).  */
+       (defaults to 255) since a larger value would not make
+       sense (see track effects, they all set 8-bit values only),
+       if we would allow a higher speed here, we could never
+       change the speed values which are larger than 255.  */
     uint16_t frames_max;
 #define AVSEQ_SONG_FRAMES_MAX   255
 
@@ -143,7 +153,10 @@ typedef struct AVSequencerSong {
 #define AVSEQ_SONG_SPD_MIN  1
 
     /** Maximum and upper limit of MED style SPD timing values
-       (defaults to 255).  */
+       (defaults to 255) since a larger value would not make
+       sense (see track effects, they all set 8-bit values only),
+       if we would allow a higher speed here, we could never
+       change the speed values which are larger than 255.  */
     uint16_t spd_max;
 #define AVSEQ_SONG_SPD_MAX  255
 
@@ -153,7 +166,10 @@ typedef struct AVSequencerSong {
 #define AVSEQ_SONG_BPM_TEMPO_MIN    1
 
     /** Maximum and upper limit of rows per beat timing values
-       (defaults to 255).  */
+       (defaults to 255) since a larger value would not make
+       sense (see track effects, they all set 8-bit values only),
+       if we would allow a higher speed here, we could never
+       change the speed values which are larger than 255.  */
     uint16_t bpm_tempo_max;
 #define AVSEQ_SONG_BPM_TEMPO_MAX    255
 
@@ -163,7 +179,10 @@ typedef struct AVSequencerSong {
 #define AVSEQ_SONG_BPM_SPEED_MIN    1
 
     /** Maximum and upper limit of beats per minute timing values
-       (defaults to 255).  */
+       (defaults to 255) since a larger value would not make
+       sense (see track effects, they all set 8-bit values only),
+       if we would allow a higher speed here, we could never
+       change the speed values which are larger than 255.  */
     uint16_t bpm_speed_max;
 #define AVSEQ_SONG_BPM_SPEED_MAX    255
 

@@ -42,45 +42,48 @@ typedef struct AVSequencerModule {
     /** AVSequencerPlayerChannel pointer to virtual channel data.  */
     AVSequencerPlayerChannel *channel_data;
 
-    /** Array of pointers containing every sub-song for this
-       module.  */
-    AVSequencerSong **song_list;
-
-    /** Array of pointers containing every instrument for this
-       module.  */
-    AVSequencerInstrument **instrument_list;
-
-    /** Array of pointers containing every evelope for this
-       module.  */
-    AVSequencerEnvelope **envelope_list;
-
-    /** Array of pointers containing every keyboard definitionb list
+    /** Array (of size songs) of pointers containing every sub-song
        for this module.  */
-    AVSequencerKeyboard **keyboard_list;
-
-    /** Array of pointers containing every arpeggio envelope
-       definition list for this module.  */
-    AVSequencerArpeggio **arpeggio_list;
-
-    /** Duration of the module, in AV_TIME_BASE fractional
-       seconds. This is the total sum of all sub-song durations
-       this module contains.  */
-    uint64_t duration;
+    AVSequencerSong **song_list;
 
     /** Number of sub-songs attached to this module.  */
     uint16_t songs;
 
+    /** Array (of size instruments) of pointers containing every
+       instrument for this module.  */
+    AVSequencerInstrument **instrument_list;
+
     /** Number of instruments attached to this module.  */
     uint16_t instruments;
+
+    /** Array (of size envelopes) of pointers containing every
+       evelope for this module.  */
+    AVSequencerEnvelope **envelope_list;
 
     /** Number of envelopes attached to this module.  */
     uint16_t envelopes;
 
+    /** Array (of size keyboards) of pointers containing every
+       keyboard definitionb list for this module.  */
+    AVSequencerKeyboard **keyboard_list;
+
     /** Number of keyboard definitions attached to this module.  */
     uint16_t keyboards;
 
+    /** Array (of size arpeggios) of pointers containing every
+       arpeggio envelope definition list for this module.  */
+    AVSequencerArpeggio **arpeggio_list;
+
     /** Number of arpeggio definitions attached to this module.  */
     uint16_t arpeggios;
+
+    /** Forced duration of the module, in AV_TIME_BASE fractional
+       seconds. This is the total sum of all sub-song durations
+       this module contains or zero if the duration is unknown and
+       also cannot be automatically determined. The composer then can
+       set manually a duration after which the player can skip over to
+       the next module if it is playing back in once mode.  */
+    uint64_t forced_duration;
 
     /** Maximum number of virtual channels, including NNA (New Note
        Action) background channels to be allocated and processed by
