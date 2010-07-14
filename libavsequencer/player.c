@@ -2555,6 +2555,7 @@ static void init_new_sample ( AVSequencerContext *avctx, AVSequencerPlayerHostCh
             AVSequencerSynthWave *waveform       = NULL;
 
             player_host_channel->waveform_list   = waveform_list;
+            player_host_channel->waveforms       = synth->waveforms;
 
             if (synth->waveforms)
                 waveform = waveform_list[0];
@@ -2566,6 +2567,7 @@ static void init_new_sample ( AVSequencerContext *avctx, AVSequencerPlayerHostCh
         }
 
         player_channel->waveform_list = player_host_channel->waveform_list;
+        player_channel->waveforms     = player_host_channel->waveforms;
 
         keep_flags = synth->pos_keep_mask;
 
