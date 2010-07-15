@@ -285,6 +285,15 @@ typedef struct AVSequencerContext {
     /** Associated decoder packet for this sequencer context.  */
     AVPacket *pkt;
 
+    /** AVSequencerPlayerGlobals pointer to global channel data.  */
+    AVSequencerPlayerGlobals *player_globals;
+
+    /** AVSequencerPlayerHostChannel pointer to host channel data.  */
+    AVSequencerPlayerHostChannel *player_host_channel;
+
+    /** AVSequencerPlayerChannel pointer to virtual channel data.  */
+    AVSequencerPlayerChannel *player_channel;
+
     /** Current module used by current playback handler or NULL if
        no module is currently being processed.  */
     AVSequencerModule *player_module;

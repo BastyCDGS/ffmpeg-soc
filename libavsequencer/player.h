@@ -85,10 +85,8 @@ typedef struct AVSequencerPlayerHook {
 #define AVSEQ_PLAYER_HOOK_FLAG_BEGINNING   0x02 ///< Hook is called before executing playback code instead of the end
 
     /** The actual hook function to be called which gets passed the
-       associated AVSequencerContext and the module and sub-song
-       currently processed (i.e. triggered the hook).  */
-    void (*hook_func)( AVSequencerContext *avctx, AVSequencerModule *module,
-                       AVSequencerSong *song, void *hook_data, uint64_t hook_len );
+       associated AVSequencerContext.  */
+    void (*hook_func)( AVSequencerContext *avctx, void *hook_data, uint64_t hook_len );
 
     /** The actual hook data to be passed to the hook function which
        also gets passed the associated AVSequencerContext and the

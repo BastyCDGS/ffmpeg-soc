@@ -39,9 +39,6 @@ typedef struct AVSequencerModule {
      * composition and comment.  */
     AVMetadata *metadata;
 
-    /** AVSequencerPlayerChannel pointer to virtual channel data.  */
-    AVSequencerPlayerChannel *channel_data;
-
     /** Array (of size songs) of pointers containing every sub-song
        for this module.  */
     AVSequencerSong **song_list;

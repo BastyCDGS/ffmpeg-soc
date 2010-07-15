@@ -40,12 +40,6 @@ typedef struct AVSequencerSong {
      * date of composition and comment.  */
     AVMetadata *metadata;
 
-    /** AVSequencerPlayerGlobals pointer to global channel data.  */
-    AVSequencerPlayerGlobals *global_data;
-
-    /** AVSequencerPlayerHostChannel pointer to host channel data.  */
-    AVSequencerPlayerHostChannel *channel_data;
-
     /** AVSequencerOrderList pointer to list of order data.  */
     AVSequencerOrderList *order_list;
 
