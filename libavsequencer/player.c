@@ -40,22 +40,22 @@
 #define AVSEQ_RANDOM_CONST  -1153374675
 #define AVSEQ_SLIDE_CONST   (8363*1712*4)
 
-static void process_row ( AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
-static void get_effects ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
-static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
-static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
+static void process_row ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
+static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
+static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
+static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel );
 
-static int16_t get_key_table_note ( AVSequencerModule *module, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t octave, uint16_t note );
-static int16_t get_key_table ( AVSequencerModule *module, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t note );
+static int16_t get_key_table_note ( AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t octave, uint16_t note );
+static int16_t get_key_table ( AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t note );
 static uint32_t get_tone_pitch ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, int16_t note );
 
-static AVSequencerPlayerChannel *play_note ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t octave, uint16_t note, uint32_t channel );
-static AVSequencerPlayerChannel *play_note_got ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t note, uint32_t channel );
+static AVSequencerPlayerChannel *play_note ( AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t octave, uint16_t note, uint32_t channel );
+static AVSequencerPlayerChannel *play_note_got ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t note, uint32_t channel );
 
-static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel );
+static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel );
 static void init_new_sample ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel );
 
-static AVSequencerPlayerChannel *trigger_nna ( AVSequencerModule *module, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint16_t *virtual_channel );
+static AVSequencerPlayerChannel *trigger_nna ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint16_t *virtual_channel );
 static uint32_t trigger_dct ( AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t dct );
 
 static void play_key_off ( AVSequencerPlayerChannel *player_channel );
@@ -65,7 +65,7 @@ static int16_t run_envelope ( AVSequencerContext *avctx, AVSequencerPlayerEnvelo
 static int16_t step_envelope ( AVSequencerContext *avctx, AVSequencerPlayerEnvelope *player_envelope, int16_t *envelope_data, uint16_t envelope_pos, uint16_t tempo_multiplier, uint16_t value_adjustment );
 
 #define ASSIGN_INSTRUMENT_ENVELOPE(env_type) \
-    static AVSequencerEnvelope *assign_##env_type##_envelope ( AVSequencerSong *song, \
+    static AVSequencerEnvelope *assign_##env_type##_envelope ( AVSequencerContext *avctx, \
                                                                AVSequencerInstrument *instrument, \
                                                                AVSequencerPlayerHostChannel *player_host_channel, \
                                                                AVSequencerPlayerChannel *player_channel, \
@@ -153,7 +153,7 @@ static void do_track_panning_slide_right ( AVSequencerContext *avctx, AVSequence
 
 static uint32_t check_surround_track_panning ( AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint8_t channel_ctrl_byte );
 
-static uint16_t *get_speed_address ( AVSequencerSong *song, uint16_t speed_type, uint16_t *speed_min_value, uint16_t *speed_max_value );
+static uint16_t *get_speed_address ( AVSequencerContext *avctx, uint16_t speed_type, uint16_t *speed_min_value, uint16_t *speed_max_value );
 static void speed_val_ok ( AVSequencerContext *avctx, uint16_t *speed_adr, uint16_t speed_value, uint8_t speed_type, uint16_t speed_min_value, uint16_t speed_max_value );
 static void do_speed_slide ( AVSequencerContext *avctx, uint16_t data_word );
 static void do_speed_slide_slower ( AVSequencerContext *avctx, uint16_t data_word );
@@ -161,8 +161,8 @@ static void do_speed_slide_slower ( AVSequencerContext *avctx, uint16_t data_wor
 static void do_global_volume_slide ( AVSequencerContext *avctx, AVSequencerPlayerGlobals *player_globals, uint16_t data_word );
 static void do_global_volume_slide_down ( AVSequencerContext *avctx, AVSequencerPlayerGlobals *player_globals, uint16_t data_word );
 
-static void do_global_panning_slide ( AVSequencerPlayerGlobals *player_globals, uint16_t data_word );
-static void do_global_panning_slide_right ( AVSequencerPlayerGlobals *player_globals, uint16_t data_word );
+static void do_global_panning_slide ( AVSequencerContext *avctx, uint16_t data_word );
+static void do_global_panning_slide_right ( AVSequencerContext *avctx, uint16_t data_word );
 
 #define PRESET_EFFECT(fx_type) \
     static void preset_##fx_type ( AVSequencerContext *avctx, \
@@ -1037,29 +1037,25 @@ static const int32_t global_panning_slide_trigger_mask[4] = {
 static const int8_t empty_waveform[256];
 
 void avseq_playback_handler ( AVSequencerContext *avctx ) {
-    AVSequencerModule *module;
-    AVSequencerSong *song;
-    AVSequencerPlayerGlobals *player_globals;
-    AVSequencerPlayerHostChannel *player_host_channel;
-    AVSequencerPlayerChannel *player_channel;
-    AVSequencerMixerData *mixer = avctx->player_mixer_data;
+    AVSequencerModule *module                         = avctx->player_module;
+    AVSequencerSong *song                             = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals          = avctx->player_globals;
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_host_channel;
+    AVSequencerPlayerChannel *player_channel          = avctx->player_channel;
+    AVSequencerMixerData *mixer                       = avctx->player_mixer_data;
     AVSequencerPlayerHook *player_hook;
     uint16_t channel, virtual_channel;
 
-    if (!(module = avctx->player_module))
+    if (!(module && song && player_globals && player_host_channel && player_channel && mixer))
         return;
 
-    channel        = 0;
-    player_channel = module->channel_data;
+    channel = 0;
 
     do {
         mixer_get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), channel, mixer->mixctx );
 
         player_channel++;
     } while (++channel < module->channels);
-
-    song           = avctx->player_song;
-    player_globals = song->global_data;
 
     if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_TRACE_MODE) {
         if (!player_globals->trace_count--)
@@ -1074,7 +1070,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
                        (((player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END) &&
                        (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END)) ||
                        (!(player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END))))
-        player_hook->hook_func ( avctx, module, song, player_hook->hook_data, player_hook->hook_len );
+        player_hook->hook_func ( avctx, player_hook->hook_data, player_hook->hook_len );
 
     if (player_globals->play_type & AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG) {
         uint32_t play_time_calc, play_time_advance, play_time_fraction;
@@ -1099,11 +1095,10 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
         player_globals->play_tics      += play_time_advance;
     }
 
-    channel             = 0;
-    player_host_channel = song->channel_data;
+    channel = 0;
 
     do {
-        player_channel = module->channel_data + player_host_channel->virtual_channel;
+        player_channel = avctx->player_channel + player_host_channel->virtual_channel;
 
         if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) &&
             (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE)) {
@@ -1119,12 +1114,12 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
             player_host_channel->instrument    = NULL;
             player_host_channel->sample        = NULL;
 
-            get_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+            get_effects ( avctx, player_host_channel, player_channel, channel );
 
             player_host_channel->tempo_counter = player_host_channel->note_delay;
 
-            get_note ( avctx, module, song, player_host_channel, player_channel, channel );
-            run_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+            get_note ( avctx, player_host_channel, player_channel, channel );
+            run_effects ( avctx, player_host_channel, player_channel, channel );
 
             player_host_channel->track         = old_track;
             player_host_channel->effect        = old_effect;
@@ -1168,7 +1163,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
                 AVSequencerSample *sample;
                 AVSequencerPlayerChannel *new_player_channel;
 
-                if ((new_player_channel = play_note ( avctx, module, instrument,
+                if ((new_player_channel = play_note ( avctx, instrument,
                                                       player_host_channel, player_channel,
                                                       note / AVSEQ_TRACK_DATA_NOTE_MAX,
                                                       note % AVSEQ_TRACK_DATA_NOTE_MAX, channel )))
@@ -1178,7 +1173,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
                 player_channel->volume  = player_host_channel->sample_note;
                 player_channel->sub_vol = 0;
 
-                init_new_instrument ( avctx, song, player_host_channel, player_channel );
+                init_new_instrument ( avctx, player_host_channel, player_channel );
                 init_new_sample ( avctx, player_host_channel, player_channel );
             }
         }
@@ -1197,7 +1192,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
             player_host_channel->prev_auto_trem_env = player_channel->auto_trem_env.envelope;
             player_host_channel->prev_auto_pan_env  = player_channel->auto_pan_env.envelope;
 
-            player_channel = trigger_nna ( module, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel );
+            player_channel = trigger_nna ( avctx, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel );
 
             player_channel->channel_data.pos     = sample->start_offset;
             player_host_channel->virtual_channel = virtual_channel;
@@ -1209,7 +1204,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
             player_channel->sub_vol              = 0;
             player_host_channel->instr_note      = 0;
 
-            init_new_instrument ( avctx, song, player_host_channel, player_channel );
+            init_new_instrument ( avctx, player_host_channel, player_channel );
 
             i = -1;
 
@@ -1238,8 +1233,8 @@ instrument_found:
 
         if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
 rescan_row:
-            process_row ( song, player_host_channel, player_channel, channel );
-            get_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+            process_row ( avctx, player_host_channel, player_channel, channel );
+            get_effects ( avctx, player_host_channel, player_channel, channel );
 
             if (player_channel->host_channel == channel) {
                 if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO)) {
@@ -1264,7 +1259,7 @@ rescan_row:
                 }
             }
 
-            if (get_note ( avctx, module, song, player_host_channel, player_channel, channel))
+            if (get_note ( avctx, player_host_channel, player_channel, channel))
                 goto rescan_row;
         }
 
@@ -1273,13 +1268,13 @@ rescan_row:
     } while (++channel < song->channels);
 
     channel             = 0;
-    player_host_channel = song->channel_data;
+    player_host_channel = avctx->player_host_channel;
 
     do {
         if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
-            player_channel = module->channel_data + player_host_channel->virtual_channel;
+            player_channel = avctx->player_channel + player_host_channel->virtual_channel;
 
-            run_effects ( avctx, module, song, player_host_channel, player_channel, channel );
+            run_effects ( avctx, player_host_channel, player_channel, channel );
         }
 
         player_host_channel->virtual_channels = 0;
@@ -1288,7 +1283,7 @@ rescan_row:
 
     virtual_channel = 0;
     channel         = 0;
-    player_channel  = module->channel_data;
+    player_channel  = avctx->player_channel;
 
     do {
         AVSequencerPlayerEnvelope *player_envelope;
@@ -1303,7 +1298,7 @@ rescan_row:
             uint16_t flags, slide_envelope_value;
             int16_t auto_vibrato_value, panning, abs_panning, panning_envelope_value;
 
-            player_host_channel = song->channel_data + player_channel->host_channel;
+            player_host_channel = avctx->player_host_channel + player_channel->host_channel;
             player_envelope     = (AVSequencerPlayerEnvelope *) &(player_channel->vol_env);
 
             if (player_envelope->tempo) {
@@ -1576,7 +1571,7 @@ not_calculate_no_playing:
         player_globals->max_channels = virtual_channel;
 
     channel             = 0;
-    player_host_channel = song->channel_data;
+    player_host_channel = avctx->player_host_channel;
 
     do {
         if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END))
@@ -1587,15 +1582,14 @@ not_calculate_no_playing:
 
     player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END;
 check_song_end_done:
-
     if (player_hook && (!(player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_BEGINNING)) &&
                        (((player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END) &&
                        (!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END))) ||
                        (!(player_hook->flags & AVSEQ_PLAYER_HOOK_FLAG_SONG_END))))
-        player_hook->hook_func ( avctx, module, song, player_hook->hook_data, player_hook->hook_len );
+        player_hook->hook_func ( avctx, player_hook->hook_data, player_hook->hook_len );
 
     if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END) {
-        player_host_channel = song->channel_data;
+        player_host_channel = avctx->player_host_channel;
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END) {
             AVSequencerOrderList *order_list = song->order_list;
@@ -1620,7 +1614,8 @@ check_song_end_done:
     }
 }
 
-static void process_row ( AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+static void process_row ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+    AVSequencerSong *song = avctx->player_song;
     uint32_t current_tick;
     uint16_t counted = 0;
 
@@ -1635,7 +1630,7 @@ static void process_row ( AVSequencerSong *song, AVSequencerPlayerHostChannel *p
         AVSequencerTrack *track;
         AVSequencerOrderList *order_list;
         AVSequencerOrderData *order_data;
-        AVSequencerPlayerGlobals *player_globals = song->global_data;
+        AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
         uint16_t pattern_delay, row, last_row, track_length;
         uint32_t ord;
 
@@ -1678,7 +1673,7 @@ static void process_row ( AVSequencerSong *song, AVSequencerPlayerHostChannel *p
             order_data                  = player_host_channel->order;
 
             if ((player_host_channel->chg_pattern < song->tracks) && ((track = song->track_list[player_host_channel->chg_pattern]))) {
-                if (!(song->global_data->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN))
+                if (!(avctx->player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN))
                     player_host_channel->track = track;
 
                 goto loop_to_row;
@@ -1696,7 +1691,7 @@ get_new_pattern:
             order_list = (AVSequencerOrderList *) song->order_list + channel;
             order_data = player_host_channel->order;
  
-            if (song->global_data->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN) {
+            if (avctx->player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN) {
                 track = player_host_channel->track;
 
                 goto loop_to_row;
@@ -1801,7 +1796,9 @@ loop_to_row:
     }
 }
 
-static void get_effects ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+    AVSequencerModule *module = avctx->player_module;
+    AVSequencerModule *song   = avctx->player_song;
     AVSequencerTrack *track;
 
     if ((track = player_host_channel->track)) {
@@ -1866,7 +1863,9 @@ static void get_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
     }
 }
 
-static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+    AVSequencerModule *module = avctx->player_module;
+    AVSequencerSong *song     = avctx->player_song;
     AVSequencerTrack *track;
     AVSequencerTrackData *track_data;
     AVSequencerInstrument *instrument;
@@ -1946,20 +1945,20 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
         }
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TONE_PORTA) {
-            player_host_channel->tone_porta_target_pitch = get_tone_pitch ( avctx, player_host_channel, player_channel, get_key_lut_note ( module, instrument, player_host_channel, octave, note ));
+            player_host_channel->tone_porta_target_pitch = get_tone_pitch ( avctx, player_host_channel, player_channel, get_key_lut_note ( avctx, instrument, player_host_channel, octave, note ));
 
             return 0;
         }
 
         if (octave_note) {
-            if ((new_player_channel = play_note ( avctx, module, instrument, player_host_channel, player_channel, octave, note, channel )))
+            if ((new_player_channel = play_note ( avctx, instrument, player_host_channel, player_channel, octave, note, channel )))
                 player_channel = new_player_channel;
 
             sample                  = player_host_channel->sample;
             player_channel->volume  = sample->volume;
             player_channel->sub_vol = sample->sub_volume;
 
-            init_new_instrument ( avctx, song, player_host_channel, player_channel );
+            init_new_instrument ( avctx, player_host_channel, player_channel );
             init_new_sample ( avctx, player_host_channel, player_channel );
         } else {
             uint16_t note;
@@ -1968,19 +1967,19 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
                 return 0;
 
             if ((note = player_host_channel->instr_note)) {
-                if ((note = get_key_lut ( module, instrument, player_host_channel, note )) == 0x8000)
+                if ((note = get_key_lut ( avctx, instrument, player_host_channel, note )) == 0x8000)
                     return 0;
 
                 if ((player_channel->host_channel != channel) || (player_host_channel->instrument != instrument)) {
-                    if ((new_player_channel = play_note_got ( avctx, module, player_host_channel, player_channel, note, channel )))
+                    if ((new_player_channel = play_note_got ( avctx, player_host_channel, player_channel, note, channel )))
                         player_channel = new_player_channel;
                 }
             } else {
-                note                             = get_key_lut ( module, instrument, player_host_channel, 1 );
+                note                             = get_key_lut ( avctx, instrument, player_host_channel, 1 );
                 player_host_channel->instr_note  = 0;
                 player_host_channel->sample_note = 0;
 
-                if ((new_player_channel = play_note_got ( avctx, module, player_host_channel, player_channel, note, channel )))
+                if ((new_player_channel = play_note_got ( avctx, player_host_channel, player_channel, note, channel )))
                     player_channel = new_player_channel;
 
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
@@ -1990,7 +1989,7 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
             player_channel->volume  = sample->volume;
             player_channel->sub_vol = sample->sub_volume;
 
-            init_new_instrument ( avctx, song, player_host_channel, player_channel );
+            init_new_instrument ( avctx, player_host_channel, player_channel );
 
             if (!(instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_LOCK_INSTR_WAVE))
                 init_new_sample ( avctx, player_host_channel, player_channel );
@@ -2014,7 +2013,7 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
             }
         }
 
-        if ((new_player_channel = play_note ( avctx, module, instrument, player_host_channel, player_channel, octave, note, channel ))) {
+        if ((new_player_channel = play_note ( avctx, instrument, player_host_channel, player_channel, octave, note, channel ))) {
             AVSequencerSample *sample = player_host_channel->sample;
 
             new_player_channel->channel_data.pos = sample->start_offset;
@@ -2023,7 +2022,7 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
                 new_player_channel->volume  = player_channel->volume;
                 new_player_channel->sub_vol = player_channel->sub_vol;
 
-                init_new_instrument ( avctx, song, player_host_channel, new_player_channel );
+                init_new_instrument ( avctx, player_host_channel, new_player_channel );
                 init_new_sample ( avctx, player_host_channel, new_player_channel );
             } else {
                 if (player_channel != new_player_channel) {
@@ -2032,7 +2031,7 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
                     new_player_channel->host_channel = channel;
                 }
 
-                init_new_instrument ( avctx, song, player_host_channel, new_player_channel );
+                init_new_instrument ( avctx, player_host_channel, new_player_channel );
                 init_new_sample ( avctx, player_host_channel, new_player_channel );
             }
         }
@@ -2041,11 +2040,12 @@ static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerModule *module,
     return 0;
 }
 
-static int16_t get_key_lut_note ( AVSequencerModule *module, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t octave, uint16_t note ) {
-    return get_key_lut ( module, instrument, player_host_channel, (( octave * AVSEQ_TRACK_DATA_NOTE_MAX ) + note ));
+static int16_t get_key_lut_note ( AVSequencerSequencer *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t octave, uint16_t note ) {
+    return get_key_lut ( avctx, instrument, player_host_channel, (( octave * AVSEQ_TRACK_DATA_NOTE_MAX ) + note ));
 }
 
-static int16_t get_key_lut ( AVSequencerModule *module, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t note ) {
+static int16_t get_key_lut ( AVSequencerSequencer *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t note ) {
+    AVSequencerModule *module = avctx->player_module;
     AVSequencerKeyboard *keyboard;
     AVSequencerSample *sample;
     uint16_t smp = 1, i;
@@ -2140,16 +2140,17 @@ static uint32_t get_tone_pitch ( AVSequencerContext *avctx, AVSequencerPlayerHos
     }
 }
 
-static AVSequencerPlayerChannel *play_note ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t octave, uint16_t note, uint32_t channel ) {
+static AVSequencerPlayerChannel *play_note ( AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t octave, uint16_t note, uint32_t channel ) {
     player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE;
 
-    if ((note = get_key_lut_note ( module, instrument, player_host_channel, octave, note )) == 0x8000)
+    if ((note = get_key_lut_note ( avctx, instrument, player_host_channel, octave, note )) == 0x8000)
         return NULL;
 
-    return play_note_got ( avctx, module, player_host_channel, player_channel, note, channel );
+    return play_note_got ( avctx, player_host_channel, player_channel, note, channel );
 }
 
-static AVSequencerPlayerChannel *play_note_got ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t note, uint32_t channel ) {
+static AVSequencerPlayerChannel *play_note_got ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t note, uint32_t channel ) {
+    AVSequencerModule *module         = avctx->player_module;
     AVSequencerInstrument *instrument = player_host_channel->instrument;
     AVSequencerSample *sample = player_host_channel->sample;
     uint32_t note_swing, pitch_swing, frequency = 0;
@@ -2178,7 +2179,7 @@ static AVSequencerPlayerChannel *play_note_got ( AVSequencerContext *avctx, AVSe
     player_host_channel->prev_auto_pan_env  = player_channel->auto_pan_env.envelope;
     player_host_channel->prev_resonacne_env = player_channel->resonance_env.envelope;
 
-    player_channel = trigger_nna ( module, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel );
+    player_channel = trigger_nna ( avctx, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel );
 
     player_channel->channel_data.pos     = sample->start_offset;
     player_host_channel->virtual_channel = virtual_channel;
@@ -2215,11 +2216,12 @@ static AVSequencerPlayerChannel *play_note_got ( AVSequencerContext *avctx, AVSe
     return player_channel;
 }
 
-static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel ) {
+static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel ) {
+    AVSequencerSong *song             = avctx->player_song;
     AVSequencerInstrument *instrument = player_host_channel->instrument;
     AVSequencerSample *sample = player_host_channel->sample;
     AVSequencerPlayerGlobals *player_globals;
-    AVSequencerEnvelope * (**assign_envelope)( AVSequencerSong *song, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, AVSequencerEnvelope **envelope, AVSequencerPlayerEnvelope **player_envelope );
+    AVSequencerEnvelope * (**assign_envelope)( AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, AVSequencerEnvelope **envelope, AVSequencerPlayerEnvelope **player_envelope );
     AVSequencerEnvelope * (**assign_auto_envelope)( AVSequencerSample *sample, AVSequencerPlayerChannel *player_channel, AVSequencerPlayerEnvelope **player_envelope );
     uint32_t volume, panning, panning_separation, i;
 
@@ -2243,7 +2245,7 @@ static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerSong *so
     }
 
     player_channel->instr_volume   = volume;
-    player_globals                 = song->global_data;
+    player_globals                 = avctx->player_globals;
     player_channel->global_volume  = player_globals->global_volume;
     player_channel->global_sub_vol = player_globals->global_sub_volume;
     player_channel->global_panning = player_globals->global_panning;
@@ -2297,7 +2299,7 @@ static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerSong *so
         uint16_t mask = 1 << i;
 
         if (instrument) {
-            if (assign_envelope[i] ( song, instrument, player_host_channel, player_channel, (AVSequencerEnvelope **) &envelope, (AVSequencerPlayerEnvelope **) &player_envelope )) {
+            if (assign_envelope[i] ( avctx, instrument, player_host_channel, player_channel, (AVSequencerEnvelope **) &envelope, (AVSequencerPlayerEnvelope **) &player_envelope )) {
                 if (instrument->env_usage_flags & mask)
                     continue;
             }
@@ -2342,7 +2344,7 @@ static void init_new_instrument ( AVSequencerContext *avctx, AVSequencerSong *so
                 player_envelope->flags |= flags;
             }
         } else {
-            assign_envelope[i] ( song, instrument, player_host_channel, player_channel, (AVSequencerEnvelope **) &envelope, (AVSequencerPlayerEnvelope **) &player_envelope );
+            assign_envelope[i] ( avctx, instrument, player_host_channel, player_channel, (AVSequencerEnvelope **) &envelope, (AVSequencerPlayerEnvelope **) &player_envelope );
 
             player_envelope->envelope     = NULL;
             player_channel->vol_env.value = 0;
@@ -2652,7 +2654,8 @@ static void init_new_sample ( AVSequencerContext *avctx, AVSequencerPlayerHostCh
     mixer_set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->channel_data), player_host_channel->virtual_channel, mixer->mixctx );
 }
 
-static AVSequencerPlayerChannel *trigger_nna ( AVSequencerModule *module, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint16_t *virtual_channel ) {
+static AVSequencerPlayerChannel *trigger_nna ( AVSequencerSequencer *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint16_t *virtual_channel ) {
+    AVSequencerModule *module                    = avctx->player_module;
     AVSequencerPlayerChannel *new_player_channel = player_channel;
     AVSequencerPlayerChannel *scan_player_channel;
     uint16_t nna_channel, nna_max_volume, nna_volume;
@@ -2661,7 +2664,7 @@ static AVSequencerPlayerChannel *trigger_nna ( AVSequencerModule *module, AVSequ
     *virtual_channel = player_host_channel->virtual_channel;
 
     if (player_channel->host_channel != channel) {
-        new_player_channel = module->channel_data;
+        new_player_channel = avctx->player_channel;
         nna_channel        = 0;
 
         do {
@@ -2676,7 +2679,7 @@ previous_nna_found:
         *virtual_channel = nna_channel;
     }
 
-    nna_volume = new_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
+    nna_volume                 = new_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
     new_player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
 
     if (nna_volume || (!(nna = player_host_channel->nna)))
@@ -2710,7 +2713,7 @@ previous_nna_found:
     if (!player_host_channel->dct || player_host_channel->dna)
         goto find_nna;
 
-    scan_player_channel = module->channel_data;
+    scan_player_channel = avctx->player_channel;
     nna_channel         = 0;
 
     do {
@@ -2726,7 +2729,7 @@ previous_nna_found:
         scan_player_channel++;
     } while (++nna_channel < module->channels);
 find_nna:
-    scan_player_channel = module->channel_data;
+    scan_player_channel = avctx->player_channel;
     new_player_channel  = NULL;
     nna_channel         = 0;
 
@@ -2743,7 +2746,7 @@ find_nna:
     } while (++nna_channel < module->channels ;
 
     nna_max_volume      = 256;
-    scan_player_channel = module->channel_data;
+    scan_player_channel = avctx->player_channel;
     nna_channel         = 0;
 
     do {
@@ -2767,7 +2770,7 @@ find_nna:
         new_player_channel = player_channel;
 nna_found:
     if (player_host_channel->dct && (new_player_channel != player_channel)) {
-        scan_player_channel = module->channel_data;
+        scan_player_channel = avctx->player_channel;
         nna_channel         = 0;
 
         do {
@@ -3142,7 +3145,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(spenolo) {
     if (instrument)
         *envelope = instrument->spenolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &(song->global_data->spenolo_env);
+    *player_envelope = (AVSequencerPlayerEnvelope *) &(avctx->player_globals->spenolo_env);
 
     return (*player_envelope)->envelope;
 }
@@ -3169,7 +3172,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(global_tremolo) {
     if (instrument)
         *envelope = instrument->tremolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &(song->global_data->tremolo_env);
+    *player_envelope = (AVSequencerPlayerEnvelope *) &(avctx->player_globals->tremolo_env);
 
     return (*player_envelope)->envelope;
 }
@@ -3178,7 +3181,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(global_pannolo) {
     if (instrument)
         *envelope = instrument->pannolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &(song->global_data->pannolo_env);
+    *player_envelope = (AVSequencerPlayerEnvelope *) &(avctx->player_globals->pannolo_env);
 
     return (*player_envelope)->envelope;
 }
@@ -3239,7 +3242,7 @@ USE_ENVELOPE(channolo) {
 }
 
 USE_ENVELOPE(spenolo) {
-    return (AVSequencerPlayerEnvelope *) &(avctx->player_song->global_data->spenolo_env);
+    return (AVSequencerPlayerEnvelope *) &(avctx->player_globals->spenolo_env);
 }
 
 USE_ENVELOPE(auto_vibrato) {
@@ -3263,11 +3266,11 @@ USE_ENVELOPE(track_pannolo) {
 }
 
 USE_ENVELOPE(global_tremolo) {
-    return (AVSequencerPlayerEnvelope *) &(avctx->player_song->global_data->tremolo_env);
+    return (AVSequencerPlayerEnvelope *) &(avctx->player_globals->tremolo_env);
 }
 
 USE_ENVELOPE(global_pannolo) {
-    return (AVSequencerPlayerEnvelope *) &(avctx->player_song->global_data->pannolo_env);
+    return (AVSequencerPlayerEnvelope *) &(avctx->player_globals->pannolo_env);
 }
 
 USE_ENVELOPE(arpeggio) {
@@ -3278,7 +3281,9 @@ USE_ENVELOPE(resonance) {
     return (AVSequencerPlayerEnvelope *) &(player_channel->resonance_env);
 }
 
-static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, AVSequencerSong *song, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
+    AVSequencerModule *module = avctx->player_module;
+    AVSequencerModule *song   = avctx->player_song;
     AVSequencerTrack *track;
 
     if ((track = player_host_channel->track) && player_host_channel->effect) {
@@ -3331,8 +3336,8 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
                     switch (channel_ctrl_type) {
                     case CH_CTRL_NORMAL :
                         if ((ctrl_channel = player_host_channel->ch_control_channel) != channel) {
-                            new_player_host_channel = song->channel_data + ctrl_channel;
-                            new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                            new_player_host_channel = avctx->player_host_channel + ctrl_channel;
+                            new_player_channel      = avctx->player_channel + new_player_host_channel->virtual_channel;
                             ctrl_fx_byte            = fx_byte;
                             ctrl_data_word          = data_word;
                             ctrl_flags              = flags;
@@ -3352,8 +3357,8 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
 
                         do {
                             if ((ctrl_channel != channel) && (player_host_channel->control_channels[(ctrl_channel >> 3)] & (1 << (7 - (ctrl_channel & 7))))) {
-                                new_player_host_channel = song->channel_data + ctrl_channel;
-                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                new_player_host_channel = avctx->player_host_channel + ctrl_channel;
+                                new_player_channel      = avctx->player_channel + new_player_host_channel->virtual_channel;
 
                                 ctrl_fx_byte   = fx_byte;
                                 ctrl_data_word = data_word;
@@ -3375,8 +3380,8 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
 
                         do {
                             if (ctrl_channel != channel) {
-                                new_player_host_channel = song->channel_data + ctrl_channel;
-                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                new_player_host_channel = avctx->player_host_channel + ctrl_channel;
+                                new_player_channel      = avctx->player_channel + new_player_host_channel->virtual_channel;
                                 ctrl_fx_byte            = fx_byte;
                                 ctrl_data_word          = data_word;
                                 ctrl_flags              = flags;
@@ -3444,8 +3449,8 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
                     switch (channel_ctrl_type) {
                     case CH_CTRL_NORMAL :
                         if ((ctrl_channel = player_host_channel->ch_control_channel) != channel) {
-                            new_player_host_channel = song->channel_data + ctrl_channel;
-                            new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                            new_player_host_channel = avctx->player_host_channel + ctrl_channel;
+                            new_player_channel      = avctx->player_channel + new_player_host_channel->virtual_channel;
                             ctrl_fx_byte            = fx_byte;
                             ctrl_data_word          = data_word;
                             ctrl_flags              = flags;
@@ -3468,8 +3473,8 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
 
                         do {
                             if ((ctrl_channel != channel) && (player_host_channel->control_channels[(ctrl_channel >> 3)] & (1 << (7 - (ctrl_channel & 7))))) {
-                                new_player_host_channel = song->channel_data + ctrl_channel;
-                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                new_player_host_channel = avctx->player_host_channel + ctrl_channel;
+                                new_player_channel      = avctx->player_channel + new_player_host_channel->virtual_channel;
                                 ctrl_fx_byte            = fx_byte;
                                 ctrl_data_word          = data_word;
                                 ctrl_flags              = flags;
@@ -3493,8 +3498,8 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerModule *module, 
 
                         do {
                             if (ctrl_channel != channel) {
-                                new_player_host_channel = song->channel_data + ctrl_channel;
-                                new_player_channel      = module->channel_data + new_player_host_channel->virtual_channel;
+                                new_player_host_channel = avctx->player_host_channel + ctrl_channel;
+                                new_player_channel      = avctx->player_channel + new_player_host_channel->virtual_channel;
                                 ctrl_fx_byte            = fx_byte;
                                 ctrl_data_word          = data_word;
                                 ctrl_flags              = flags;
@@ -4104,8 +4109,9 @@ static uint32_t check_surround_track_panning ( AVSequencerPlayerHostChannel *pla
     return 0;
 }
 
-static uint16_t *get_speed_address ( AVSequencerSong *song, uint16_t speed_type, uint16_t *speed_min_value, uint16_t *speed_max_value ) {
-    AVSequencerPlayerGlobals *player_globals = song->global_data;
+static uint16_t *get_speed_address ( AVSequencerContext *avctx, uint16_t speed_type, uint16_t *speed_min_value, uint16_t *speed_max_value ) {
+    AVSequencerSong *song                    = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint16_t *speed_adr = NULL;
 
     switch (speed_type & 0x07) {
@@ -4143,7 +4149,7 @@ static uint16_t *get_speed_address ( AVSequencerSong *song, uint16_t speed_type,
 }
 
 static void speed_val_ok ( AVSequencerContext *avctx, uint16_t *speed_adr, uint16_t speed_value, uint8_t speed_type, uint16_t speed_min_value, uint16_t speed_max_value ) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
 
     if (speed_value < speed_min_value)
         speed_value = speed_min_value;
@@ -4205,12 +4211,12 @@ static void speed_val_ok ( AVSequencerContext *avctx, uint16_t *speed_adr, uint1
 }
 
 static void do_speed_slide ( AVSequencerContext *avctx, uint16_t data_word ) {
-    AVSequencerSong *song = avctx->player_song;
-    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    AVSequencerSong *song                    = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint16_t *speed_ptr;
     uint16_t speed_min_value, speed_max_value;
 
-    if ((speed_ptr = get_speed_address ( song, player_globals->speed_type, &speed_min_value, &speed_max_value ))) {
+    if ((speed_ptr = get_speed_address ( avctx, player_globals->speed_type, &speed_min_value, &speed_max_value ))) {
         uint16_t speed_value;
 
         if ((player_globals->speed_type & 0x07) == 0x07)
@@ -4227,12 +4233,12 @@ static void do_speed_slide ( AVSequencerContext *avctx, uint16_t data_word ) {
 
 static void do_speed_slide_slower ( AVSequencerContext *avctx, uint16_t data_word )
 {
-    AVSequencerSong *song = avctx->player_song;
-    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    AVSequencerSong *song                    = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint16_t *speed_ptr;
     uint16_t speed_min_value, speed_max_value;
 
-    if ((speed_ptr = get_speed_address ( song, player_globals->speed_type, &speed_min_value, &speed_max_value ))) {
+    if ((speed_ptr = get_speed_address ( avctx, player_globals->speed_type, &speed_min_value, &speed_max_value ))) {
         uint16_t speed_value;
 
         if ((player_globals->speed_type & 0x07) == 0x07)
@@ -5457,7 +5463,7 @@ EXECUTE_EFFECT(extended_ctrl) {
         break;
     case 3 :
         AVSequencerModule *module                     = avctx->player_module;
-        AVSequencerPlayerChannel *scan_player_channel = module->channel_data;
+        AVSequencerPlayerChannel *scan_player_channel = avctx->player_channel;
         uint16_t virtual_channel                      = 0;
 
         do {
@@ -5470,7 +5476,7 @@ EXECUTE_EFFECT(extended_ctrl) {
         break;
     case 4 :
         AVSequencerModule *module                     = avctx->player_module;
-        AVSequencerPlayerChannel *scan_player_channel = module->channel_data;
+        AVSequencerPlayerChannel *scan_player_channel = avctx->player_channel;
         uint16_t virtual_channel                      = 0;
 
         do {
@@ -5483,7 +5489,7 @@ EXECUTE_EFFECT(extended_ctrl) {
         break;
     case 5 :
         AVSequencerModule *module                     = avctx->player_module;
-        AVSequencerPlayerChannel *scan_player_channel = module->channel_data;
+        AVSequencerPlayerChannel *scan_player_channel = avctx->player_channel;
         uint16_t virtual_channel                      = 0;
 
         do {
@@ -6408,7 +6414,7 @@ EXECUTE_EFFECT(pattern_loop) {
     uint16_t *loop_stack_ptr;
     uint16_t loop_length = player_host_channel->pattern_loop_depth;
 
-    (uint8_t *) loop_stack_ptr = (uint8_t *) song->global_data->loop_stack + (((song->loop_stack_size * channel) * sizeof (uint16_t[2])) + (loop_length * sizeof(uint16_t[2])));
+    loop_stack_ptr = (uint8_t *) avctx->player_globals->loop_stack + (((song->loop_stack_size * channel) * sizeof (uint16_t[2])) + (loop_length * sizeof(uint16_t[2])));
 
     if (data_word) {
         if (data_word == *loop_stack_ptr) {
@@ -6448,7 +6454,7 @@ EXECUTE_EFFECT(channel_sync) {
 }
 
 EXECUTE_EFFECT(set_sub_slides) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint8_t sub_slide_flags;
 
     if (!(sub_slide_flags = ( data_word >> 8)))
@@ -6783,12 +6789,12 @@ EXECUTE_EFFECT(loop_ctrl) {
 
 EXECUTE_EFFECT(set_speed) {
     AVSequencerSong *song                    = avctx->player_song;
-    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint16_t *speed_ptr;
     uint16_t speed_value, speed_min_value, speed_max_value;
     uint8_t speed_type                       = (data_word >> 12);
 
-    if ((speed_ptr = get_speed_address ( song, speed_type, &speed_min_value, &speed_max_value ))) {
+    if ((speed_ptr = get_speed_address ( avctx, speed_type, &speed_min_value, &speed_max_value ))) {
         if (!(speed_value = (data_word & 0xFFF))) {
             if ((data_word & 0x7000) == 0x7000)
                 speed_value = (player_globals->speed_mul << 8U) + player_globals->speed_div;
@@ -6801,7 +6807,7 @@ EXECUTE_EFFECT(set_speed) {
 }
 
 EXECUTE_EFFECT(speed_slide_faster) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v3, v4, v5;
 
@@ -6831,7 +6837,7 @@ EXECUTE_EFFECT(speed_slide_faster) {
 }
 
 EXECUTE_EFFECT(speed_slide_slower) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v3, v4;
 
@@ -6862,7 +6868,7 @@ EXECUTE_EFFECT(speed_slide_slower) {
 
 EXECUTE_EFFECT(fine_speed_slide_faster)
 {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v1, v4;
 
@@ -6892,7 +6898,7 @@ EXECUTE_EFFECT(fine_speed_slide_faster)
 }
 
 EXECUTE_EFFECT(fine_speed_slide_slower) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v1, v3;
 
@@ -7000,11 +7006,11 @@ EXECUTE_EFFECT(channel_ctrl) {
 
             break;
         case 0x20 :
-            avctx->player_song->global_data->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
+            avctx->player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
 
             break;
         case 0x21 :
-            avctx->player_song->global_data->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
+            avctx->player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
 
             break;
         }
@@ -7018,7 +7024,7 @@ EXECUTE_EFFECT(channel_ctrl) {
 }
 
 EXECUTE_EFFECT(set_global_volume) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
 
     if (check_old_track_volume ( avctx, &data_word )) {
         player_globals->global_volume     = data_word >> 8;
@@ -7027,7 +7033,7 @@ EXECUTE_EFFECT(set_global_volume) {
 }
 
 EXECUTE_EFFECT(global_volume_slide_up) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v3, v4, v5;
 
@@ -7057,7 +7063,7 @@ EXECUTE_EFFECT(global_volume_slide_up) {
 }
 
 EXECUTE_EFFECT(global_volume_slide_down) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v3, v4;
 
@@ -7087,7 +7093,7 @@ EXECUTE_EFFECT(global_volume_slide_down) {
 }
 
 EXECUTE_EFFECT(fine_global_volume_slide_up) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v1, v4;
 
@@ -7117,7 +7123,7 @@ EXECUTE_EFFECT(fine_global_volume_slide_up) {
 }
 
 EXECUTE_EFFECT(fine_global_volume_slide_down) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v1, v3;
 
@@ -7147,7 +7153,7 @@ EXECUTE_EFFECT(fine_global_volume_slide_down) {
 }
 
 EXECUTE_EFFECT(global_volume_slide_to) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint8_t global_volume_slide_to_value, global_volume_slide_to_volume;
 
     if (!(global_volume_slide_to_value = data_word))
@@ -7188,8 +7194,8 @@ EXECUTE_EFFECT(global_volume_slide_to) {
 }
 
 EXECUTE_EFFECT(global_tremolo) {
-    AVSequencerSong *song = avctx->player_song;
-    AVSequencerPlayerGlobals *player_globals = song->global_data;
+    AVSequencerSong *song                    = avctx->player_song;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     int32_t global_tremolo_slide_value;
     uint8_t global_tremolo_rate;
     int16_t global_tremolo_depth;
@@ -7232,7 +7238,7 @@ EXECUTE_EFFECT(global_tremolo) {
 }
 
 EXECUTE_EFFECT(set_global_panning) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
 
     player_globals->global_panning     = data_word >> 8;
     player_globals->global_sub_panning = data_word;
@@ -7240,7 +7246,7 @@ EXECUTE_EFFECT(set_global_panning) {
 }
 
 EXECUTE_EFFECT(global_panning_slide_left) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v3, v4, v5, v8;
 
@@ -7274,7 +7280,7 @@ EXECUTE_EFFECT(global_panning_slide_left) {
 }
 
 EXECUTE_EFFECT(global_panning_slide_right) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v3, v4, v5;
 
@@ -7308,7 +7314,7 @@ EXECUTE_EFFECT(global_panning_slide_right) {
 }
 
 EXECUTE_EFFECT(fine_global_panning_slide_left) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v1, v4, v5;
 
@@ -7342,7 +7348,7 @@ EXECUTE_EFFECT(fine_global_panning_slide_left) {
 }
 
 EXECUTE_EFFECT(fine_global_panning_slide_right) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     AVSequencerTrack *track;
     uint16_t v0, v1, v3, v5;
 
@@ -7376,7 +7382,7 @@ EXECUTE_EFFECT(fine_global_panning_slide_right) {
 }
 
 EXECUTE_EFFECT(global_panning_slide_to) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint8_t global_pan_slide_to, global_pan_slide_to_panning;
 
     if (!(global_pan_slide_to = data_word))
@@ -7417,7 +7423,7 @@ EXECUTE_EFFECT(global_panning_slide_to) {
 }
 
 EXECUTE_EFFECT(global_pannolo) {
-    AVSequencerPlayerGlobals *player_globals = avctx->player_song->global_data;
+    AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     int32_t global_pannolo_slide_value;
     uint8_t global_pannolo_rate;
     int16_t global_pannolo_depth;
@@ -7536,7 +7542,7 @@ exec_synth_done:
 }
 
 static void se_vibrato_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t vibrato_slide_value ) {
-    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_host_channel + player_channel->host_channel;
     uint32_t old_frequency = player_channel->frequency;
 
     player_channel->frequency -= player_channel->vibrato_slide;
@@ -9150,7 +9156,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(getsine) {
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(portaup) {
-    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_host_channel + player_channel->host_channel;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->porta_up;
@@ -9167,7 +9173,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(portaup) {
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(portadn) {
-    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+    AVSequencerPlayerHostChannel *player_host_channel = avctx->player_host_channel + player_channel->host_channel;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->porta_dn;
@@ -9599,7 +9605,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(reset) {
         player_channel->pannolo_slide  = 0;
 
     if (!(instruction_data & 0x10)) {
-        AVSequencerPlayerHostChannel *player_host_channel = avctx->player_song->channel_data + player_channel->host_channel;
+        AVSequencerPlayerHostChannel *player_host_channel = avctx->player_host_channel + player_channel->host_channel;
         int32_t portamento_value                          = player_channel->portamento;
 
         if (portamento_value < 0) {
