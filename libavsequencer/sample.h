@@ -124,22 +124,26 @@ typedef struct AVSequencerSample {
        where sample loop control has to be handled a different
        way, or a different policy for no sample specified cases.  */
     uint8_t compat_flags;
-#define AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN     0x01 ///< Sample panning affects channel panning (IT compatibility)
-#define AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY            0x02 ///< If a note without a sample is played, only the sample volume will be left unchanged
-#define AVSEQ_SAMPLE_COMPAT_FLAG_START_TONE_PORTAMENTO  0x04 ///< If a tone portamento with a note is executed but no note is currently played, the tone portamento will be ignored and start playing the note normally
-#define AVSEQ_SAMPLE_COMPAT_FLAG_PLAY_BEGIN_TONE_PORTA  0x08 ///< If you change a sample within a tone portamento the sample will be played from beginning
+enum AVSequencerSampleCompatFlags {
+    AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN     = 0x01, ///< Sample panning affects channel panning (IT compatibility)
+    AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY            = 0x02, ///< If a note without a sample is played, only the sample volume will be left unchanged
+    AVSEQ_SAMPLE_COMPAT_FLAG_START_TONE_PORTAMENTO  = 0x04, ///< If a tone portamento with a note is executed but no note is currently played, the tone portamento will be ignored and start playing the note normally
+    AVSEQ_SAMPLE_COMPAT_FLAG_PLAY_BEGIN_TONE_PORTA  = 0x08, ///< If you change a sample within a tone portamento the sample will be played from beginning
+};
 
     /** Sample playback flags. Some sequencers feature
        surround panning or allow different types of loop control
        differend types of frequency tables which have to be taken
        care specially in the internal playback engine.  */
     uint8_t flags;
-#define AVSEQ_SAMPLE_FLAG_REDIRECT          0x01 ///< Sample is a redirection (symbolic link)
-#define AVSEQ_SAMPLE_FLAG_LOOP              0x02 ///< Use normal loop points
-#define AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP      0x04 ///< Use sustain loop points
-#define AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING    0x08 ///< Use sample panning
-#define AVSEQ_SAMPLE_FLAG_SURROUND_PANNING  0x10 ///< Sample panning is surround panning
-#define AVSEQ_SAMPLE_FLAG_REVERSE           0x40 ///< Sample will be initially played backwards
+enum AVSequencerSampleFlags {
+    AVSEQ_SAMPLE_FLAG_REDIRECT          = 0x01, ///< Sample is a redirection (symbolic link)
+    AVSEQ_SAMPLE_FLAG_LOOP              = 0x02, ///< Use normal loop points
+    AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP      = 0x04, ///< Use sustain loop points
+    AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING    = 0x08, ///< Use sample panning
+    AVSEQ_SAMPLE_FLAG_SURROUND_PANNING  = 0x10, ///< Sample panning is surround panning
+    AVSEQ_SAMPLE_FLAG_REVERSE           = 0x40, ///< Sample will be initially played backwards
+};
 
     /** Sample repeat mode. Some sequencers allow to define
        different loop modes. There is a normal forward loop mode,
@@ -147,8 +151,10 @@ typedef struct AVSequencerSample {
        between forward and backward looping each touch of loop
        points).  */
     uint8_t rep_mode;
-#define AVSEQ_SAMPLE_REP_MODE_BACKWARDS 0x01 ///< Use always backward instead of always forward loop
-#define AVSEQ_SAMPLE_REP_MODE_PINGPONG  0x02 ///< Use ping-pong loop mode, i.e. forward <-> backward
+enum AVSequencerSampleRepMode {
+    AVSEQ_SAMPLE_REP_MODE_BACKWARDS = 0x01, ///< Use always backward instead of always forward loop
+    AVSEQ_SAMPLE_REP_MODE_PINGPONG  = 0x02, ///< Use ping-pong loop mode, i.e. forward <-> backward
+};
 
     /** Sample sustain loop mode. Some sequencers allow to define
        different loop types. There is a normal forward sustain loop
@@ -156,8 +162,10 @@ typedef struct AVSequencerSample {
        loop mode (switch between forward and backward looping each
        touch of sustain loop points).  */
     uint8_t sustain_rep_mode;
-#define AVSEQ_SAMPLE_SUSTAIN_REP_MODE_BACKWARDS 0x01 ///< Use always backward instead of always forward loop
-#define AVSEQ_SAMPLE_SUSTAIN_REP_MODE_PINGPONG  0x02 ///< Use ping-pong loop mode, i.e. forward <-> backward
+enum AVSequencerSampleSustainRepMode {
+    AVSEQ_SAMPLE_SUSTAIN_REP_MODE_BACKWARDS = 0x01, ///< Use always backward instead of always forward loop
+    AVSEQ_SAMPLE_SUSTAIN_REP_MODE_PINGPONG  = 0x02, ///< Use ping-pong loop mode, i.e. forward <-> backward
+};
 
     /** Sample global volume. This will scale all volume operations
        of this sample (default is 255 = no scaling).  */
@@ -202,19 +210,23 @@ typedef struct AVSequencerSample {
        Some sequencers feature reloading of envelope data when
        a new note is played.  */
     uint8_t env_usage_flags;
-#define AVSEQ_SAMPLE_FLAG_USE_AUTO_VIBRATO_ENV  0x01 ///< Use (reload) auto vibrato envelope
-#define AVSEQ_SAMPLE_FLAG_USE_AUTO_TREMOLO_ENV  0x02 ///< Use (reload) auto tremolo envelope
-#define AVSEQ_SAMPLE_FLAG_USE_AUTO_PANNOLO_ENV  0x04 ///< Use (reload) auto pannolo envelope
+enum AVSequencerSampleEnvUsageFlags {
+    AVSEQ_SAMPLE_FLAG_USE_AUTO_VIBRATO_ENV  = 0x01, ///< Use (reload) auto vibrato envelope
+    AVSEQ_SAMPLE_FLAG_USE_AUTO_TREMOLO_ENV  = 0x02, ///< Use (reload) auto tremolo envelope
+    AVSEQ_SAMPLE_FLAG_USE_AUTO_PANNOLO_ENV  = 0x04, ///< Use (reload) auto pannolo envelope
+};
 
     /** Auto vibrato / tremolo / pannolo envelope processing flags.
        Sequencers differ in the way how they handle envelopes.
        Some first increment envelope node and then get the data and
        others first get the data and then increment the envelope data.  */
     uint8_t env_proc_flags;
-#define AVSEQ_SAMPLE_FLAG_PROC_AUTO_VIBRATO_ENV 0x01 ///< Add first, then get auto vibrato envelope value
-#define AVSEQ_SAMPLE_FLAG_PROC_AUTO_TREMOLO_ENV 0x02 ///< Add first, then get auto tremolo envelope value
-#define AVSEQ_SAMPLE_FLAG_PROC_AUTO_PANNOLO_ENV 0x04 ///< Add first, then get auto pannolo envelope value
-#define AVSEQ_SAMPLE_FLAG_PROC_LINEAR_AUTO_VIB  0x80 ///< Use linear frequency table for auto vibrato
+enum AVSequencerSampleEnvProcFlags {
+    AVSEQ_SAMPLE_FLAG_PROC_AUTO_VIBRATO_ENV = 0x01, ///< Add first, then get auto vibrato envelope value
+    AVSEQ_SAMPLE_FLAG_PROC_AUTO_TREMOLO_ENV = 0x02, ///< Add first, then get auto tremolo envelope value
+    AVSEQ_SAMPLE_FLAG_PROC_AUTO_PANNOLO_ENV = 0x04, ///< Add first, then get auto pannolo envelope value
+    AVSEQ_SAMPLE_FLAG_PROC_LINEAR_AUTO_VIB  = 0x80, ///< Use linear frequency table for auto vibrato
+};
 
     /** Auto vibrato / tremolo / pannolo envelope retrigger flags.
        Sequencers differ in the way how they handle envelopes restart.
@@ -222,18 +234,22 @@ typedef struct AVSequencerSample {
        instrument does not define an envelope, others disable this
        envelope instead.  */
     uint8_t env_retrig_flags;
-#define AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_VIBRATO_ENV   0x01 ///< Not retrigger auto vibrato envelope
-#define AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_TREMOLO_ENV   0x02 ///< Not retrigger auto tremolo envelope
-#define AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_PANNOLO_ENV   0x04 ///< Not retrigger auto pannolo envelope
+enum AVSequencerSampleEnvRetrigFlags {
+    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_VIBRATO_ENV   = 0x01, ///< Not retrigger auto vibrato envelope
+    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_TREMOLO_ENV   = 0x02, ///< Not retrigger auto tremolo envelope
+    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_PANNOLO_ENV   = 0x04, ///< Not retrigger auto pannolo envelope
+};
 
     /** Auto vibrato / tremolo / pannolo envelope randomize flags.
        Sequencers allow to use data from a pseudo random number generator.
        If the approciate bit is set, the envelope data will be
        randomized each access.  */
     uint8_t env_random_flags;
-#define AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_VIBRATO_ENV   0x01 ///< Randomize auto vibrato envelope
-#define AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_TREMOLO_ENV   0x02 ///< Randomize auto tremolo envelope
-#define AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_PANNOLO_ENV   0x04 ///< Randomize auto pannolo envelope
+enum AVSequencerSampleEnvRandomFlags {
+    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_VIBRATO_ENV   = 0x01, ///< Randomize auto vibrato envelope
+    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_TREMOLO_ENV   = 0x02, ///< Randomize auto tremolo envelope
+    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_PANNOLO_ENV   = 0x04, ///< Randomize auto pannolo envelope
+};
 
     /** Auto vibrato sweep.  */
     uint16_t vibrato_sweep;

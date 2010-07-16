@@ -41,14 +41,16 @@ typedef struct AVSequencerSynthTable {
 
     /** Input and output flags for this synth code instruction.  */
     uint8_t flags;
-#define AVSEQ_SYNTH_TABLE_SRC            0x01 ///< Source parameter required
-#define AVSEQ_SYNTH_TABLE_SRC_LINE       0x02 ///< Source parameter is a line number
-#define AVSEQ_SYNTH_TABLE_SRC_NO_V0      0x04 ///< Don't display source variable if v0
-#define AVSEQ_SYNTH_TABLE_SRC_NO_DATA    0x08 ///< Don't display source increment data if 0x0000
-#define AVSEQ_SYNTH_TABLE_DEST           0x10 ///< Destination parameter required
-#define AVSEQ_SYNTH_TABLE_DEST_DOUBLE    0x20 ///< Destination double register required (= vH:vL)
-#define AVSEQ_SYNTH_TABLE_VAR_PRIORITY   0x40 ///< Variables are prioritized against immediate data
-#define AVSEQ_SYNTH_TABLE_SRC_NOT_REQ    0x80 ///< Source parameter is optional
+enum AVSequencerSynthTableFlags {
+    AVSEQ_SYNTH_TABLE_SRC           = 0x01, ///< Source parameter required
+    AVSEQ_SYNTH_TABLE_SRC_LINE      = 0x02, ///< Source parameter is a line number
+    AVSEQ_SYNTH_TABLE_SRC_NO_V0     = 0x04, ///< Don't display source variable if v0
+    AVSEQ_SYNTH_TABLE_SRC_NO_DATA   = 0x08, ///< Don't display source increment data if 0x0000
+    AVSEQ_SYNTH_TABLE_DEST          = 0x10, ///< Destination parameter required
+    AVSEQ_SYNTH_TABLE_DEST_DOUBLE   = 0x20, ///< Destination double register required (= vH:vL)
+    AVSEQ_SYNTH_TABLE_VAR_PRIORITY  = 0x40, ///< Variables are prioritized against immediate data
+    AVSEQ_SYNTH_TABLE_SRC_NOT_REQ   = 0x80, ///< Source parameter is optional
+};
 } AVSequencerSynthTable;
 
 /**
@@ -89,8 +91,10 @@ typedef struct AVSequencerSynthWave {
        and 16-bit waveforms which have to be taken care specially
        in the internal playback engine.  */
     uint16_t flags;
-#define AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP    0x0080 ///< Don't loop the waveform
-#define AVSEQ_SYNTH_WAVE_FLAGS_8BIT      0x8000 ///< 8-bit waveform instead of a 16-bit one, the GETxxxW instructions return 8-bit values in the upper 8-bits of the 16-bit result
+enum AVSequencerSynthWaveFlags {
+    AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP   = 0x0080, ///< Don't loop the waveform
+    AVSEQ_SYNTH_WAVE_FLAGS_8BIT     = 0x8000, ///< 8-bit waveform instead of a 16-bit one, the GETxxxW instructions return 8-bit values in the upper 8-bits of the 16-bit result
+};
 } AVSequencerSynthWave;
 
 /**
@@ -142,23 +146,24 @@ typedef struct AVSequencerSynthWave {
 typedef struct AVSequencerSynthCode {
     /** Instruction code to execute on this line.  */
     int8_t instruction;
+enum AVSequencerSynthCodeInstruction {
     /** Synth sound instruction codes.  */
 
     /** Flow control / variable accessing instructions (00-1D).  */
-#define AVSEQ_SYNTH_CODE_FLOW_VAR_CTRL_MIN   0x00
-#define AVSEQ_SYNTH_CODE_FLOW_VAR_CTRL_MAX   0x1D
+    AVSEQ_SYNTH_CODE_FLOW_VAR_CTRL_MIN      = 0x00,
+    AVSEQ_SYNTH_CODE_FLOW_VAR_CTRL_MAX      = 0x1D,
 
     /** Arithmetic instructions (1E-3E).  */
-#define AVSEQ_SYNTH_CODE_ARITHMETIC_MIN      0x1E
-#define AVSEQ_SYNTH_CODE_ARITHMETIC_MAX      0x3E
+    AVSEQ_SYNTH_CODE_ARITHMETIC_MIN         = 0x1E,
+    AVSEQ_SYNTH_CODE_ARITHMETIC_MAX         = 0x3E,
 
     /** Sound instructions (3F-7E).  */
-#define AVSEQ_SYNTH_CODE_SOUND_MIN           0x3F
-#define AVSEQ_SYNTH_CODE_SOUND_MAX           0x7E
+    AVSEQ_SYNTH_CODE_SOUND_MIN              = 0x3F,
+    AVSEQ_SYNTH_CODE_SOUND_MAX              = 0x7E,
 
     /** Normal effect execution instructions (80-FF).  */
-#define AVSEQ_SYNTH_CODE_NORMAL_FX_EXEC_MIN  -0x7F
-#define AVSEQ_SYNTH_CODE_NORMAL_FX_EXEC_MAX  -0x01
+    AVSEQ_SYNTH_CODE_NORMAL_FX_EXEC_MIN     = -0x7F,
+    AVSEQ_SYNTH_CODE_NORMAL_FX_EXEC_MAX     = -0x01,
 
     /** Instruction list (only positive instruction byte ones):  */
     /** Flow control / variable accessing instructions:  */
@@ -173,8 +178,8 @@ typedef struct AVSequencerSynthCode {
        0x0002 | Forbid external JUMPPAN command for this synth.
        0x0004 | Forbid external JUMPSLD command for this synth.
        0x0008 | Forbid external JUMPSPC command for this synth.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_STOP    0x00
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_END     AVSEQ_SYNTH_CODE_INSTRUCTION_STOP
+    AVSEQ_SYNTH_CODE_INSTRUCTION_STOP       = 0x00,
+    AVSEQ_SYNTH_CODE_INSTRUCTION_END        = AVSEQ_SYNTH_CODE_INSTRUCTION_STOP,
 
     /** 0x01: KILL    vX+YYYY
        Stops and frees current channel, most likely to be used in NNA
@@ -185,65 +190,65 @@ typedef struct AVSequencerSynthCode {
        instructions executing in the same tick as the KILL instruction
        will continue do so. If you don't want this, just place a STOP
        instruction straight afterwards.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_KILL    0x01
+    AVSEQ_SYNTH_CODE_INSTRUCTION_KILL       = 0x01,
 
     /** 0x02: WAIT    vX+YYYY
        Waits the given amount in ticks specified by vX+YYYY before
        continue processing of synth code instructions.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_WAIT    0x02
+    AVSEQ_SYNTH_CODE_INSTRUCTION_WAIT       = 0x02,
 
     /** 0x03: WAITVOL vX+YYYY
        Waits until the volume handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the volume code never reaches the specified line.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_WAITVOL 0x03
+    AVSEQ_SYNTH_CODE_INSTRUCTION_WAITVOL    = 0x03,
 
     /** 0x04: WAITPAN vX+YYYY
        Waits until the panning handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the panning code never reaches the specified line.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_WAITPAN 0x04
+    AVSEQ_SYNTH_CODE_INSTRUCTION_WAITPAN    = 0x04,
 
     /** 0x05: WAITSLD vX+YYYY
        Waits until the slide handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the slide code never reaches the specified line.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_WAITSLD 0x05
+    AVSEQ_SYNTH_CODE_INSTRUCTION_WAITSLD    = 0x05,
 
     /** 0x06: WAITSPC vX+YYYY
        Waits until the special handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the special code never reaches the specified line.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_WAITSPC 0x06
+    AVSEQ_SYNTH_CODE_INSTRUCTION_WAITSPC    = 0x06,
 
     /** 0x07: JUMP    vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMP    0x07
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMP       = 0x07,
 
     /** 0x08: JUMPEQ  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the zero flag of the
        condition variable is set otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPEQ  0x08
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPEQ     = 0x08,
 
     /** 0x09: JUMPNE  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the zero flag of the
        condition variable is cleared otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPNE  0x09
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPNE     = 0x09,
 
     /** 0x0A: JUMPPL  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the negative flag of the
        condition variable is cleared otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPPL  0x0A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPPL     = 0x0A,
 
     /** 0x0B: JUMPMI  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the negative flag of the
        condition variable is set otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPMI  0x0B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPMI     = 0x0B,
 
     /** 0x0C: JUMPLT  vX+YYYY
        Jumps to the target line number within the same synth
@@ -251,7 +256,7 @@ typedef struct AVSequencerSynthCode {
        the overflow flag of the condition variable are set,
        like a signed less than comparision, otherwise will
        do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLT  0x0C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLT     = 0x0C,
 
     /** 0x0D: JUMPLE  vX+YYYY
        Jumps to the target line number within the same synth
@@ -259,7 +264,7 @@ typedef struct AVSequencerSynthCode {
        the overflow flag and in addition the zero flag of
        the condition variable are set, like a signed less
        or equal than comparision, otherwise will do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLE  0x0D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLE     = 0x0D,
 
     /** 0x0E: JUMPGT  vX+YYYY
        Jumps to the target line number within the same synth
@@ -267,7 +272,7 @@ typedef struct AVSequencerSynthCode {
        the overflow flag of the condition variable are set,
        like a signed greater than comparision, otherwise will
        do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPGT  0x0E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPGT     = 0x0E,
 
     /** 0x0F: JUMPGE  vX+YYYY
        Jumps to the target line number within the same synth
@@ -275,97 +280,97 @@ typedef struct AVSequencerSynthCode {
        the overflow flag and in addition the zero flag of
        the condition variable are set, like a signed greater
        or equal than comparision, otherwise will do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPGE  0x0F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPGE     = 0x0F,
 
     /** 0x10: JUMPVS  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the overflow flag of the
        condition variable is set otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVS  0x10
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVS     = 0x10,
 
     /** 0x11: JUMPVC  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the overflow flag of the
        condition variable is cleared otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVC  0x11
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVC     = 0x11,
 
     /** 0x12: JUMPCS  vX+YYYY
        Also named JUMPLO, jumps to the target line number within the
        same synth code specified by vX+YYYY if the carry flag of the
        condition variable is set otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS  0x12
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLO  AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS     = 0x12,
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLO     = AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS,
 
     /** 0x13: JUMPCC  vX+YYYY
        Also named JUMPHS, jumps to the target line number within the
        same synth code specified by vX+YYYY if the carry flag of the
        condition variable is cleared otherwise do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC  0x13
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPHS  AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC     = 0x13,
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPHS     = AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC,
 
     /** 0x14: JUMPLS  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if both the carry and negative
        flag are set, like an unsigned less or equal than
        comparision, otherwise this one will do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLS  0x14
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLS     = 0x14,
 
     /** 0x15: JUMPHI  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if both the carry and negative
        flag are cleared, like an unsigned greater than
        comparision, otherwise this one will do nothing.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPHI  0x15
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPHI     = 0x15,
 
     /** 0x16: JUMPVOL vX+YYYY
        Jumps the synth sound volume handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVOL 0x16
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVOL    = 0x16,
 
     /** 0x17: JUMPPAN vX+YYYY
        Jumps the synth sound panning handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPPAN 0x17
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPPAN    = 0x17,
 
     /** 0x18: JUMPSLD vX+YYYY
        Jumps the synth sound slide handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPSLD 0x18
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPSLD    = 0x18,
 
     /** 0x19: JUMPSPC vX+YYYY
        Jumps the synth sound special handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPSPC 0x19
+    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPSPC    = 0x19,
 
     /** 0x1A: CALL    vX+YYYY,vZ
        Pushes the next line number being executed to the destination
        variable specified by vZ, then continues execution at the line
        specified by vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_CALL    0x1A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_CALL       = 0x1A,
 
     /** 0x1B: RETURN  vX+YYYY,vZ
        Pops the next line number being executed from vX+YYYY and
        continues execution there. The old line number will be
        stored in the destination variable specified by vZ.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_RETURN  0x1B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_RETURN     = 0x1B,
 
     /** 0x1C: POSVAR  vX+YYYY
        Pushes the next line number being executed to the source
        variable specified by vX and adds YYYY to it afterwards,
        then continues execution normally at the next line.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_POSVAR  0x1C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_POSVAR     = 0x1C,
 
     /** 0x1D: LOAD    vX+YYYY,vZ
        Loads, i.e. moves the contents from the source variable
        vX, adds YYYY afterward to it and stores the final result
        into vZ and sets the condition variable accordingly.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_LOAD    0x1D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_LOAD       = 0x1D,
 
     /** Arithmetic instructions:  */
     /** 0x1E: ADD     vX+YYYY,vZ
        Adds the contents from vX+YYYY to vZ and stores the final
        result into vZ and sets the condition variable accordingly.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ADD     0x1E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ADD        = 0x1E,
 
     /** 0x1F: ADDX    vX+YYYY,vZ
        Adds the contents from vX+YYYY (if extend flag is cleared)
@@ -373,13 +378,13 @@ typedef struct AVSequencerSynthCode {
        result into vZ and sets the condition variable accordingly.
        Please note that the zero flag is only cleared if the result
        is non-zero, it is not touched otherwise.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ADDX    0x1F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ADDX       = 0x1F,
 
     /** 0x20: SUB     vX+YYYY,vZ
        Subtracts the contents from vX+YYYY from vZ and stores the
        final result into vZ and sets the condition variable
        accordingly.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SUB     0x20
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SUB        = 0x20,
 
     /** 0x21: SUBX    vX+YYYY,vZ
        Subtracts the contents from vX+YYYY (if extend flag is cleared)
@@ -387,13 +392,13 @@ typedef struct AVSequencerSynthCode {
        final result into vZ and sets the condition variable
        accordingly. Please note that the zero flag is only cleared if
        the result is non-zero, it is not touched otherwise.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SUBX    0x21
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SUBX       = 0x21,
 
     /** 0x22: CMP     vX+YYYY,vZ
        Subtracts the contents from vX+YYYY from vZ and sets the
        condition variable accordingly. This does effectively a
        comparision of two values.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_CMP     0x22
+    AVSEQ_SYNTH_CODE_INSTRUCTION_CMP        = 0x22,
 
     /** 0x23: MULU    vX+YYYY,vZ
        Multiplies the contents from vX+YYYY with vZ by threating
@@ -402,7 +407,7 @@ typedef struct AVSequencerSynthCode {
        sets the condition variable accordingly. Please note that the
        extend flag is never affected and the carry flag will always be
        cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_MULU    0x23
+    AVSEQ_SYNTH_CODE_INSTRUCTION_MULU       = 0x23,
 
     /** 0x24: MULS    vX+YYYY,vZ
        Multiplies the contents from vX+YYYY with vZ by threating
@@ -411,7 +416,7 @@ typedef struct AVSequencerSynthCode {
        sets the condition variable accordingly. Please note that the
        extend flag is never affected and the carry flag will always be
        cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_MULS    0x24
+    AVSEQ_SYNTH_CODE_INSTRUCTION_MULS       = 0x24,
 
     /** 0x25: DMULU   vX+YYYY,[vH:]vL
        Multiplies the contents from vX+YYYY with vL by threating both
@@ -422,7 +427,7 @@ typedef struct AVSequencerSynthCode {
        sets the condition variable accordingly. Please note that the
        extend flag is never affected and the carry flag will always be
        cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_DMULU   0x25
+    AVSEQ_SYNTH_CODE_INSTRUCTION_DMULU      = 0x25,
 
     /** 0x26: DMULS   vX+YYYY,[vH:]vL
        Multiplies the contents from vX+YYYY with vL by threating both
@@ -433,7 +438,7 @@ typedef struct AVSequencerSynthCode {
        sets the condition variable accordingly. Please note that the
        extend flag is never affected and the carry flag will always be
        cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_DMULS   0x26
+    AVSEQ_SYNTH_CODE_INSTRUCTION_DMULS      = 0x26,
 
     /** 0x27: DIVU    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
@@ -443,7 +448,7 @@ typedef struct AVSequencerSynthCode {
        flags are set except the extend flag otherwise note that 
        the extend flag is never affected and the carry flag will
        always be cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_DIVU    0x27
+    AVSEQ_SYNTH_CODE_INSTRUCTION_DIVU       = 0x27,
 
     /** 0x28: DIVS    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
@@ -453,7 +458,7 @@ typedef struct AVSequencerSynthCode {
        flags are set except the extend flag otherwise note that 
        the extend flag is never affected and the carry flag will
        always be cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_DIVS    0x28
+    AVSEQ_SYNTH_CODE_INSTRUCTION_DIVS       = 0x28,
 
     /** 0x29: MODU    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
@@ -463,7 +468,7 @@ typedef struct AVSequencerSynthCode {
        flags are set except the extend flag otherwise note that 
        the extend flag is never affected and the carry flag will
        always be cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_MODU    0x29
+    AVSEQ_SYNTH_CODE_INSTRUCTION_MODU       = 0x29,
 
     /** 0x2A: MODS    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
@@ -473,7 +478,7 @@ typedef struct AVSequencerSynthCode {
        flags are set except the extend flag otherwise note that 
        the extend flag is never affected and the carry flag will
        always be cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_MODS    0x2A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_MODS       = 0x2A,
 
     /** 0x2B: DDIVU   vX+YYYY,[vH:]vL
        Divides the contents from vX+YYYY by the 32-bit integer value
@@ -489,7 +494,7 @@ typedef struct AVSequencerSynthCode {
        affected and the carry flag will always be cleared. If the
        quotient does not fit into unsigned 16-bit range, vH and vL are
        unchanged and only the overflow flag is set.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_DDIVU   0x2B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_DDIVU      = 0x2B,
 
     /** 0x2C: DDIVS   vX+YYYY,[vH:]vL
        Divides the contents from vX+YYYY by the 32-bit integer value
@@ -505,7 +510,7 @@ typedef struct AVSequencerSynthCode {
        affected and the carry flag will always be cleared. If the
        quotient does not fit into signed 16-bit range, vH and vL are
        unchanged and only the overflow flag is set.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_DDIVS   0x2C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_DDIVS      = 0x2C,
 
     /** 0x2D: ASHL    vX+YYYY,vZ
        Arithmetically left shifts the destination variable specified
@@ -518,7 +523,7 @@ typedef struct AVSequencerSynthCode {
        N | Set if the result is negative.
        V | Set if the sign bit changes at any time during operation.
        C | Like X, but always cleared when the shift count is 0.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ASHL    0x2D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ASHL       = 0x2D,
 
     /** 0x2E: ASHR    vX+YYYY,vZ
        Arithmetically right shifts the destination variable specified
@@ -531,7 +536,7 @@ typedef struct AVSequencerSynthCode {
        N | Set if the result is negative.
        V | Set if the sign bit changes at any time during operation.
        C | Like X, but always cleared when the shift count is 0.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ASHR    0x2E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ASHR       = 0x2E,
 
     /** 0x2F: LSHL    vX+YYYY,vZ
        Logically left shifts the destination variable specified
@@ -543,7 +548,7 @@ typedef struct AVSequencerSynthCode {
        N | Set if the result is negative.
        V | Always cleared.
        C | Like X, but always cleared when the shift count is 0.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_LSHL    0x2F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_LSHL       = 0x2F,
 
     /** 0x30: LSHR    vX+YYYY,vZ
        Logically right shifts the destination variable specified
@@ -555,7 +560,7 @@ typedef struct AVSequencerSynthCode {
        N | Set if the result is negative.
        V | Always cleared.
        C | Like X, but always cleared when the shift count is 0.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_LSHR    0x30
+    AVSEQ_SYNTH_CODE_INSTRUCTION_LSHR       = 0x30,
 
     /** 0x31: ROL     vX+YYYY,vZ
        Left rotates the destination variable specified by vZ by a
@@ -567,7 +572,7 @@ typedef struct AVSequencerSynthCode {
        V | Always cleared.
        C | Set according to the last bit shifted out, always cleared
            for a shift count of zero.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ROL     0x31
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ROL        = 0x31,
 
     /** 0x32: ROR     vX+YYYY,vZ
        Right rotates the destination variable specified by vZ by a
@@ -579,7 +584,7 @@ typedef struct AVSequencerSynthCode {
        V | Always cleared.
        C | Set according to the last bit shifted out, always cleared
            for a shift count of zero.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ROR     0x32
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ROR        = 0x32,
 
     /** 0x33: ROLX    vX+YYYY,vZ
        Left rotates the destination variable specified by vZ by a
@@ -593,7 +598,7 @@ typedef struct AVSequencerSynthCode {
        V | Always cleared.
        C | Set according to the last bit shifted out, always cleared
            for a shift count of zero.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ROLX    0x33
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ROLX       = 0x33,
 
     /** 0x34: RORX    vX+YYYY,vZ
        Right rotates the destination variable specified by vZ by a
@@ -607,7 +612,7 @@ typedef struct AVSequencerSynthCode {
        V | Always cleared.
        C | Set according to the last bit shifted out, always cleared
            for a shift count of zero.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_RORX    0x34
+    AVSEQ_SYNTH_CODE_INSTRUCTION_RORX       = 0x34,
 
     /** 0x35: OR      vX+YYYY,vZ
        Combines the contents from vX+YYYY to vZ by applying a logical
@@ -615,7 +620,7 @@ typedef struct AVSequencerSynthCode {
        condition variable accordingly. Please note that the extend
        flag is never affected and that the overflow and carry flags
        are always cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_OR      0x35
+    AVSEQ_SYNTH_CODE_INSTRUCTION_OR         = 0x35,
 
     /** 0x36: AND     vX+YYYY,vZ
        Combines the contents from vX+YYYY to vZ by applying a logical
@@ -623,7 +628,7 @@ typedef struct AVSequencerSynthCode {
        condition variable accordingly. Please note that the extend
        flag is never affected and that the overflow and carry flags
        are always cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_AND     0x36
+    AVSEQ_SYNTH_CODE_INSTRUCTION_AND        = 0x36,
 
     /** 0x37: XOR     vX+YYYY,vZ
        Combines the contents from vX+YYYY to vZ by applying a logical
@@ -631,7 +636,7 @@ typedef struct AVSequencerSynthCode {
        sets the condition variable accordingly. Please note that the
        extend flag is never affected and that the overflow and carry
        flags are always cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_XOR     0x37
+    AVSEQ_SYNTH_CODE_INSTRUCTION_XOR        = 0x37,
 
     /** 0x38: NOT     vX+YYYY,vZ
        Inverts the destination variable specified by vZ then adds
@@ -639,14 +644,14 @@ typedef struct AVSequencerSynthCode {
        condition variable accordingly. Please note that the extend
        flag is never affected and that the overflow and carry flags
        are always cleared.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_NOT     0x38
+    AVSEQ_SYNTH_CODE_INSTRUCTION_NOT        = 0x38,
 
     /** 0x39: NEG     vX+YYYY,vZ
        Negates the destination variable specified by vZ by subtracting
        it from zero, then adds the contents from vX+YYYY to the final
        result which is then stored into vZ and sets the condition
        variable accordingly.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_NEG     0x39
+    AVSEQ_SYNTH_CODE_INSTRUCTION_NEG        = 0x39,
 
     /** 0x3A: NEGX    vX+YYYY,vZ
        Negates the destination variable specified by vZ by subtracting
@@ -654,14 +659,14 @@ typedef struct AVSequencerSynthCode {
        the extend flag is cleared), then adds the contents from
        vX+YYYY to the final result which is then stored into vZ and
        sets the condition variable accordingly.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_NEGX    0x3A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_NEGX       = 0x3A,
 
     /** 0x3B: EXTB    vX+YYYY,vZ
        Copies bit 7 of the value referenced by vZ to bits 8-15, then
        continues adding the contents from vX+YYYY to the final result
        which is finally stored in vZ and sets the condition variable
        accordingly.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_EXTB    0x3B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_EXTB       = 0x3B,
 
     /** 0x3C: EXT     vX+YYYY,[vH:]vL
        Copies bit 15 of vL to bits 0-15 of vH, i.e. vH * 0x10000 + vL
@@ -672,7 +677,7 @@ typedef struct AVSequencerSynthCode {
        which is finally stored in vZ and sets the condition variables
        according to if the final result would be tested against zero
        as a 32-bit variable.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_EXT     0x3C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_EXT        = 0x3C,
 
     /** 0x3D: XCHG    vX+YYYY,vZ
        Exchanges the contents of the two variables vX and vZ, then
@@ -680,7 +685,7 @@ typedef struct AVSequencerSynthCode {
        and sets the condition variables according to if the final
        result would be tested against zero as a 32-bit variable
        calculated by the formula: vZ * 0x10000 + vX+YYYY.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_XCHG    0x3D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_XCHG       = 0x3D,
 
     /** 0x3E: SWAP    vX+YYYY,vZ
        Swaps the upper byte (bits 8-15) of the value represented by
@@ -688,34 +693,34 @@ typedef struct AVSequencerSynthCode {
        variable is set as if vZ would be compared against zero.
        After setting the flags, vX+YYYY is added to the final result
        of vZ.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SWAP    0x3E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SWAP       = 0x3E,
 
     /** Sound instructions:  */
     /** 0x3F: GETWAVE vX+YYYY,vZ
        Gets the current sample waveform number and adds vX+YYYY to the
        obtained sample waveform number, stores the final result in vZ
        and the condition variable remains completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETWAVE 0x3F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETWAVE    = 0x3F,
 
     /** 0x40: GETWLEN vX+YYYY,vZ
        Gets the current sample waveform length in samples and adds
        vX+YYYY to the obtained sample waveform length, stores the
        final result in vZ and the condition variable remains
        completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETWLEN 0x40
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETWLEN    = 0x40,
 
     /** 0x41: GETWPOS vX+YYYY,vZ
        Gets the current sample waveform position in samples and adds
        vX+YYYY to the obtained sample waveform position, stores the
        final result in vZ and the condition variable remains
        completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETWPOS 0x41
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETWPOS    = 0x41,
 
     /** 0x42: GETCHAN vX+YYYY,vZ
        Gets the current host channel number and adds vX+YYYY to the
        obtained host channel number, stores the final result in vZ
        and the condition variable remains completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETCHAN 0x42
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETCHAN    = 0x42,
 
     /** 0x43: GETNOTE vX+YYYY,vZ
        Gets the current note playing and adds vX+YYYY to the obtained
@@ -723,7 +728,7 @@ typedef struct AVSequencerSynthCode {
        considered as zero, C# as one, D- as two, stores the final
        result in vZ and the condition variable remains completely
        unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETNOTE 0x43
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETNOTE    = 0x43,
 
     /** 0x44: GETRANS vX+YYYY,vZ
        Gets the current note playing and adds vX+YYYY to the obtained
@@ -732,7 +737,7 @@ typedef struct AVSequencerSynthCode {
        considered as zero, C# as one, D- as two, stores the final
        result in vZ and the condition variable remains completely
        unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETRANS 0x44
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETRANS    = 0x44,
 
     /** 0x45: GETPTCH vX+YYYY,[vH:]vL
        Gets the current sample frequency in Hz then adds vX+YYYY to
@@ -742,7 +747,7 @@ typedef struct AVSequencerSynthCode {
        then vL will simply filled with the lower 16 bits of the sample
        frequency and the condition variable remains completely
        unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETPTCH 0x45
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETPTCH    = 0x45,
 
     /** 0x46: GETPER  vX+YYYY,[vH:]vL
        Gets the current sample frequency in Hz and converts it Amiga
@@ -752,7 +757,7 @@ typedef struct AVSequencerSynthCode {
        vL decremented by one which also means that if vL is 15,
        then vL will simply filled with the lower 16 bits of the period
        and the condition variable remains completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETPER  0x46
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETPER     = 0x46,
 
     /** 0x47: GETFX   vX+YYYY,vZ
        Stores the value of effect number specified by the upper 8 bits
@@ -763,122 +768,122 @@ typedef struct AVSequencerSynthCode {
        directly usable with the instructions having a negative value,
        i.e. the SETFXxx instruction series while the value of the
        condition variable is completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETFX   0x47
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETFX      = 0x47,
 
     /** 0x48: GETARPW vX+YYYY,vZ
        Gets the current arpeggio waveform number and adds vX+YYYY to
        the obtained arpeggio waveform number, stores the final result
        in vZ and the condition variable is completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPW 0x48
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPW    = 0x48,
 
     /** 0x49: GETARPV vX+YYYY,vZ
        Gets the current arpeggio waveform data value and adds vX+YYYY
        to the obtained arpeggio waveform data value, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPV 0x49
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPV    = 0x49,
 
     /** 0x4A: GETARPL vX+YYYY,vZ
        Gets the current arpeggio waveform length in ticks and adds
        vX+YYYY to the obtained arpeggio waveform length, stores the
        final result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPL 0x4A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPL    = 0x4A,
 
     /** 0x4B: GETARPP vX+YYYY,vZ
        Gets the current arpeggio waveform position and adds vX+YYYY
        to the obtained arpeggio waveform position, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPP 0x4B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPP    = 0x4B,
 
     /** 0x4C: GETVIBW vX+YYYY,vZ
        Gets the current vibrato waveform number and adds vX+YYYY to
        the obtained vibrato waveform number, stores the final result
        in vZ and the condition variable is completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBW 0x4C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBW    = 0x4C,
 
     /** 0x4D: GETVIBV vX+YYYY,vZ
        Gets the current vibrato waveform data value and adds vX+YYYY
        to the obtained vibrato waveform data value, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBV 0x4D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBV    = 0x4D,
 
     /** 0x4E: GETVIBL vX+YYYY,vZ
        Gets the current vibrato waveform length in ticks and adds
        vX+YYYY to the vibrato waveform length, stores the
        final result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBL 0x4E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBL    = 0x4E,
 
     /** 0x4F: GETVIBP vX+YYYY,vZ
        Gets the current vibrato waveform position and adds vX+YYYY
        to the obtained vibrato waveform position, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBP 0x4F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBP    = 0x4F,
 
     /** 0x50: GETTRMW vX+YYYY,vZ
        Gets the current tremolo waveform number and adds vX+YYYY to
        the obtained tremolo waveform number, stores the final result
        in vZ and the condition variable is completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMW 0x50
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMW    = 0x50,
 
     /** 0x51: GETTRMV vX+YYYY,vZ
        Gets the current tremolo waveform data value and adds vX+YYYY
        to the obtained tremolo waveform data value, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMV 0x51
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMV    = 0x51,
 
     /** 0x52: GETTRML vX+YYYY,vZ
        Gets the current tremolo waveform length in ticks and adds
        vX+YYYY to the tremolo waveform length, stores the
        final result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRML 0x52
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRML    = 0x52,
 
     /** 0x53: GETTRMP vX+YYYY,vZ
        Gets the current tremolo waveform position and adds vX+YYYY
        to the obtained tremolo waveform position, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMP 0x53
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMP    = 0x53,
 
     /** 0x54: GETPANW vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform number and adds
        vX+YYYY to the obtained pannolo / panbrello waveform number,
        stores the final result in vZ and the condition variable is
        completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANW 0x54
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANW    = 0x54,
 
     /** 0x55: GETPANV vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform data value and
        adds vX+YYYY to the obtained pannolo / panbrello waveform data
        value, stores the final result in vZ and the condition variable
        is completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANV 0x55
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANV    = 0x55,
 
     /** 0x56: GETPANL vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform length in ticks
        and adds vX+YYYY to the pannolo / panbrello waveform length,
        stores the final result in vZ and the condition variable is
        completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANL 0x56
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANL    = 0x56,
 
     /** 0x57: GETPANP vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform position and
        adds vX+YYYY to the obtained pannolo / panbrello waveform
        position, stores the final result in vZ and the condition
        variable is completely untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANP 0x57
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANP    = 0x57,
 
     /** 0x58: GETRND  vX+YYYY,vZ
        Gets a random value in the closed interval of zero and
        vX+YYYY and stores the final result in vZ while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETRND  0x58
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETRND     = 0x58,
 
     /** 0x59: GETSINE vX+YYYY,vZ
        Gets the sine value by considering vX+YYYY as a 16-bit
@@ -887,7 +892,7 @@ typedef struct AVSequencerSynthCode {
        between -32767 and +32767 (use DMULS and DDIVS to scale to
        required value) is stored in vZ while the condition variable
        will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_GETSINE 0x59
+    AVSEQ_SYNTH_CODE_INSTRUCTION_GETSINE    = 0x59,
 
     /** 0x5A: PORTAUP vX+YYYY
        Slides the pitch up with the portamento value specified by
@@ -895,7 +900,7 @@ typedef struct AVSequencerSynthCode {
        is, that this instruction has its own memory and so does not
        interfere with the pattern data while the condition variable
        will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PORTAUP 0x5A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PORTAUP    = 0x5A,
 
     /** 0x5B: PORTADN vX+YYYY
        Slides the pitch down with the portamento value specified by
@@ -903,27 +908,27 @@ typedef struct AVSequencerSynthCode {
        is, that this instruction has its own memory and so does not
        interfere with the pattern data while the condition variable
        will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PORTADN 0x5B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PORTADN    = 0x5B,
 
     /** 0x5C: VIBSPD  vX+YYYY
        Sets the vibrato speed specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VIBSPD  0x5C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VIBSPD     = 0x5C,
 
     /** 0x5D: VIBDPTH vX+YYYY
        Sets the vibrato depth specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VIBDPTH 0x5D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VIBDPTH    = 0x5D,
 
     /** 0x5E: VIBWAVE vX+YYYY
        Sets the vibrato waveform specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VIBWAVE 0x5E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VIBWAVE    = 0x5E,
 
     /** 0x5F: VIBWAVP vX+YYYY
        Sets the vibrato waveform position specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VIBWAVP 0x5F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VIBWAVP    = 0x5F,
 
     /** 0x60: VIBRATO vX+YYYY
        Executes the vibrato. The upper 8 bits of vX+YYYY contains the
@@ -932,27 +937,27 @@ typedef struct AVSequencerSynthCode {
        Please note that vibrato depth is considered as a signed value
        while vibrato speed is unsigned and that the condition variable
        remains completely unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VIBRATO 0x60
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VIBRATO    = 0x60,
 
     /** 0x61: VIBVAL  vX+YYYY
        Executes the vibrato with the Amiga period specified by vX+YYYY
        without changing the the condition variable.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VIBVAL  0x61
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VIBVAL     = 0x61,
 
     /** 0x62: ARPSPD  vX+YYYY
        Sets the arpeggio speed specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ARPSPD  0x62
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ARPSPD     = 0x62,
 
     /** 0x63: ARPWAVE vX+YYYY
        Sets the arpeggio waveform specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ARPWAVE 0x63
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ARPWAVE    = 0x63,
 
     /** 0x64: ARPWAVP vX+YYYY
        Sets the arpeggio waveform position specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ARPWAVP 0x64
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ARPWAVP    = 0x64,
 
     /** 0x65: ARPEGIO vX+YYYY
        Executes the arpeggio. The upper 8 bits of vX+YYYY contains the
@@ -960,7 +965,7 @@ typedef struct AVSequencerSynthCode {
        lower 8 bits represents the signed finetuning value. or 0 to
        use the previous one. The condition variable will remain
        unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ARPEGIO 0x65
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ARPEGIO    = 0x65,
 
     /** 0x66: ARPVAL  vX+YYYY
        Executes the arpeggio. The upper 8 bits of vX+YYYY contains the
@@ -968,7 +973,7 @@ typedef struct AVSequencerSynthCode {
        previous one and the lower 8 bits represents the signed
        finetuning value. or 0 to use the previous one. The condition
        variable will remain unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ARPVAL  0x66
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ARPVAL     = 0x66,
 
     /** 0x67: SETWAVE vX+YYYY
        Sets the sample waveform number specified by vX+YYYY when
@@ -976,33 +981,33 @@ typedef struct AVSequencerSynthCode {
        reaches a loop end marker or if no sample is being played it
        will be started immediately. The condition variable will be
        completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETWAVE 0x67
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SETWAVE    = 0x67,
 
     /** 0x68: ISETWAV vX+YYYY
        Sets the sample waveform number specified by vX+YYYY either by
        immediately breaking the current sample playing or simply
        start the new one if no sample being played The condition
        variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_ISETWAV 0x68
+    AVSEQ_SYNTH_CODE_INSTRUCTION_ISETWAV    = 0x68,
 
     /** 0x69: SETWAVP vX+YYYY
        Sets the sample waveform position in samples specified by
        vX+YYYY while the condition variable remains unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETWAVP 0x69
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SETWAVP    = 0x69,
 
     /** 0x6A: SETRANS vX+YYYY
        Replaces the sample transpose value specified by vX+YYYY and
        interpreted as a signed 16-bit value with the transpose value
        of current sample while preserving all flags of the condition
        variable.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETRANS 0x6A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SETRANS    = 0x6A,
 
     /** 0x6B: SETNOTE vX+YYYY
        Sets a new sample frequency by using the transpose value
        specified by vX+YYYY without replacing the old transpose value
        interpreted as a signed 16-bit value while preserving all flags
        of the condition variable.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETNOTE 0x6B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SETNOTE    = 0x6B,
 
     /** 0x6C: SETPTCH vX+YYYY,[vH:]vL
        Sets the current sample frequency in Hz by adding vX+YYYY to
@@ -1013,7 +1018,7 @@ typedef struct AVSequencerSynthCode {
        then just vL will be considered as the lower 16 bits of the
        new sampling rate to be set. The condition variable remains
        completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETPTCH 0x6C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SETPTCH    = 0x6C,
 
     /** 0x6D: SETPER  vX+YYYY,[vH:]vL
        Sets the current sample frequency in Hz by converting first
@@ -1025,7 +1030,7 @@ typedef struct AVSequencerSynthCode {
        also means that if vL is 15, then just vL will be considered as
        the lower 16 bits of the new period to be set. The condition
        variable remains completely unaffected.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETPER  0x6D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_SETPER     = 0x6D,
 
     /** 0x6E: RESET   vX+YYYY
        Resets the vibrato / tremolo / pannolo (panbrello) counters
@@ -1039,7 +1044,7 @@ typedef struct AVSequencerSynthCode {
          0x0008 | Disables pannolo envelope reset.
          0x0010 | Disables redo of portamento.
          0x0020 | Disables portamento reset.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_RESET   0x6E
+    AVSEQ_SYNTH_CODE_INSTRUCTION_RESET      = 0x6E,
 
     /** 0x6F: VOLSLUP vX+YYYY
        Slides the volume up with the volume level specified by
@@ -1047,7 +1052,7 @@ typedef struct AVSequencerSynthCode {
        is, that this instruction has its own memory and so does not
        interfere with the pattern data while the condition variable
        will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VOLSLUP 0x6F
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VOLSLUP    = 0x6F,
 
     /** 0x70: VOLSLDN vX+YYYY
        Slides the volume down with the volume level specified by
@@ -1055,27 +1060,27 @@ typedef struct AVSequencerSynthCode {
        is, that this instruction has its own memory and so does not
        interfere with the pattern data while the condition variable
        will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_VOLSLDN 0x70
+    AVSEQ_SYNTH_CODE_INSTRUCTION_VOLSLDN    = 0x70,
 
     /** 0x71: TRMSPD  vX+YYYY
        Sets the tremolo speed specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_TRMSPD  0x71
+    AVSEQ_SYNTH_CODE_INSTRUCTION_TRMSPD     = 0x71,
 
     /** 0x72: TRMDPTH vX+YYYY
        Sets the tremolo depth specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_TRMDPTH 0x72
+    AVSEQ_SYNTH_CODE_INSTRUCTION_TRMDPTH    = 0x72,
 
     /** 0x73: TRMWAVE vX+YYYY
        Sets the tremolo waveform specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_TRMWAVE 0x73
+    AVSEQ_SYNTH_CODE_INSTRUCTION_TRMWAVE    = 0x73,
 
     /** 0x74: TRMWAVP vX+YYYY
        Sets the tremolo waveform position specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_TRMWAVP 0x74
+    AVSEQ_SYNTH_CODE_INSTRUCTION_TRMWAVP    = 0x74,
 
     /** 0x75: TREMOLO vX+YYYY
        Executes the tremolo. The upper 8 bits of vX+YYYY contains the
@@ -1084,13 +1089,13 @@ typedef struct AVSequencerSynthCode {
        Please note that tremolo depth is considered as a signed value
        while tremolo speed is unsigned and that the condition variable
        remains completely unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_TREMOLO 0x75
+    AVSEQ_SYNTH_CODE_INSTRUCTION_TREMOLO    = 0x75,
 
     /** 0x76: TRMVAL  vX+YYYY
        Executes the tremolo with a absolute volume obtained from
        vX+YYYY or 0 to use the previous one. The condition variable
        will remain unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_TRMVAL  0x76
+    AVSEQ_SYNTH_CODE_INSTRUCTION_TRMVAL     = 0x76,
 
     /** 0x77: PANLEFT vX+YYYY
        Slides the panning position to left stereo with the panning
@@ -1098,7 +1103,7 @@ typedef struct AVSequencerSynthCode {
        generic command is, that this instruction has its own memory
        and so does not interfere with the pattern data while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANLEFT 0x77
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANLEFT    = 0x77,
 
     /** 0x78: PANRIGHT vX+YYYY
        Slides the panning position to right stereo with the panning
@@ -1106,29 +1111,29 @@ typedef struct AVSequencerSynthCode {
        generic command is, that this instruction has its own memory
        and so does not interfere with the pattern data while the
        condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANRGHT 0x78
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANRGHT    = 0x78,
 
     /** 0x79: PANSPD  vX+YYYY
        Sets the pannolo (panbrello) speed specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANSPD  0x79
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANSPD     = 0x79,
 
     /** 0x7A: PANDPTH vX+YYYY
        Sets the pannolo (panbrello) depth specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANDPTH 0x7A
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANDPTH    = 0x7A,
 
     /** 0x7B: PANWAVE vX+YYYY
        Sets the pannolo (panbrello) waveform specified by vX+YYYY
        while the condition variable will be completely kept
        untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANWAVE 0x7B
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANWAVE    = 0x7B,
 
     /** 0x7C: PANWAVP vX+YYYY
        Sets the pannolo (panbrello) waveform position specified by
        vX+YYYY while the condition variable will be completely
        kept untouched.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANWAVP 0x7C
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANWAVP    = 0x7C,
 
     /** 0x7D: PANNOLO vX+YYYY
        Executes the pannolo (panbrello). The upper 8 bits of vX+YYYY
@@ -1137,14 +1142,14 @@ typedef struct AVSequencerSynthCode {
        previous one. Please note that pannolo depth is considered as
        a signed value while pannolo speed is unsigned and that the
        condition variable remains completely unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANNOLO 0x7D
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANNOLO    = 0x7D,
 
     /** 0x7E: PANVAL  vX+YYYY
        Executes the pannolo (panbrello) with a absolute panning
        obtained from vX+YYYY or 0 to use the previous one. The
        condition variable will remain unchanged.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_PANVAL  0x7E
-
+    AVSEQ_SYNTH_CODE_INSTRUCTION_PANVAL     = 0x7E,
+};
     /** Synth code instruction templates.  */
 #define AVSEQ_SYNTH_CODE_INSTRUCTION_INSTR_NAME "INSTR\0\0\0"
 #define AVSEQ_SYNTH_CODE_INSTRUCTION_SETFX_NAME "SETFX\0\0\0"
@@ -1196,17 +1201,21 @@ typedef struct AVSequencerSynthSymbolTable {
        immediate values, source or destination variable or is
        just referencing a label.  */
     int8_t type;
-#define AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_PARAM      0x00 ///< Symbol is an ordinary instruction parameter constant value. symbol_value points to the constant to be referenced
-#define AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_SRC    0x01 ///< Symbol is a source variable reference. symbol_value points to variable number to be referenced (0 - 15)
-#define AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_DEST   0x02 ///< Symbol is a destination variable reference. symbol_value points to variable number to be referenced (0 - 15)
-#define AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_BOTH   0x03 ///< Symbol is a source and destination variable reference. symbol_value points to single value variable number to be referenced (0 - 15)
-#define AVSEQ_SYNTH_SYMBOL_TABEL_TYPE_LABEL      0x04 ///< Symbol is a label reference pointing to a target line. symbol_value points to the line number (instruction number) to be referenced.
+enum AVSequencerSynthSymbolTableType {
+    AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_PARAM     = 0x00, ///< Symbol is an ordinary instruction parameter constant value. symbol_value points to the constant to be referenced
+    AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_SRC   = 0x01, ///< Symbol is a source variable reference. symbol_value points to variable number to be referenced (0 - 15)
+    AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_DEST  = 0x02, ///< Symbol is a destination variable reference. symbol_value points to variable number to be referenced (0 - 15)
+    AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_BOTH  = 0x03, ///< Symbol is a source and destination variable reference. symbol_value points to single value variable number to be referenced (0 - 15)
+    AVSEQ_SYNTH_SYMBOL_TABEL_TYPE_LABEL     = 0x04, ///< Symbol is a label reference pointing to a target line. symbol_value points to the line number (instruction number) to be referenced.
+};
 
     /** Special symbol flags for this symbol. These flags contains
        stuff like if the symbol is currently disabled or enabled so
        it can be turned off without deleting it.  */
     uint8_t flags;
-#define AVSEQ_SYNTH_SYMBOL_TABLE_FLAGS_UNUSED    0x80 ///< Symbol is currently disabled, i.e. not evaluated
+enum AVSequencerSynthSymbolTableFlags {
+    AVSEQ_SYNTH_SYMBOL_TABLE_FLAGS_UNUSED   = 0x80, ///< Symbol is currently disabled, i.e. not evaluated
+};
 } AVSequencerSynthSymbolTable;
 
 /**
@@ -1274,57 +1283,67 @@ typedef struct AVSequencerSynth {
     /** Initial status of volume [0], panning [1], slide [2] and
        special [3] variable condition status register.  */
     uint16_t cond_var[4];
-#define AVSEQ_SYNTH_COND_VAR_CARRY     0x01 ///< Carry (C) bit for condition variable
-#define AVSEQ_SYNTH_COND_VAR_OVERFLOW  0x02 ///< Overflow (V) bit for condition variable
-#define AVSEQ_SYNTH_COND_VAR_ZERO      0x04 ///< Zero (Z) bit for condition variable
-#define AVSEQ_SYNTH_COND_VAR_NEGATIVE  0x08 ///< Negative (N) bit for condition variable
-#define AVSEQ_SYNTH_COND_VAR_EXTEND    0x10 ///< Extend (X) bit for condition variable
+enum AVSequencerSynthCondVar {
+    AVSEQ_SYNTH_COND_VAR_CARRY      = 0x01, ///< Carry (C) bit for condition variable
+    AVSEQ_SYNTH_COND_VAR_OVERFLOW   = 0x02, ///< Overflow (V) bit for condition variable
+    AVSEQ_SYNTH_COND_VAR_ZERO       = 0x04, ///< Zero (Z) bit for condition variable
+    AVSEQ_SYNTH_COND_VAR_NEGATIVE   = 0x08, ///< Negative (N) bit for condition variable
+    AVSEQ_SYNTH_COND_VAR_EXTEND     = 0x10, ///< Extend (X) bit for condition variable
+};
 
     /** Use NNA trigger entry fields. This will run custom synth sound
        code execution on a new note action trigger.  */
     uint8_t use_nna_flags;
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_VOLUME_NNA   0x01 ///< Use NNA trigger entry field for volume
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_NNA  0x02 ///< Use NNA trigger entry field for panning
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_NNA    0x04 ///< Use NNA trigger entry field for slide
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_SPECIAL_NNA  0x08 ///< Use NNA trigger entry field for special
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_VOLUME_DNA   0x10 ///< Use NNA trigger entry field for volume
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_DNA  0x20 ///< Use NNA trigger entry field for panning
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_DNA    0x40 ///< Use NNA trigger entry field for slide
-#define AVSEQ_SYNTH_USE_NNA_FLAGS_SPECIAL_DNA  0x80 ///< Use NNA trigger entry field for special
+enum AVSequencerSynthUseNNAFlags {
+    AVSEQ_SYNTH_USE_NNA_FLAGS_VOLUME_NNA    = 0x01, ///< Use NNA trigger entry field for volume
+    AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_NNA   = 0x02, ///< Use NNA trigger entry field for panning
+    AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_NNA     = 0x04, ///< Use NNA trigger entry field for slide
+    AVSEQ_SYNTH_USE_NNA_FLAGS_SPECIAL_NNA   = 0x08, ///< Use NNA trigger entry field for special
+    AVSEQ_SYNTH_USE_NNA_FLAGS_VOLUME_DNA    = 0x10, ///< Use NNA trigger entry field for volume
+    AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_DNA   = 0x20, ///< Use NNA trigger entry field for panning
+    AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_DNA     = 0x40, ///< Use NNA trigger entry field for slide
+    AVSEQ_SYNTH_USE_NNA_FLAGS_SPECIAL_DNA   = 0x80, ///< Use NNA trigger entry field for special
+};
 
     /** Use sustain entry position fields. This will run custom synth
        sound code execution on a note off trigger.  */
     uint8_t use_sustain_flags;
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME       0x01 ///< Use sustain entry position field for volume
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING      0x02 ///< Use sustain entry position field for panning
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE        0x04 ///< Use sustain entry position field for slide
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SPECIAL      0x08 ///< Use sustain entry position field for special
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME_KEEP  0x10 ///< Keep sustain entry position for volume
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING_KEEP 0x20 ///< Keep sustain entry position for panning
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE_KEEP   0x40 ///< Keep sustain entry position for slide
-#define AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SPECIAL_KEEP 0x80 ///< Keep sustain entry position for special
+enum AVSequencerSynthUseSustainFlags {
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME        = 0x01, ///< Use sustain entry position field for volume
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING       = 0x02, ///< Use sustain entry position field for panning
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE         = 0x04, ///< Use sustain entry position field for slide
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SPECIAL       = 0x08, ///< Use sustain entry position field for special
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME_KEEP   = 0x10, ///< Keep sustain entry position for volume
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING_KEEP  = 0x20, ///< Keep sustain entry position for panning
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE_KEEP    = 0x40, ///< Keep sustain entry position for slide
+    AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SPECIAL_KEEP  = 0x80, ///< Keep sustain entry position for special
+};
 
     /** Position keep mask. All initial entry positions will be taken
        from the previous instrument if the approciate bit is set.  */
     int8_t pos_keep_mask;
-#define AVSEQ_SYNTH_POS_KEEP_MASK_VOLUME    0x01 ///< Keep entry position for volume
-#define AVSEQ_SYNTH_POS_KEEP_MASK_PANNING   0x02 ///< Keep entry position for panning
-#define AVSEQ_SYNTH_POS_KEEP_MASK_SLIDE     0x04 ///< Keep entry position for slide
-#define AVSEQ_SYNTH_POS_KEEP_MASK_SPECIAL   0x08 ///< Keep entry position for special
-#define AVSEQ_SYNTH_POS_KEEP_MASK_WAVEFORMS 0x40 ///< Keep the synthetic waveforms
-#define AVSEQ_SYNTH_POS_KEEP_MASK_CODE      0x80 ///< Keep the synthetic programming code
+enum AVSequencerSynthPosKeepMask {
+    AVSEQ_SYNTH_POS_KEEP_MASK_VOLUME    = 0x01, ///< Keep entry position for volume
+    AVSEQ_SYNTH_POS_KEEP_MASK_PANNING   = 0x02, ///< Keep entry position for panning
+    AVSEQ_SYNTH_POS_KEEP_MASK_SLIDE     = 0x04, ///< Keep entry position for slide
+    AVSEQ_SYNTH_POS_KEEP_MASK_SPECIAL   = 0x08, ///< Keep entry position for special
+    AVSEQ_SYNTH_POS_KEEP_MASK_WAVEFORMS = 0x40, ///< Keep the synthetic waveforms
+    AVSEQ_SYNTH_POS_KEEP_MASK_CODE      = 0x80, ///< Keep the synthetic programming code
+};
 
     /** NNA position trigger keep mask. All initial entry positions
        will be taken from the previous instrument if bit is set.  */
     int8_t nna_pos_keep_mask;
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_VOLUME_NNA    0x01 ///< Keep NNA trigger position for volume
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_PANNING_NNA   0x02 ///< Keep NNA trigger position for panning
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SLIDE_NNA     0x04 ///< Keep NNA trigger position for slide
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SPECIAL_NNA   0x08 ///< Keep NNA trigger position for special
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_VOLUME_DNA    0x10 ///< Keep DNA trigger position for volume
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_PANNING_DNA   0x20 ///< Keep DNA trigger position for panning
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SLIDE_DNA     0x40 ///< Keep DNA trigger position for slide
-#define AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SPECIAL_DNA   0x80 ///< Keep DNA trigger position for special
+enum AVSequencerSynthNNAPosKeepMask {
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_VOLUME_NNA    = 0x01, ///< Keep NNA trigger position for volume
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_PANNING_NNA   = 0x02, ///< Keep NNA trigger position for panning
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SLIDE_NNA     = 0x04, ///< Keep NNA trigger position for slide
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SPECIAL_NNA   = 0x08, ///< Keep NNA trigger position for special
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_VOLUME_DNA    = 0x10, ///< Keep DNA trigger position for volume
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_PANNING_DNA   = 0x20, ///< Keep DNA trigger position for panning
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SLIDE_DNA     = 0x40, ///< Keep DNA trigger position for slide
+    AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SPECIAL_DNA   = 0x80, ///< Keep DNA trigger position for special
+};
 
     /** Variable keep mask. All variables where bit is set will be
        keeped (normally they will be overwritten with the initial

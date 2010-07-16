@@ -73,21 +73,25 @@ typedef struct AVSequencerSong {
        flags which tag the player to handle it to that special
        way.  */
     uint8_t compat_flags;
-#define AVSEQ_SONG_COMPAT_FLAG_SYNC             0x01 ///< Tracks are synchronous (linked together, pattern based)
-#define AVSEQ_SONG_COMPAT_FLAG_GLOBAL_LOOP      0x02 ///< Global pattern loop memory
-#define AVSEQ_SONG_COMPAT_FLAG_AMIGA_LIMITS     0x04 ///< Enforce AMIGA sound hardware limits (portamento)
-#define AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES      0x08 ///< All volume related commands range from 0-64 instead of 0-255
-#define AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY  0x10 ///< Global volume/panning changes affect new notes only (S3M)
+enum AVSequencerSongCompatFlags {
+    AVSEQ_SONG_COMPAT_FLAG_SYNC             = 0x01, ///< Tracks are synchronous (linked together, pattern based)
+    AVSEQ_SONG_COMPAT_FLAG_GLOBAL_LOOP      = 0x02, ///< Global pattern loop memory
+    AVSEQ_SONG_COMPAT_FLAG_AMIGA_LIMITS     = 0x04, ///< Enforce AMIGA sound hardware limits (portamento)
+    AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES      = 0x08, ///< All volume related commands range from 0-64 instead of 0-255
+    AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY  = 0x10, ///< Global volume/panning changes affect new notes only (S3M)
+};
 
     /** Song playback flags. Some sequencers use a totally
        different timing scheme which has to be taken care
        specially in the internal playback engine. Also
        sequencers differ in how they handle slides.  */
     uint8_t flags;
-#define AVSEQ_SONG_FLAG_LINEAR_FREQ_TABLE   0x01 ///< Use linear instead of Amiga frequency table
-#define AVSEQ_SONG_FLAG_SPD                 0x02 ///< Use SPD (OctaMED style) timing instead of BpM
-#define AVSEQ_SONG_FLAG_MONO                0x04 ///< Use mono instead of stereo output
-#define AVSEQ_SONG_FLAG_SURROUND            0x08 ///< Initial global surround instead of stereo panning
+enum AVSequencerSongFlags {
+    AVSEQ_SONG_FLAG_LINEAR_FREQ_TABLE   = 0x01, ///< Use linear instead of Amiga frequency table
+    AVSEQ_SONG_FLAG_SPD                 = 0x02, ///< Use SPD (OctaMED style) timing instead of BpM
+    AVSEQ_SONG_FLAG_MONO                = 0x04, ///< Use mono instead of stereo output
+    AVSEQ_SONG_FLAG_SURROUND            = 0x08, ///< Initial global surround instead of stereo panning
+};
 
     /** Maximum number of host channels, as edited in the track view.
        to be allocated and usable for order list (defaults to 16).  */

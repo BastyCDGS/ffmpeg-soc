@@ -1,4 +1,4 @@
-/*
+r/*
  * AVSequencer track and pattern management
  * Copyright (c) 2010 Sebastian Vater <cdgs.basty@googlemail.com>
  *
@@ -53,67 +53,68 @@ typedef struct AVSequencerTrackData {
 
     /** Note to be played (see defines below, n is octave number).  */
     int8_t note;
+enum AVSequencerTrackDataNote {
     /** C-n  */
-#define AVSEQ_TRACK_DATA_NOTE           1
-#define AVSEQ_TRACK_DATA_NOTE_C         1
-#define AVSEQ_TRACK_DATA_NOTE_MIN       AVSEQ_TRACK_DATA_NOTE_MIN
+    AVSEQ_TRACK_DATA_NOTE_C             = 1,
+    AVSEQ_TRACK_DATA_NOTE_MIN           = AVSEQ_TRACK_DATA_NOTE_MIN,
 
     /** C#n = Dbn  */
-#define AVSEQ_TRACK_DATA_NOTE_C_SHARP   2
+    AVSEQ_TRACK_DATA_NOTE_C_SHARP       = 2,
 
     /** D-n  */
-#define AVSEQ_TRACK_DATA_NOTE_D         3
+    AVSEQ_TRACK_DATA_NOTE_D             = 3,
 
     /** D#n = Ebn  */
-#define AVSEQ_TRACK_DATA_NOTE_D_SHARP   4
+    AVSEQ_TRACK_DATA_NOTE_D_SHARP       = 4,
 
     /** E-n  */
-#define AVSEQ_TRACK_DATA_NOTE_E         5
+    AVSEQ_TRACK_DATA_NOTE_E             = 5,
 
     /** F-n  */
-#define AVSEQ_TRACK_DATA_NOTE_F         6
+    AVSEQ_TRACK_DATA_NOTE_F             = 6,
 
     /** F#n = Gbn  */
-#define AVSEQ_TRACK_DATA_NOTE_F_SHARP   7
+    AVSEQ_TRACK_DATA_NOTE_F_SHARP       = 7,
 
     /** G-n  */
-#define AVSEQ_TRACK_DATA_NOTE_G         8
+    AVSEQ_TRACK_DATA_NOTE_G             = 8,
 
     /** G#n = Abn  */
-#define AVSEQ_TRACK_DATA_NOTE_G_SHARP   9
+    AVSEQ_TRACK_DATA_NOTE_G_SHARP       = 9,
 
     /** A-n  */
-#define AVSEQ_TRACK_DATA_NOTE_A         10
+    AVSEQ_TRACK_DATA_NOTE_A             = 10,
 
     /** A#n = Bbn  */
-#define AVSEQ_TRACK_DATA_NOTE_A_SHARP   11
+    AVSEQ_TRACK_DATA_NOTE_A_SHARP       = 11,
 
     /** B-n = H-n  */
-#define AVSEQ_TRACK_DATA_NOTE_B         12
-#define AVSEQ_TRACK_DATA_NOTE_H         FF_AVSEQ_TRACK_DATA_NOTE_B
-#define AVSEQ_TRACK_DATA_NOTE_MAX       FF_AVSEQ_TRACK_DATA_NOTE_B
+    AVSEQ_TRACK_DATA_NOTE_B             = 12,
+    AVSEQ_TRACK_DATA_NOTE_H             = AVSEQ_TRACK_DATA_NOTE_B,
+    AVSEQ_TRACK_DATA_NOTE_MAX           = AVSEQ_TRACK_DATA_NOTE_B,
 
     /** --- = first special empty note  */
-#define AVSEQ_TRACK_DATA_NOTE_SPECIAL       0
-#define AVSEQ_TRACK_DATA_NOTE_NONE          FF_AVSEQ_TRACK_DATA_NOTE_SPECIAL
+    AVSEQ_TRACK_DATA_NOTE_SPECIAL       = 0,
+    AVSEQ_TRACK_DATA_NOTE_NONE          = AVSEQ_TRACK_DATA_NOTE_SPECIAL,
 
     /** ^^^ = note kill  */
-#define AVSEQ_TRACK_DATA_NOTE_KILL          -1
+    AVSEQ_TRACK_DATA_NOTE_KILL          = -1,
 
     /** ^^- = note off  */
-#define AVSEQ_TRACK_DATA_NOTE_OFF           -2
+    AVSEQ_TRACK_DATA_NOTE_OFF           = -2,
 
     /** === = keyoff note  */
-#define AVSEQ_TRACK_DATA_NOTE_KEYOFF        -3
+    AVSEQ_TRACK_DATA_NOTE_KEYOFF        = -3,
 
     /** -|- = hold delay  */
-#define AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY    -4
+    AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY    = -4,
 
     /** -\- = note fade  */
-#define AVSEQ_TRACK_DATA_NOTE_FADE          -5
+    AVSEQ_TRACK_DATA_NOTE_FADE          = -5,
 
     /** END = pattern end marker  */
-#define AVSEQ_TRACK_DATA_NOTE_END           -16
+    AVSEQ_TRACK_DATA_NOTE_END           = -16,
+};
 
     /** Number of instrument to be played or 0 to take previous one.  */
     uint16_t instrument;
@@ -177,24 +178,28 @@ typedef struct AVSequencerTrack {
        flags which tag the player to handle it to that special
        way.  */
     uint8_t compat_flags;
-#define AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       0x01 ///< Sample offset beyond end of sample will be ignored (IT compatibility)
-#define AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          0x02 ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
-#define AVSEQ_TRACK_COMPAT_FLAG_SLIDES              0x04 ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
-#define AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES       0x08 ///< All except portamento slides share the same memory (e.g. volume/panning slides)
-#define AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           0x10 ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
-#define AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    0x20 ///< Oppositional non-portamento slide directions don't share the same memory
-#define AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        0x40 ///< Volume & pitch slides share same memory (S3M compatibility)
+enum AVSequencerTrackCompatFlags {
+    AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       = 0x01, ///< Sample offset beyond end of sample will be ignored (IT compatibility)
+    AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          = 0x02, ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
+    AVSEQ_TRACK_COMPAT_FLAG_SLIDES              = 0x04, ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
+    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES       = 0x08, ///< All except portamento slides share the same memory (e.g. volume/panning slides)
+    AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           = 0x10, ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
+    AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    = 0x20, ///< Oppositional non-portamento slide directions don't share the same memory
+    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        = 0x40, ///< Volume & pitch slides share same memory (S3M compatibility)
+};
 
     /** Track playback flags. Some sequencers feature
        surround panning or allow initial reverse playback,
        different timing methods which have all to be taken
        care specially in the internal playback engine.  */
     uint8_t flags;
-#define AVSEQ_TRACK_FLAG_USE_TIMING             0x01 ///< Use track timing fields
-#define AVSEQ_TRACK_FLAG_SPD_TIMING             0x02 ///< SPD speed timing instead of BpM
-#define AVSEQ_TRACK_FLAG_PANNING                0x04 ///< Use track panning and sub-panning fields
-#define AVSEQ_TRACK_FLAG_SURROUND               0x08 ///< Use track surround panning
-#define AVSEQ_TRACK_FLAG_REVERSE                0x10 ///< Playback of track in backward direction
+enum AVSequencerTrackFlags {
+    AVSEQ_TRACK_FLAG_USE_TIMING             = 0x01, ///< Use track timing fields
+    AVSEQ_TRACK_FLAG_SPD_TIMING             = 0x02, ///< SPD speed timing instead of BpM
+    AVSEQ_TRACK_FLAG_PANNING                = 0x04, ///< Use track panning and sub-panning fields
+    AVSEQ_TRACK_FLAG_SURROUND               = 0x08, ///< Use track surround panning
+    AVSEQ_TRACK_FLAG_REVERSE                = 0x10, ///< Playback of track in backward direction
+};
 
     /** Initial number of frames per row, i.e. sequencer tempo
        (defaults to 6 as in most tracker formats).  */
@@ -247,28 +252,28 @@ typedef struct AVSequencerTrack {
 typedef struct AVSequencerTrackEffect {
     /** Effect command byte.  */
     uint8_t command;
-
+enum AVSequencerTrackEffectCommand {
     /** Note effect commands.
        0x00 - Arpeggio:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the first halftone and yy the second halftone.
        Both xx and yy are signed values which means that a
        negative value is a backward arpeggio.  */
-#define AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO      0x00
+    AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO      = 0x00,
 
     /** 0x01 - Portamento up:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the portamento up slide value and yy is
        a super finetuning with a 256x accuracy.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PORTA_UP      0x01
+    AVSEQ_TRACK_EFFECT_CMD_PORTA_UP      = 0x01,
 
     /** 0x02 - Portamento down:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the portamento down slide value and yy is
        a super finetuning with a 256x accuracy.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN    0x02
+    AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN    = 0x02,
 
     /** 0x03 - Fine portamento up:
        Data word consists of two 8-bit pairs named xx and yy
@@ -276,7 +281,7 @@ typedef struct AVSequencerTrackEffect {
        16 times more accurate than command byte 01 and yy is
        a super finetuning with a 256x accuracy.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_PORTA_UP    0x03
+    AVSEQ_TRACK_EFFECT_CMD_F_PORTA_UP    = 0x03,
 
     /** 0x04 - Fine portamento down:
        Data word consists of two 8-bit pairs named xx and yy
@@ -284,7 +289,7 @@ typedef struct AVSequencerTrackEffect {
        16 times more accurate than command byte 01 and yy is
        a super finetuning with a 256x accuracy.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_PORTA_DOWN  0x04
+    AVSEQ_TRACK_EFFECT_CMD_F_PORTA_DOWN  = 0x04,
 
     /** 0x05 - Portamento up once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -292,7 +297,7 @@ typedef struct AVSequencerTrackEffect {
        a super finetuning with a 256x accuracy. The portamento
        up is done only once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_O_PORTA_UP    0x05
+    AVSEQ_TRACK_EFFECT_CMD_O_PORTA_UP    = 0x05,
 
     /** 0x06 - Portamento down once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -300,7 +305,7 @@ typedef struct AVSequencerTrackEffect {
        a super finetuning with a 256x accuracy. The portamento
        down is done only once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_O_PORTA_DOWN  0x06
+    AVSEQ_TRACK_EFFECT_CMD_O_PORTA_DOWN  = 0x06,
 
     /** 0x07 - Fine portamento up once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -309,7 +314,7 @@ typedef struct AVSequencerTrackEffect {
        a super finetuning with a 256x accuracy. The fine portamento
        up is done only once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_OFPORTA_UP    0x07
+    AVSEQ_TRACK_EFFECT_CMD_OFPORTA_UP    = 0x07,
 
     /** 0x08 - Fine portamento down once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -318,14 +323,14 @@ typedef struct AVSequencerTrackEffect {
        a super finetuning with a 256x accuracy. The fine portamento
        down is done only once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_OFPORTA_DOWN  0x08
+    AVSEQ_TRACK_EFFECT_CMD_OFPORTA_DOWN  = 0x08,
 
     /** 0x09 - Tone portamento:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the target tone slide value encoded as;
        octave * 12 + note and yy is a super finetuning with
        a 256x accuracy. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TONE_PORTA    0x09
+    AVSEQ_TRACK_EFFECT_CMD_TONE_PORTA    = 0x09,
 
     /** 0x0A - Fine tone portamento:
        Data word consists of two 8-bit pairs named xx and yy
@@ -333,7 +338,7 @@ typedef struct AVSequencerTrackEffect {
        octave * 12 + note which is 16 times more accurate
        than command byte 09 and yy is a super finetuning with
        a 256x accuracy. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_TONE_PORTA  0x0A
+    AVSEQ_TRACK_EFFECT_CMD_F_TONE_PORTA  = 0x0A,
 
     /** 0x0B - Tone portamento once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -342,7 +347,7 @@ typedef struct AVSequencerTrackEffect {
        a 256x accuracy. The tone portamento is done only
        once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_O_TONE_PORTA  0x0B
+    AVSEQ_TRACK_EFFECT_CMD_O_TONE_PORTA  = 0x0B,
 
     /** 0x0C - Fine tone portamento once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -352,7 +357,7 @@ typedef struct AVSequencerTrackEffect {
        a 256x accuracy. The fine tone portamento is done only
        once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_OFTONE_PORTA  0x0C
+    AVSEQ_TRACK_EFFECT_CMD_OFTONE_PORTA  = 0x0C,
 
     /** 0x0D - Note slide:
        Data word consists of two 8-bit pairs named xx and yy
@@ -368,7 +373,7 @@ typedef struct AVSequencerTrackEffect {
        Pitch panning separation is not affected by this one,
        you have to do a panning slide instead if you want this.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_NOTE_SLIDE    0x0D
+    AVSEQ_TRACK_EFFECT_CMD_NOTE_SLIDE    = 0x0D,
 
     /** 0x0E - Vibrato:
        Data word consists of two 8-bit pairs named xx and yy
@@ -379,7 +384,7 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative vibrato
        depth means that the vibrato envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_VIBRATO       0x0E
+    AVSEQ_TRACK_EFFECT_CMD_VIBRATO       = 0x0E,
 
     /** 0x0F - Fine vibrato:
        Data word consists of two 8-bit pairs named xx and yy
@@ -390,7 +395,7 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative fine vibrato
        depth means that the vibrato envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_FINE_VIBRATO  0x0F
+    AVSEQ_TRACK_EFFECT_CMD_FINE_VIBRATO  = 0x0F,
 
     /** 0x10 - Vibrato once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -402,7 +407,7 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative vibrato
        depth means that the vibrato envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_VIBRATO_ONCE  0x10
+    AVSEQ_TRACK_EFFECT_CMD_VIBRATO_ONCE  = 0x10,
 
     /** 0x11 - Fine vibrato once:
        Data word consists of two 8-bit pairs named xx and yy
@@ -414,25 +419,25 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative fine vibrato
        depth means that the vibrato envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_VIB_ONCE    0x11
+    AVSEQ_TRACK_EFFECT_CMD_F_VIB_ONCE    = 0x11,
 
     /** 0x12 - Do a keyoff:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the
        keyoff is executed.  */
-#define AVSEQ_TRACK_EFFECT_CMD_DO_KEYOFF     0x12
+    AVSEQ_TRACK_EFFECT_CMD_DO_KEYOFF     = 0x12,
 
     /** 0x13 - Do a hold delay:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the
        hold delay is executed.  */
-#define AVSEQ_TRACK_EFFECT_CMD_DO_HOLD       0x13
+    AVSEQ_TRACK_EFFECT_CMD_DO_HOLD       = 0x13,
 
     /** 0x14 - Do a fadeout:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the
        fadeout is executed.  */
-#define AVSEQ_TRACK_EFFECT_CMD_NOTE_FADE     0x14
+    AVSEQ_TRACK_EFFECT_CMD_NOTE_FADE     = 0x14,
 
     /** 0x15 - Note cut:
        Data word consists of 4-bit upper nibble named x 
@@ -440,13 +445,13 @@ typedef struct AVSequencerTrackEffect {
        zero then just the volume is set to zero,
        otherwise the note will be killed, i.e. turned off
        completely.  */
-#define AVSEQ_TRACK_EFFECT_CMD_NOTE_CUT      0x15
+    AVSEQ_TRACK_EFFECT_CMD_NOTE_CUT      = 0x15,
 
     /** 0x16 - Note delay:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the note
        delay is executed.  */
-#define AVSEQ_TRACK_EFFECT_CMD_NOTE_DELAY    0x16
+    AVSEQ_TRACK_EFFECT_CMD_NOTE_DELAY    = 0x16,
 
     /** 0x17 - Tremor:
        Data word consists of two 8-bit pairs named xx and yy
@@ -454,7 +459,7 @@ typedef struct AVSequencerTrackEffect {
        and yy is the number of ticks the note is turned off
        afterwards.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TREMOR        0x17
+    AVSEQ_TRACK_EFFECT_CMD_TREMOR        = 0x17,
 
     /** 0x18 - Note retrigger:
        Data word consists of a 16-bit unsigned value which represents
@@ -472,7 +477,7 @@ typedef struct AVSequencerTrackEffect {
        rounded down, i.e. tempo 8 with 18-8003 will retrigger each
        2 ticks, because 8 / 3 is 2,7 which gets 2 by down rounding
        (fraction is is just dropped away).  */
-#define AVSEQ_TRACK_EFFECT_CMD_RETRIG_NOTE   0x18
+    AVSEQ_TRACK_EFFECT_CMD_RETRIG_NOTE   = 0x18,
 
     /** 0x19 - Multi retrigger note:
        Data word consists of two 8-bit pairs named xx and yy
@@ -489,7 +494,7 @@ typedef struct AVSequencerTrackEffect {
        rounding down. If one of the values is zero, the previous
        value will be reused.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_MULTI_RETRIG  0x19
+    AVSEQ_TRACK_EFFECT_CMD_MULTI_RETRIG  = 0x19,
 
     /** 0x1A - Extended control:
        Data word consists of one upper 4-bit nibble named x and of
@@ -525,20 +530,20 @@ typedef struct AVSequencerTrackEffect {
        5 | Do keyoff on all NNA notes (yyy must always be set to 0 now,
            since other values are reserved for newer versions of FFmpeg.
        6 | Set pitch sub-slide value to lower 8-bits of yyy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL   0x1A
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL   = 0x1A,
     /** Extended control x nibble values.  */
     /** Set frequency table to use for slides.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_FREQ_TABLE    0x0
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_FREQ_TABLE    = 0x0,
     /** Glissando control.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_GLISS_CTRL    0x1
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_GLISS_CTRL    = 0x1,
     /** Multi retrigger control.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_MULTI_CTRL    0x2
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_MULTI_CTRL    = 0x2,
     /** Cut all NNA notes.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_PAST_CUT      0x3
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_PAST_CUT      = 0x3,
     /** Fadeout all NNA notes.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_PAST_FADE     0x4
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_PAST_FADE     = 0x4,
     /** Do keyoff on all NNA notes.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_PAST_OFF      0x5
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL_PAST_OFF      = 0x5,
 
     /** 0x1B - Invert loop:
        Data word consists of a 16-bit unsigned value
@@ -547,14 +552,14 @@ typedef struct AVSequencerTrackEffect {
        This effect allows you to play several positions of a sample
        to be inverted. Remember that this effect changes the actual
        sample data.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INVERT_LOOP   0x1B
+    AVSEQ_TRACK_EFFECT_CMD_INVERT_LOOP   = 0x1B,
 
     /** 0x1C - Execute command effect at tick:
        Data word consists of a 16-bit unsigned value which
        represents the tick number at where the next effect
        will be executed. This also can be used to simulate
        fast slides or vibratos by putting a zero as value.  */
-#define AVSEQ_TRACK_EFFECT_CMD_EXECUTE_FX    0x1C
+    AVSEQ_TRACK_EFFECT_CMD_EXECUTE_FX    = 0x1C,
 
     /** 0x1D - Stop command effect at tick:
        Data word consists of two 8-bit pairs named xx and yy
@@ -562,7 +567,7 @@ typedef struct AVSequencerTrackEffect {
        command effect execution and yy will be the command
        effect number which should be stopped.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_STOP_FX       0x1D
+    AVSEQ_TRACK_EFFECT_CMD_STOP_FX       = 0x1D,
 
     /* Volume effect commands.  */
 
@@ -572,7 +577,7 @@ typedef struct AVSequencerTrackEffect {
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
        and yy is the sub-volume level which allows to set 1/256th
        of a volume level. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_VOLUME    0x20
+    AVSEQ_TRACK_EFFECT_CMD_SET_VOLUME    = 0x20,
 
     /** 0x21 - Volume slide up:
        Data word consists of two 8-bit pairs named xx and yy
@@ -581,7 +586,7 @@ typedef struct AVSequencerTrackEffect {
        to slide up and yy is the sub-volume slide up level
        which allows to set 1/256th of a volume slide up level.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_UP    0x21
+    AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_UP    = 0x21,
 
     /** 0x22 - Volume slide down:
        Data word consists of two 8-bit pairs named xx and yy
@@ -590,7 +595,7 @@ typedef struct AVSequencerTrackEffect {
        to slide down and yy is the sub-volume slide down level
        which allows to set 1/256th of a volume slide down level.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_DOWN  0x22
+    AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_DOWN  = 0x22,
 
     /** 0x23 - Fine volume slide up:
        Data word consists of two 8-bit pairs named xx and yy
@@ -600,7 +605,7 @@ typedef struct AVSequencerTrackEffect {
        which allows to set 1/256th of a volume slide up level.
        The fine volume slide up is done only once per row
        (at first tick). Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_VOLSL_UP    0x23
+    AVSEQ_TRACK_EFFECT_CMD_F_VOLSL_UP    = 0x23,
 
     /** 0x24 - Fine volume slide down:
        Data word consists of two 8-bit pairs named xx and yy
@@ -610,7 +615,7 @@ typedef struct AVSequencerTrackEffect {
        which allows to set 1/256th of a volume slide down level.
        The fine volume slide down is done only once per row
        (at first tick). Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_VOLSL_DOWN  0x24
+    AVSEQ_TRACK_EFFECT_CMD_F_VOLSL_DOWN  = 0x24,
 
     /** 0x25 - Volume slide to:
        Data word consists of two 8-bit pairs named xx and yy
@@ -622,7 +627,7 @@ typedef struct AVSequencerTrackEffect {
        instead of setting it or 0xFF to execute a fine volume
        slide instead (only once per row).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_TO    0x25
+    AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_TO    = 0x25,
 
     /** 0x26 - Tremolo:
        Data word consists of two 8-bit pairs named xx and yy
@@ -633,7 +638,7 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative tremolo
        depth means that the tremolo envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TREMOLO       0x26
+    AVSEQ_TRACK_EFFECT_CMD_TREMOLO       = 0x26,
 
     /** 0x27 - Tremolo once:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -644,7 +649,7 @@ typedef struct AVSequencerTrackEffect {
        executed only once per row, i.e. at first tick.
        xx is unsigned and yy is signed. A negative tremolo depth
        means that the tremolo envelope values will be inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TREMOLO_ONCE  0x27
+    AVSEQ_TRACK_EFFECT_CMD_TREMOLO_ONCE  = 0x27,
 
     /** 0x28 - Set track volume:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -653,7 +658,7 @@ typedef struct AVSequencerTrackEffect {
        sub-volume track level which allows to set 1/256th of a track
        volume level. Other volume levels are scaled with track volume.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_TRK_VOL   0x28
+    AVSEQ_TRACK_EFFECT_CMD_SET_TRK_VOL   = 0x28,
 
     /** 0x29 - Track volume slide up:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -662,7 +667,7 @@ typedef struct AVSequencerTrackEffect {
        yy is the sub-volume track slide up level which allows to set
        1/256th of a volume slide up level. Other volume levels are
        scaled with track volume. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_UP    0x29
+    AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_UP    = 0x29,
 
     /** 0x2A - Track volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -671,7 +676,7 @@ typedef struct AVSequencerTrackEffect {
        yy is the sub-volume track slide down level which allows to set
        1/256th of a volume slide down level. Other volume levels are
        scaled with track volume. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_DOWN  0x2A
+    AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_DOWN  = 0x2A,
 
     /** 0x2B - Fine track volume slide up:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -682,7 +687,7 @@ typedef struct AVSequencerTrackEffect {
        scaled with track volume. The fine track volume slide up is
        done only once per row, i.e. at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_TVOL_SL_UP  0x2B
+    AVSEQ_TRACK_EFFECT_CMD_F_TVOL_SL_UP  = 0x2B,
 
     /** 0x2C - Fine track volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -693,7 +698,7 @@ typedef struct AVSequencerTrackEffect {
        scaled with track volume. The fine track volume slide down is
        done only once per row, i.e. at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_TVOL_SL_DN  0x2C
+    AVSEQ_TRACK_EFFECT_CMD_F_TVOL_SL_DN  = 0x2C,
 
     /** 0x2D - Track volume slide to:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -705,7 +710,7 @@ typedef struct AVSequencerTrackEffect {
        instead of setting it or 0xFF to execute a fine track volume
        slide instead (only once per row).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TVOL_SLD_TO   0x2D
+    AVSEQ_TRACK_EFFECT_CMD_TVOL_SLD_TO   = 0x2D,
 
     /** 0x2E - Track tremolo:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -716,7 +721,7 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative track tremolo
        depth means that the tremolo envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TRK_TREMOLO   0x2E
+    AVSEQ_TRACK_EFFECT_CMD_TRK_TREMOLO   = 0x2E,
 
     /** 0x2F - Track tremolo once:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -727,7 +732,7 @@ typedef struct AVSequencerTrackEffect {
        tremolo is executed only once per row, i.e. at first tick.
        xx is unsigned and yy is signed. A negative tremolo depth
        means that the tremolo envelope values will be inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_T_TREMO_ONCE  0x2F
+    AVSEQ_TRACK_EFFECT_CMD_T_TREMO_ONCE  = 0x2F,
 
     /* Panning effect commands.  */
 
@@ -739,7 +744,7 @@ typedef struct AVSequencerTrackEffect {
        half of volume at left and right speakers) and yy is the
        sub-panning position which allows to set 1/256th of a panning
        position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_PANNING   0x30
+    AVSEQ_TRACK_EFFECT_CMD_SET_PANNING   = 0x30,
 
     /** 0x31 - Panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -747,7 +752,7 @@ typedef struct AVSequencerTrackEffect {
        and yy is the sub-panning slide left position which allows to
        set 1/256th of a panning slide left position.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PAN_SL_LEFT   0x31
+    AVSEQ_TRACK_EFFECT_CMD_PAN_SL_LEFT   = 0x31,
 
     /** 0x32 - Panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -755,7 +760,7 @@ typedef struct AVSequencerTrackEffect {
        and yy is the sub-panning slide right position which allows to
        set 1/256th of a panning slide right position.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PAN_SL_RIGHT  0x32
+    AVSEQ_TRACK_EFFECT_CMD_PAN_SL_RIGHT  = 0x32,
 
     /** 0x33 - Fine panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -764,7 +769,7 @@ typedef struct AVSequencerTrackEffect {
        set 1/256th of a panning slide left position. The fine panning
        slide left is done only once per row, i.e. at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_P_SL_LEFT   0x33
+    AVSEQ_TRACK_EFFECT_CMD_F_P_SL_LEFT   = 0x33,
 
     /** 0x34 - Fine panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -773,7 +778,7 @@ typedef struct AVSequencerTrackEffect {
        set 1/256th of a panning slide right position. The fine panning
        slide right is done only once per row, i.e. at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_P_SL_RIGHT  0x34
+    AVSEQ_TRACK_EFFECT_CMD_F_P_SL_RIGHT  = 0x34,
 
     /** 0x35 - Panning slide to:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -787,7 +792,7 @@ typedef struct AVSequencerTrackEffect {
        0xFF to do a fine panning slide instead (only once per row).
        Other stereo positions are scaled to track panning position.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PAN_SLD_TO    0x35
+    AVSEQ_TRACK_EFFECT_CMD_PAN_SLD_TO    = 0x35,
 
     /** 0x36 - Pannolo / Panbrello:
        Data word consists of two 8-bit pairs named xx and yy
@@ -798,8 +803,8 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative pannolo
        depth means that the pannolo envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PANNOLO       0x36
-#define AVSEQ_TRACK_EFFECT_CMD_PANBRELLO     AVSEQ_TRACK_EFFECT_CMD_PANNOLO
+    AVSEQ_TRACK_EFFECT_CMD_PANNOLO       = 0x36,
+    AVSEQ_TRACK_EFFECT_CMD_PANBRELLO     = AVSEQ_TRACK_EFFECT_CMD_PANNOLO,
 
     /** 0x37 - Pannolo / Panbrello once:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -810,8 +815,8 @@ typedef struct AVSequencerTrackEffect {
        executed only once per row, i.e. at first tick.
        xx is unsigned and yy is signed. A negative pannolo depth
        means that the pannolo envelope values will be inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PANNOLO_ONCE      0x37
-#define AVSEQ_TRACK_EFFECT_CMD_PANBRELLO_ONCE    AVSEQ_TRACK_EFFECT_CMD_PANNOLO_ONCE
+    AVSEQ_TRACK_EFFECT_CMD_PANNOLO_ONCE      = 0x37,
+    AVSEQ_TRACK_EFFECT_CMD_PANBRELLO_ONCE    = AVSEQ_TRACK_EFFECT_CMD_PANNOLO_ONCE,
 
     /** 0x38 - Set track panning:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -822,7 +827,7 @@ typedef struct AVSequencerTrackEffect {
        sub-panning position which allows to set 1/256th of a track
        panning position. Other stereo positions are scaled to track
        panning position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_TRK_PAN   0x38
+    AVSEQ_TRACK_EFFECT_CMD_SET_TRK_PAN   = 0x38,
 
     /** 0x39 - Track panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -831,7 +836,7 @@ typedef struct AVSequencerTrackEffect {
        position which allows to set 1/256th of a panning slide
        left position. Other stereo positions are scaled to track
        panning position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_LEFT  0x39
+    AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_LEFT  = 0x39,
 
     /** 0x3A - Track panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -840,7 +845,7 @@ typedef struct AVSequencerTrackEffect {
        position which allows to set 1/256th of a panning slide
        right position. Other stereo positions are scaled to track
        panning position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_RGHT  0x3A
+    AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_RGHT  = 0x3A,
 
     /** 0x3B - Fine track panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -851,7 +856,7 @@ typedef struct AVSequencerTrackEffect {
        panning position. The fine track panning slide left is done
        only once per row, i.e. only at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_TP_SL_LEFT  0x3B
+    AVSEQ_TRACK_EFFECT_CMD_F_TP_SL_LEFT  = 0x3B,
 
     /** 0x3C - Fine track panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -862,7 +867,7 @@ typedef struct AVSequencerTrackEffect {
        panning position. The fine track panning slide right is done
        only once per row, i.e. only at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_TP_SL_RGHT  0x3C
+    AVSEQ_TRACK_EFFECT_CMD_F_TP_SL_RGHT  = 0x3C,
 
     /** 0x3D - Track panning slide to:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -877,7 +882,7 @@ typedef struct AVSequencerTrackEffect {
        instead, i.e. execute it only once per row (first tick). Other
        stereo positions are scaled to track panning position.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TPAN_SLD_TO   0x3D
+    AVSEQ_TRACK_EFFECT_CMD_TPAN_SLD_TO   = 0x3D,
 
     /** 0x3E - Track pannolo / panbrello:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -888,8 +893,8 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative track pannolo
        depth means that the pannolo envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TRK_PANNOLO       0x3E
-#define AVSEQ_TRACK_EFFECT_CMD_TRK_PANBRELLO     AVSEQ_TRACK_EFFECT_CMD_TRK_PANNOLO
+    AVSEQ_TRACK_EFFECT_CMD_TRK_PANNOLO       = 0x3E,
+    AVSEQ_TRACK_EFFECT_CMD_TRK_PANBRELLO     = AVSEQ_TRACK_EFFECT_CMD_TRK_PANNOLO,
 
     /** 0x3F - Track pannolo / panbrello once:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -900,8 +905,8 @@ typedef struct AVSequencerTrackEffect {
        is executed only once per row, i.e. at first tick.
        xx is unsigned and yy is signed. A negative pannolo depth
        means that the pannolo envelope values will be inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_TPANOLO_ONCE      0x3F
-#define AVSEQ_TRACK_EFFECT_CMD_TPANBRELO_ONCE    AVSEQ_TRACK_EFFECT_CMD_TPANOLO_ONCE
+    AVSEQ_TRACK_EFFECT_CMD_TPANOLO_ONCE      = 0x3F,
+    AVSEQ_TRACK_EFFECT_CMD_TPANBRELO_ONCE    = AVSEQ_TRACK_EFFECT_CMD_TPANOLO_ONCE,
 
     /* Track effect commands.  */
 
@@ -909,7 +914,7 @@ typedef struct AVSequencerTrackEffect {
        Data word consists of a 16-bit unsigned value which
        represents the number of ticks per row to change to
        for this track or zero for marking the song end.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_TEMPO     0x40
+    AVSEQ_TRACK_EFFECT_CMD_SET_TEMPO     = 0x40,
 
     /** 0x41 - Set channel tempo:
        Data word consists of a 16-bit signed value which
@@ -917,27 +922,27 @@ typedef struct AVSequencerTrackEffect {
        add for this track. A positive value will make the
        song slower (adds more ticks per row) and a negative
        value will make it faster instead.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_REL_TMPO  0x41
+    AVSEQ_TRACK_EFFECT_CMD_SET_REL_TMPO  = 0x41,
 
     /** 0x42 - Pattern break:
        Data word consists of a 16-bit unsigned value which
        represents the new row where to start next track after
        breaking current track. Zero is the first track.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PATT_BREAK    0x42
+    AVSEQ_TRACK_EFFECT_CMD_PATT_BREAK    = 0x42,
 
     /** 0x43 - Position jump:
        Data word consists of a 16-bit unsigned value which
        represents the new position / order list number to
        jump to (zero being the first order list entry).
        The current track is cancelled immediately.  */
-#define AVSEQ_TRACK_EFFECT_CMD_POS_JUMP      0x43
+    AVSEQ_TRACK_EFFECT_CMD_POS_JUMP      = 0x43,
 
     /** 0x44 - Relative position jump:
        Data word consists of a 16-bit signed value which
        represents the new relative position / order list
        number to jump to. A positive value means a forward
        jump and negative values represent backward jumping.  */
-#define AVSEQ_TRACK_EFFECT_CMD_REL_POS_JUMP  0x44
+    AVSEQ_TRACK_EFFECT_CMD_REL_POS_JUMP  = 0x44,
 
     /** 0x45 - Change pattern:
        Data word consists of a 16-bit unsigned value which
@@ -945,7 +950,7 @@ typedef struct AVSequencerTrackEffect {
        to. Unlike pattern break this effect does not change
        the track immediately but finishes the currently
        track being played.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHG_PATTERN   0x45
+    AVSEQ_TRACK_EFFECT_CMD_CHG_PATTERN   = 0x45,
 
     /** 0x46 - Reverse play control:
        Data word consists of a 16-bit unsigned value which
@@ -953,20 +958,20 @@ typedef struct AVSequencerTrackEffect {
        direction to always backwards, 0x0001 for changing
        to always forwards and zero for inverting current
        playback direction.  */
-#define AVSEQ_TRACK_EFFECT_CMD_REVERSE_PLAY  0x46
+    AVSEQ_TRACK_EFFECT_CMD_REVERSE_PLAY  = 0x46,
 
     /** 0x47 - Pattern delay:
        Data word consists of a 16-bit unsigned value which
        determines the value of number of rows to compact
        to one, i.e. the row will be delayed for this track
        while the effects continue normal executing.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PATT_DELAY    0x47
+    AVSEQ_TRACK_EFFECT_CMD_PATT_DELAY    = 0x47,
 
     /** 0x48 - Fine pattern delay:
        Data word consists of a 16-bit unsigned value which
        determines the value of number of ticks to compact delay
        this track, the effects continue normal executing.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_PATT_DELAY  0x48
+    AVSEQ_TRACK_EFFECT_CMD_F_PATT_DELAY  = 0x48,
 
     /** 0x49 - Pattern loop:
        Data word consists of a 16-bit unsigned value which determines
@@ -975,7 +980,7 @@ typedef struct AVSequencerTrackEffect {
        loop stack) or when using a non-zero value, it will cause to
        jump back to this order list entry number. If the loop stack
        is full, the newest loop mark will be overwritten.  */
-#define AVSEQ_TRACK_EFFECT_CMD_PATT_LOOP     0x49
+    AVSEQ_TRACK_EFFECT_CMD_PATT_LOOP     = 0x49,
 
     /** 0x4A - GoSub:
        Data word consists of a 16-bit unsigned value which represents
@@ -983,7 +988,7 @@ typedef struct AVSequencerTrackEffect {
        order list entry and track row number is pushed on the GoSub
        stack, if the stack is not full and continue playback at the
        new order list entry otherwise simply nothing happens.  */
-#define AVSEQ_TRACK_EFFECT_CMD_GOSUB         0x4A
+    AVSEQ_TRACK_EFFECT_CMD_GOSUB         = 0x4A,
 
     /** 0x4B - Return from GoSub:
        Data word consists of a 16-bit unsigned value which determines,
@@ -991,7 +996,7 @@ typedef struct AVSequencerTrackEffect {
        with the GoSub command otherwise it will continue playback at
        specified row number. If the GoSub stack is empty, this track
        will be disabled for the whole song.  */
-#define AVSEQ_TRACK_EFFECT_CMD_RETURN        0x4B
+    AVSEQ_TRACK_EFFECT_CMD_RETURN        = 0x4B,
 
     /** 0x4C - Channel synchronization:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1001,7 +1006,7 @@ typedef struct AVSequencerTrackEffect {
        yy are equal then only synchronize with one channel. The
        current channel will be halted until all synchronization
        is finished. Both xx and yy represent unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_SYNC  0x4C
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_SYNC  = 0x4C,
 
     /** 0x4D - Set target sub-slide to:
        Data word consists of two unsigned 8-bit pairs named xx and yy
@@ -1019,20 +1024,20 @@ typedef struct AVSequencerTrackEffect {
        You can add these values together to set multiple target values
        at once, e.g. 0x11 will apply the sub-slide value to volume and
        track panning.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE  0x4D
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE  = 0x4D,
     /** Set target sub-slide to xx bits.  */
     /** Set volume sub-slide to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_VOLUME           0x01
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_VOLUME           = 0x01,
     /** Set track volume sub-slide to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_TRACK_VOLUME     0x02
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_TRACK_VOLUME     = 0x02,
     /** Set global volume sub-slide to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_GLOBAL_VOLUME    0x04
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_GLOBAL_VOLUME    = 0x04,
     /** Set panning sub-slide to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_PANNING          0x08
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_PANNING          = 0x08,
     /** Set track panning sub-slide to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_TRACK_PANNING    0x10
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_TRACK_PANNING    = 0x10,
     /**  Set global panning sub-slide to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_GLOBAL_PANNING   0x20
+    AVSEQ_TRACK_EFFECT_CMD_SET_SUBSLIDE_GLOBAL_PANNING   = 0x20,
 
     /* Instrument, sample and synth effect commands.  */
 
@@ -1042,7 +1047,7 @@ typedef struct AVSequencerTrackEffect {
        sample position to start the sample playback at.
        This effect does not change actually the sample
        position (see below).  */
-#define AVSEQ_TRACK_EFFECT_CMD_SMP_OFF_HIGH      0x50
+    AVSEQ_TRACK_EFFECT_CMD_SMP_OFF_HIGH      = 0x50,
 
     /** 0x51 - Sample offset low word:
        Data word consists of a 16-bit unsigned value which is the low
@@ -1052,27 +1057,27 @@ typedef struct AVSequencerTrackEffect {
        of effect 0x50 with the formula high word * 0x10000 + low word.
        This allows setting the sample playback start position with an
        accuracy of exactly one sample.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SMP_OFF_LOW       0x51
+    AVSEQ_TRACK_EFFECT_CMD_SMP_OFF_LOW       = 0x51,
 
     /** 0x52 - Set hold:
        Data word consists of a 16-bit unsigned value which
        represents the new hold count of MED-style trackers
        to be used. This allows resetting the hold instrument.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_HOLD          0x52
+    AVSEQ_TRACK_EFFECT_CMD_SET_HOLD          = 0x52,
 
     /** 0x53 - Set decay:
        Data word consists of a 16-bit unsigned value which
        contains either the decay to be set (if decay is not
        alread in action or the decay counter otherwise, i.e.
        new hold count of MED-style trackers.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_DECAY         0x53
+    AVSEQ_TRACK_EFFECT_CMD_SET_DECAY         = 0x53,
 
     /** 0x54 - Set transpose:
        Data word consists of two signed 8-bit pairs named xx and yy
        where xx is the new transpose and yy the new finetune value
        which should be applied to the new note. This command has
        no effect if not used in conjunction with a new note.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_TRANSP        0x54
+    AVSEQ_TRACK_EFFECT_CMD_SET_TRANSP        = 0x54,
 
     /** Instrument control. Data word = xxyy.  */
     /** 0x55 - Instrument control:
@@ -1100,20 +1105,20 @@ typedef struct AVSequencerTrackEffect {
         0x80 | Apply to use auto vibrato linear frequency bit. If set,
                the auto vibratos will use linear frequency scaling
                instead of the Amiga one.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL       0x55
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL       = 0x55,
     /** Instrument control xx (on-bits) and yy (off-bits) bits.  */
     /** Instrument panning on if bit set in xx when in yy it's off,.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_PANNING          0x01
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_PANNING          = 0x01,
     /** Position transposeable if bit set in xx when in yy it's off.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_TRANSPOSE        0x02
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_TRANSPOSE        = 0x02,
     /** Slide envelope portamento bit.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_SLIDENVPORTA     0x08
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_SLIDENVPORTA     = 0x08,
     /** Slide envelope linear frequency bit.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_SLIDENVLINEAR    0x10
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_SLIDENVLINEAR    = 0x10,
     /** Sample offset relative bit.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_REL_SMP_OFFSET   0x20
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_REL_SMP_OFFSET   = 0x20,
     /** Auto vibrato linear frequency bit.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_AUTOVIBLINEAR    0x80
+    AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL_AUTOVIBLINEAR    = 0x80,
 
     /** 0x56 - Instrument change:
        Data word consists of one upper 4-bit nibble named x and of a
@@ -1145,44 +1150,44 @@ typedef struct AVSequencerTrackEffect {
        9 | Set DCA (Decay Action) to either cut when yyy equals zero,
            keyoff if yyy equals 0x001 and fadeout for yyy
            being 0x002.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE        0x56
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE        = 0x56,
     /** Instrument change x values.  */
     /** Change instrument global volume to 0yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_GLOBAL_VOL     0x0
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_GLOBAL_VOL     = 0x0,
     /** Change instrument volume swing to yyy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_VOL_SWING      0x1
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_VOL_SWING      = 0x1,
     /** Change instrument panning swing to yyy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PAN_SWING      0x2
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PAN_SWING      = 0x2,
     /** Change instrument pitch swing to yyy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PITCH_SWING    0x3
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PITCH_SWING    = 0x3,
     /** Change instrument fadeout to yyy0.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_FADEOUT        0x4
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_FADEOUT        = 0x4,
     /** Change fadeout count to yyy0.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_FADE_COUNT     0x5
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_FADE_COUNT     = 0x5,
     /** Set Auto vibrato / tremolo / pannolo (panbrello) wave.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_CTRL     0x6
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_CTRL     = 0x6,
     /** Set auto vibrato sweep to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_SWEEP    0x60
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_SWEEP    = 0x60,
     /** Set auto vibrato depth to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_DEPTH    0x61
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_DEPTH    = 0x61,
     /** Set auto vibrato rate to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_RATE     0x62
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_VIB_RATE     = 0x62,
     /** Set auto tremolo sweep to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_TREM_SWEEP   0x64
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_TREM_SWEEP   = 0x64,
     /** Set auto tremolo depth to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_TREM_DEPTH   0x65
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_TREM_DEPTH   = 0x65,
     /** Set auto tremolo rate to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_TREM_RATE    0x66
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_TREM_RATE    = 0x66,
     /** Set auto pannolo sweep to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_PAN_SWEEP    0x68
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_PAN_SWEEP    = 0x68,
     /** Set auto pannolo depth to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_PAN_DEPTH    0x69
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_PAN_DEPTH    = 0x69,
     /** Set auto pannolo rate to yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_PAN_RATE     0x6A
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_A_PAN_RATE     = 0x6A,
     /** Set pitch panning separation to yyy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PCH_PAN_SEP    0x7
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PCH_PAN_SEP    = 0x7,
     /** Set pitch panning center to 0yy.  */
-#define AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PCH_PAN_CNTR   0x8
+    AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE_PCH_PAN_CNTR   = 0x8,
 
     /** 0x57 - Synth control:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1222,14 +1227,14 @@ typedef struct AVSequencerTrackEffect {
        0x26 | Set tremolo waveform.
        0x27 | Set pannolo waveform.
        0x28 | Set arpeggio waveform.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SYNTH_CTRL        0x57
+    AVSEQ_TRACK_EFFECT_CMD_SYNTH_CTRL        = 0x57,
 
     /** 0x58 - Set synth value:
        Data word consists of a 16-bit unsigned value which
        contains the actual value to be set, since command
        0x57 (synth control) does only set the type not the
        actual value (unless most upper bit is set).  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SYN_VAL       0x58
+    AVSEQ_TRACK_EFFECT_CMD_SET_SYN_VAL       = 0x58,
 
     /** 0x59 - Envelope control:
        Data word consists of two unsigned 8-bit pairs named xx and yy
@@ -1287,14 +1292,14 @@ typedef struct AVSequencerTrackEffect {
        0x0D | Set loop counted value.
        0x0E | Set random lowest value.
        0x0F | Set random highest value.  */
-#define AVSEQ_TRACK_EFFECT_CMD_ENV_CONTROL       0x59
+    AVSEQ_TRACK_EFFECT_CMD_ENV_CONTROL       = 0x59,
 
     /** 0x5A - Set envelope value:
        Data word consists of a 16-bit unsigned value which
        contains the actual value to be set, since command
        0x59 (envelope control) does only set the type not
        the actual value (unless most upper bit is set).  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_ENV_VAL       0x5A
+    AVSEQ_TRACK_EFFECT_CMD_SET_ENV_VAL       = 0x5A,
 
     /** 0x5B - NNA (New Note Action) control:
        Data word consists of two unsigned 8-bit pairs named xx and yy
@@ -1335,7 +1340,7 @@ typedef struct AVSequencerTrackEffect {
        Remember, DCT bits can be combined, e.g. a yy value of 0x06
        will affect both instrument and sample note to be logically
        compared with OR when an xx of 0x11 would be used.  */
-#define AVSEQ_TRACK_EFFECT_CMD_NNA_CONTROL       0x5B
+    AVSEQ_TRACK_EFFECT_CMD_NNA_CONTROL       = 0x5B,
 
     /** 0x5C - Loop control:
        Data word consists of one upper 4-bit nibble named x and of a
@@ -1364,7 +1369,7 @@ typedef struct AVSequencerTrackEffect {
        0xA | Change playback direction where 0xFFF represents backward
              direction, 0x001 is forward direction and a value of zero
              indicates a simple inversion of playback direction,  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_LOOP          0x5C
+    AVSEQ_TRACK_EFFECT_CMD_SET_LOOP          = 0x5C,
 
     /* Global effect commands.  */
 
@@ -1396,7 +1401,7 @@ typedef struct AVSequencerTrackEffect {
        causing a 2/3 down-rounded of SPD to be used. SPD values
        smaller or equal than 10 be recognized as old SoundTracker
        tempos which is required for MED compatibility.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_SPEED         0x60
+    AVSEQ_TRACK_EFFECT_CMD_SET_SPEED         = 0x60,
 
     /** 0x61 - Speed slide faster:
        Data word consists of a 16-bit unsigned value which contains
@@ -1405,7 +1410,7 @@ typedef struct AVSequencerTrackEffect {
        Note that the new slide faster value will only be applied to
        the playback engine if the selected timing mode is smaller
        than 8 (see there). Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_FAST      0x61
+    AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_FAST      = 0x61,
 
     /** 0x62 - Speed slide slower:
        Data word consists of a 16-bit unsigned value which contains
@@ -1414,7 +1419,7 @@ typedef struct AVSequencerTrackEffect {
        Note that the new slide slower value will only be applied to
        the playback engine if the selected timing mode is smaller
        than 8 (see there). Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_SLOW      0x62
+    AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_SLOW      = 0x62,
 
     /** 0x63 - Fine speed slide faster:
        Data word consists of a 16-bit unsigned value which contains
@@ -1425,7 +1430,7 @@ typedef struct AVSequencerTrackEffect {
        than 8 (see there). The fine speed slide faster is done only
        once per row i.e. just executed at the first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_S_SLD_FAST      0x63
+    AVSEQ_TRACK_EFFECT_CMD_F_S_SLD_FAST      = 0x63,
 
     /** 0x64 - Fine speed slide slower:
        Data word consists of a 16-bit unsigned value which contains
@@ -1436,7 +1441,7 @@ typedef struct AVSequencerTrackEffect {
        than 8 (see there). The fine speed slide slower is done only
        once per row i.e. just executed at the first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_S_SLD_SLOW      0x64
+    AVSEQ_TRACK_EFFECT_CMD_F_S_SLD_SLOW      = 0x64,
 
     /** 0x65 - Speed slide to:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1449,7 +1454,7 @@ typedef struct AVSequencerTrackEffect {
        mode with set tempo (0x60) command. Note that the new slide
        to value will only be applied to the playback engine if the
        selected timing mode is smaller than 8 (see there).  */
-#define AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_TO        0x65
+    AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_TO        = 0x65,
 
     /** 0x66 - Spenolo (vibrato for speed):
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1462,7 +1467,7 @@ typedef struct AVSequencerTrackEffect {
        selected timing mode with set tempo (0x60) command. Note that
        the actual tempo will only be applied to the playback engine
        if the selected timing mode is smaller than 8 (see there).  */
-#define AVSEQ_TRACK_EFFECT_CMD_SPENOLO           0x66
+    AVSEQ_TRACK_EFFECT_CMD_SPENOLO           = 0x66,
 
     /** 0x67 - Spenolo once (vibrato once for speed):
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1476,7 +1481,7 @@ typedef struct AVSequencerTrackEffect {
        selected timing mode with set tempo (0x60) command. Note that
        the actual tempo will only be applied to the playback engine
        if the selected timing mode is smaller than 8 (see there).  */
-#define AVSEQ_TRACK_EFFECT_CMD_SPENOLO_ONCE      0x67
+    AVSEQ_TRACK_EFFECT_CMD_SPENOLO_ONCE      = 0x67,
 
     /** 0x68 - Channel control:
        Data word consists of one upper 4-bit pair named x, followed
@@ -1540,41 +1545,41 @@ typedef struct AVSequencerTrackEffect {
               0x20 | Turn global surround panning off.
               0x21 | Turn global surround panning on.
        0x11 | Mutes the channel is zz is zero, un-mutes otherwise.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL      0x68
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL      = 0x68,
     /** Channel control x contents.  */
     /** Effect channel related control.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL   0x0
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL   = 0x0,
     /** Effect channel control (xy).  */
     /** Set channel control mode to zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SET_CC_MODE   0x00
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SET_CC_MODE   = 0x00,
     /** Set once effect channel to zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SET_O_EFFECT  0x01
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SET_O_EFFECT  = 0x01,
     /** Set effect channel to zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SET_EFFECT    0x02
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SET_EFFECT    = 0x02,
     /** Slide effect channel to left by zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SLD_E_LEFT    0x03
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SLD_E_LEFT    = 0x03,
     /** Slide effect channel to right by zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SLD_E_RIGHT   0x04
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_SLD_E_RIGHT   = 0x04,
     /** Fine slide effect channel to left by zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_S_E_LEFT    0x05
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_S_E_LEFT    = 0x05,
     /** Fine slide effect channel to right by zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_S_E_RIGHT   0x06
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_S_E_RIGHT   = 0x06,
     /** Fine slide effect channel left once by zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_SO_E_LEFT   0x07
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_SO_E_LEFT   = 0x07,
     /** Fine slide effect channel right once by zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_SO_E_RIGHT  0x08
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_SO_E_RIGHT  = 0x08,
     /** Channolo (vibrato for channels) to zz .  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_CHANNOLO      0x09
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_CHANNOLO      = 0x09,
     /** Fine channolo to zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_CHANNOLO    0x0A
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_CHANNOLO    = 0x0A,
     /** Fine channolo once to zz.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_CHANNOLO_O  0x0B
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_EFFECT_CHANNEL_F_CHANNOLO_O  = 0x0B,
     /** Channel output related control.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_OUTPUT_CONTROL   0x1
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_OUTPUT_CONTROL   0x1
     /** If zz == 0x00 then disable surround, else enable it.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_OUTPUT_CONTROL_SURROUND_CHN  0x10
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_OUTPUT_CONTROL_SURROUND_CHN  = 0x10,
     /** If zz == 0x00 then mute channel else play it.  */
-#define AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_OUTPUT_CONTROL_MUTE_CHANNEL  0x11
+    AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL_OUTPUT_CONTROL_MUTE_CHANNEL  = 0x11,
 
     /** 0x69 - Set global volume:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1583,7 +1588,7 @@ typedef struct AVSequencerTrackEffect {
        sub-volume global level which allows to set 1/256th of a global
        volume level. Other volume levels are scaled with global volume.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_G_VOLUME      0x69
+    AVSEQ_TRACK_EFFECT_CMD_SET_G_VOLUME      = 0x69,
 
     /** 0x6A - Global volume slide up:
        Data word consists of two 8-bit pairs named xx and yy
@@ -1592,7 +1597,7 @@ typedef struct AVSequencerTrackEffect {
        to slide up and yy is the sub-volume global slide up level
        which allows to set 1/256th of a global volume slide up level.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_UP        0x6A
+    AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_UP        = 0x6A,
 
     /** 0x6B - Global volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where xx
@@ -1601,7 +1606,7 @@ typedef struct AVSequencerTrackEffect {
        is the sub-volume global slide down level which allows to set
        1/256th of a global volume slide down level.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_DOWN      0x6B
+    AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_DOWN      = 0x6B,
 
     /** 0x6C - Fine global volume slide up:
        Data word consists of two 8-bit pairs named xx and yy where xx
@@ -1611,7 +1616,7 @@ typedef struct AVSequencerTrackEffect {
        1/256th of a global volume slide up level. The fine global
        volume slide up is done only once per row, i.e. at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_G_VOL_UP        0x6C
+    AVSEQ_TRACK_EFFECT_CMD_F_G_VOL_UP        = 0x6C,
 
     /** 0x6D - Fine global volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where xx
@@ -1621,7 +1626,7 @@ typedef struct AVSequencerTrackEffect {
        1/256th of a global volume slide down level. The fine global
        volume slide down is done only once per row (at first tick).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_F_G_VOL_DOWN      0x6D
+    AVSEQ_TRACK_EFFECT_CMD_F_G_VOL_DOWN      = 0x6D,
 
     /** 0x6E - Global volume slide to:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1633,7 +1638,7 @@ typedef struct AVSequencerTrackEffect {
        instead of setting it or 0xFF to execute a fine global volume
        slide instead (only once per row).
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_TO        0x6E
+    AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_TO        = 0x6E,
 
     /** 0x6F - Global tremolo:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1644,7 +1649,7 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative global tremolo
        depth means that the tremolo envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_TREMOLO         0x6F
+    AVSEQ_TRACK_EFFECT_CMD_G_TREMOLO         = 0x6F,
 
     /** 0x70 - Global tremolo once:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1655,7 +1660,7 @@ typedef struct AVSequencerTrackEffect {
        tremolo is executed only once per row, i.e. at first tick.
        xx is unsigned and yy is signed. A negative tremolo depth
        means that the tremolo envelope values will be inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_TREMO_ONCE      0x70
+    AVSEQ_TRACK_EFFECT_CMD_G_TREMO_ONCE      = 0x70,
 
     /** 0x71 - Set global panning:
        Data word consists of two 8-bit pairs named xx and yy where xx
@@ -1666,7 +1671,7 @@ typedef struct AVSequencerTrackEffect {
        sub-panning position which allows to set 1/256th of a global
        panning position. Other stereo positions are scaled to global
        panning position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_SET_G_PAN         0x71
+    AVSEQ_TRACK_EFFECT_CMD_SET_G_PAN         = 0x71,
 
     /** 0x72 - Global panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1675,7 +1680,7 @@ typedef struct AVSequencerTrackEffect {
        position which allows to set 1/256th of a panning slide
        left position. Other stereo positions are scaled to global
        panning position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_GPANSL_LEFT       0x72
+    AVSEQ_TRACK_EFFECT_CMD_GPANSL_LEFT       = 0x72,
 
     /** 0x73 - Global panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1684,7 +1689,7 @@ typedef struct AVSequencerTrackEffect {
        position which allows to set 1/256th of a panning slide
        right position. Other stereo positions are scaled to global
        panning position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_GPANSL_RIGHT      0x73
+    AVSEQ_TRACK_EFFECT_CMD_GPANSL_RIGHT      = 0x73,
 
     /** 0x74 - Fine global panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1695,7 +1700,7 @@ typedef struct AVSequencerTrackEffect {
        panning position. The fine global panning slide left is done
        only once per row, i.e. only at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_FGP_SL_LEFT       0x74
+    AVSEQ_TRACK_EFFECT_CMD_FGP_SL_LEFT       = 0x74,
 
     /** 0x75 - Fine global panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1706,7 +1711,7 @@ typedef struct AVSequencerTrackEffect {
        panning position. The fine global panning slide right is done
        only once per row, i.e. only at first tick.
        Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_FGP_SL_RIGHT      0x75
+    AVSEQ_TRACK_EFFECT_CMD_FGP_SL_RIGHT      = 0x75,
 
     /** 0x76 - Global panning slide to:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1721,7 +1726,7 @@ typedef struct AVSequencerTrackEffect {
        panning slide instead, i.e. execute it only once per row (at
        first tick). Other stereo positions are scaled to global panning
        position. Both xx and yy are unsigned values.  */
-#define AVSEQ_TRACK_EFFECT_CMD_GPANSL_TO         0x76
+    AVSEQ_TRACK_EFFECT_CMD_GPANSL_TO         = 0x76,
 
     /** 0x77 - Global pannolo / panbrello:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1732,8 +1737,8 @@ typedef struct AVSequencerTrackEffect {
        xx is unsigned and yy is signed. A negative global pannolo
        depth means that the pannolo envelope values will be
        inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO        0x77
-#define AVSEQ_TRACK_EFFECT_CMD_G_PANBRELLO      AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO 
+    AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO        = 0x77,
+    AVSEQ_TRACK_EFFECT_CMD_G_PANBRELLO      = AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO,
 
     /** 0x78 - Global pannolo / panbrello once:
        Data word consists of two 8-bit pairs named xx and yy where
@@ -1744,11 +1749,12 @@ typedef struct AVSequencerTrackEffect {
        pannolo is executed only once per row, i.e. only at first tick.
        xx is unsigned and yy is signed. A negative pannolo depth
        means that the pannolo envelope values will be inverted.  */
-#define AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO_O      0x78
-#define AVSEQ_TRACK_EFFECT_CMD_G_PANBRELLO_O    AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO_O
+    AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO_O      = 0x78,
+    AVSEQ_TRACK_EFFECT_CMD_G_PANBRELLO_O    AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO_O
 
     /** User customized effect for trigger in demos, etc.  */
-#define AVSEQ_TRACK_EFFECT_CMD_USER             0x7F
+    AVSEQ_TRACK_EFFECT_CMD_USER             = 0x7F,
+};
 
     /** Effect command data word.  */
     uint16_t data;

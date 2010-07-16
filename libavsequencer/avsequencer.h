@@ -65,7 +65,7 @@ const char *avsequencer_license(void);
  * 1. no value of a existing mixer ID changes (that would break ABI),
  * 2. it is as close as possible to similar mixers.
  */
-enum MixerID {
+enum AVSequencerMixerID {
     MIXER_ID_NULL,
 
     /* Integer based mixers */
@@ -125,9 +125,11 @@ typedef struct AVSequencerMixerContext {
 
     /** Special flags indicating supported features by this mixer.  */
     uint8_t flags;
-#define AVSEQ_MIXER_CONTEXT_FLAG_STEREO     0x08 ///< This mixer supports stereo mixing in addition to mono
-#define AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   0x10 ///< This mixer supports surround panning in addition to stereo panning
-#define AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   0x20 ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
+enum AVSequencerMixerContextFlags {
+    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
+    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
+    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
+};
 } AVSequencerMixerContext;
 
 /**
@@ -182,10 +184,12 @@ typedef struct AVSequencerMixerData {
        output mode (stereo or mono) or if it frozen because of some
        delaying (like caused by disk I/O when using disk writers.  */
     uint8_t flags;
-#define AVSEQ_MIXER_DATA_FLAG_ALLOCATED 0x01 ///< The mixer is currently allocated and ready to use
-#define AVSEQ_MIXER_DATA_FLAG_MIXING    0x02 ///< The mixer is currently in actual mixing to output
-#define AVSEQ_MIXER_DATA_FLAG_STEREO    0x04 ///< The mixer is currently mixing in stereo mode instead of mono
-#define AVSEQ_MIXER_DATA_FLAG_FROZEN    0x08 ///< The mixer has been delayed by some external process like disk I/O writing
+enum AVSequencerMixerDataFlags {
+    AVSEQ_MIXER_DATA_FLAG_ALLOCATED = 0x01, ///< The mixer is currently allocated and ready to use
+    AVSEQ_MIXER_DATA_FLAG_MIXING    = 0x02, ///< The mixer is currently in actual mixing to output
+    AVSEQ_MIXER_DATA_FLAG_STEREO    = 0x04, ///< The mixer is currently mixing in stereo mode instead of mono
+    AVSEQ_MIXER_DATA_FLAG_FROZEN    = 0x08, ///< The mixer has been delayed by some external process like disk I/O writing
+};
 } AVSequencerMixerData;
 
 /**
@@ -246,14 +250,16 @@ typedef struct AVSequencerMixerChannel {
        loop (normal forward, ping-pong or normal backward), if normal
        stereo or surround panning and if this channel is active.  */
     uint8_t flags;
-#define AVSEQ_MIXER_CHANNEL_FLAG_MUTED      0x01 ///< Channel is muted (i.e. processed but not outputted)
-#define AVSEQ_MIXER_CHANNEL_FLAG_SYNTH      0x02 ///< Start new synthetic waveform when old has finished playback
-#define AVSEQ_MIXER_CHANNEL_FLAG_LOOP       0x04 ///< Loop points are being used
-#define AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG   0x08 ///< Channel loop is in ping-pong style
-#define AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS  0x10 ///< Channel is currently playing in backward direction
-#define AVSEQ_MIXER_CHANNEL_FLAG_BACK_LOOP  0x20 ///< Backward loop instead of forward
-#define AVSEQ_MIXER_CHANNEL_FLAG_SURROUND   0x40 ///< Use surround sound output for this channel
-#define AVSEQ_MIXER_CHANNEL_FLAG_PLAY       0x80 ///< This channel is currently playing a sample (i.e. enabled)
+enum AVSequencerMixerChannelFlags {
+    AVSEQ_MIXER_CHANNEL_FLAG_MUTED      = 0x01, ///< Channel is muted (i.e. processed but not outputted)
+    AVSEQ_MIXER_CHANNEL_FLAG_SYNTH      = 0x02, ///< Start new synthetic waveform when old has finished playback
+    AVSEQ_MIXER_CHANNEL_FLAG_LOOP       = 0x04, ///< Loop points are being used
+    AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG   = 0x08, ///< Channel loop is in ping-pong style
+    AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS  = 0x10, ///< Channel is currently playing in backward direction
+    AVSEQ_MIXER_CHANNEL_FLAG_BACK_LOOP  = 0x20, ///< Backward loop instead of forward
+    AVSEQ_MIXER_CHANNEL_FLAG_SURROUND   = 0x40, ///< Use surround sound output for this channel
+    AVSEQ_MIXER_CHANNEL_FLAG_PLAY       = 0x80, ///< This channel is currently playing a sample (i.e. enabled)
+};
 
     /** Current volume for this channel which ranges from 0 (muted)
        to 255 (full volume).  */
@@ -341,20 +347,20 @@ typedef struct AVSequencerContext {
        and ready for access to the sequencer.  */
     AVSequencerModule **module_list;
 
+    /** Total amount of modules registered to the sequencer.  */
+    uint16_t modules;
+
     /** Array of pointers containing every mixing engine which is
        registered and ready for access to the sequencer.  */
     AVSequencerMixerContext **mixer_list;
+
+    /** Total amount of mixers registered to the sequencer.  */
+    uint16_t mixers;
 
     /** Current randomization seed value for a very fast randomize
        function used by volume, panning and pitch swing or envelopes
        featuring randomized data instead of waveforms.  */
     uint32_t seed;
-
-    /** Total amount of modules registered to the sequencer.  */
-    uint16_t modules;
-
-    /** Total amount of mixers registered to the sequencer.  */
-    uint16_t mixers;
 } AVSequencerContext;
 
 #endif /* AVSEQUENCER_AVSEQUENCER_H */
