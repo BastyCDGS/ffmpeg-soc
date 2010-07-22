@@ -34,6 +34,12 @@ r/*
  * version bump.
  */
 typedef struct AVSequencerTrackData {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Array (of size effects) of pointers containing all effects
        used by this track.  */
     AVSequencerTrack **effects_data;
@@ -123,12 +129,30 @@ enum AVSequencerTrackDataNote {
 } AVSequencerTrackData;
 
 /**
+ * Opens and registers a new array of track data to a track.
+ *
+ * @param track the AVSequencerTrack structure to store the initialized track data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_track_data_open(AVSequencerTrack *track);
+
+/**
  * Song track structure.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
  * version bump.
  */
 typedef struct AVSequencerTrack {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original track file name, track
        title, track message, track artist, track album,
        track begin and finish date of composition and comment.  */
@@ -140,36 +164,27 @@ typedef struct AVSequencerTrack {
     /** Last valid row of track (defaults to 63 = 0x3F) which
        is the default for most trackers (64 rows per pattern).  */
     uint16_t last_row;
-#define AVSEQ_TRACK_LAST_ROW    63
-#define AVSEQ_TRACK_LENGTH      ((FF_AVSEQ_TRACK_LAST_ROW) + 1)
-#define AVSEQ_TRACK_LENGTH_MIN  0
-#define AVSEQ_TRACK_LENGTH_MAX  65536
 
     /** Track global volume (defaults to 255 = no volume scaling).  */
     uint8_t volume;
-#define AVSEQ_TRACK_VOLUME  255
 
     /** Sub-volume level for this track. This is basically track
        global volume divided by 256, but the sub-volume doesn't
        account into actual mixer output (defaults 0).  */
     uint8_t sub_volume;
-#define AVSEQ_TRACK_SUB_VOLUME  0
 
     /** Stereo panning level for this track (defaults to
        -128 = central stereo panning).  */
     int8_t panning;
-#define AVSEQ_TRACK_PANNING -128
 
     /** Stereo track sub-panning level for this channel. This is
        basically track panning divided by 256, but the sub-panning
        doesn't account into actual mixer output (defaults 0).  */
     uint8_t sub_panning;
-#define AVSEQ_TRACK_SUB_PANNING 0
 
     /** Track transpose. Add this value to octave * 12 + note to
        get the final octave / note played (defaults to 0).  */
     int8_t transpose;
-#define AVSEQ_TRACK_TRANSPOSE   0
 
     /** Compatibility flags for playback. There are rare cases
        where track handling can not be mapped into internal
@@ -204,30 +219,24 @@ enum AVSequencerTrackFlags {
     /** Initial number of frames per row, i.e. sequencer tempo
        (defaults to 6 as in most tracker formats).  */
     uint16_t frames;
-#define AVSEQ_TRACK_FRAMES  6
 
     /** Initial speed multiplier, i.e. nominator which defaults
        to disabled = 0.  */
     uint8_t speed_mul;
-#define AVSEQ_TRACK_SPEED_MUL   0
 
     /** Initial speed divider, i.e. denominator which defaults
        to disabled = 0.  */
     uint8_t speed_div;
-#define AVSEQ_TRACK_SPEED_DIV   0
 
     /** Initial MED style SPD speed (defaults to 33 as in
        OctaMED Soundstudio).  */
     uint16_t spd_speed;
-#define AVSEQ_TRACK_SPD_SPEED   33
 
     /** Initial number of rows per beat (defaults to 4 rows are a beat).  */
     uint16_t bpm_tempo;
-#define AVSEQ_TRACK_BPM_TEMPO   4
 
     /** Initial beats per minute speed (defaults to 50 Hz => 125 BpM).  */
     uint16_t bpm_speed;
-#define AVSEQ_SONG_BPM_SPEED   125
 
     /** Array of pointers containing every unknown data field where
        the last element is indicated by a NULL pointer reference. The
@@ -242,6 +251,19 @@ enum AVSequencerTrackFlags {
 } AVSequencerTrack;
 
 /**
+ * Opens and registers a new track to a sub-song.
+ *
+ * @param song the AVSequencerSong structure to add the new track to
+ * @param track the AVSequencerTrack to be added to the sub-song
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_track_open(AVSequencerSong *track, AVSequencerTrack *track);
+
+/**
  * Song track effect structure, This structure is actually for one row
  * and therefore actually pointed as an array with the amount of
  * rows of the whole track.
@@ -250,6 +272,12 @@ enum AVSequencerTrackFlags {
  * version bump.
  */
 typedef struct AVSequencerTrackEffect {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Effect command byte.  */
     uint8_t command;
 enum AVSequencerTrackEffectCommand {
