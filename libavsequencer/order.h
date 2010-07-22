@@ -33,6 +33,12 @@
  * version bump.
  */
 typedef struct AVSequencerOrderList {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Array (of size orders) of pointers containing all order list
        data used by this channel.  */
     AVSequencerOrderData **order_data;
@@ -48,35 +54,29 @@ typedef struct AVSequencerOrderList {
 
     /** Volume level for this channel (defaults to 255).  */
     uint8_t volume;
-#define AVSEQ_ORDER_LIST_VOLUME 255
 
     /** Sub-volume level for this channel. This is basically channel
        volume divided by 256, but the sub-volume doesn't account
        into actual mixer output (defaults 0).  */
     uint8_t sub_volume;
-#define AVSEQ_ORDER_LIST_SUB_VOLUME 0
 
     /** Stereo track panning level for this channel (defaults to
        -128 = central stereo track panning).  */
     int8_t track_panning;
-#define AVSEQ_ORDER_LIST_TRACK_PAN  -128
 
     /** Stereo track sub-panning level for this channel. This is
        basically track panning divided by 256, but the sub-panning
        doesn't account into actual mixer output (defaults 0).  */
     uint8_t track_sub_panning;
-#define AVSEQ_ORDER_LIST_TRACK_SUB_PAN  -128
 
     /** Stereo panning level for this channel (defaults to
        -128 = central stereo panning).  */
     int8_t channel_panning;
-#define AVSEQ_ORDER_LIST_PANNING    -128
 
     /** Stereo sub-panning level for this channel. This is
        basically channel panning divided by 256, but the sub-panning
        doesn't account into actual mixer output (defaults 0).  */
     uint8_t channel_sub_panning;
-#define AVSEQ_ORDER_LIST_SUB_PANNING    0
 
     /** Order list playback flags. Some sequencers feature
        surround panning or allow initial muting. which has to
@@ -92,12 +92,30 @@ enum AVSequencerOrderListFlags {
 } AVSequencerOrderList;
 
 /**
+ * Opens and registers a new order list to a sub-song.
+ *
+ * @param song the AVSequencerSong structure to store the initialized order list
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_order_open(AVSequencerSong *song);
+
+/**
  * Song order list data structure, this contains actual order list data.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
  * version bump.
  */
 typedef struct AVSequencerOrderData {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** AVSequencerTrack pointer to track which should be played.  */
     AVSequencerTrack *track;
 
