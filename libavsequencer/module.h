@@ -34,6 +34,12 @@
  * version bump.
  */
 typedef struct AVSequencerModule {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original module file name, module name,
      *  module message, artist, genre, album, begin and finish date of
      * composition and comment.  */
@@ -86,7 +92,6 @@ typedef struct AVSequencerModule {
        Action) background channels to be allocated and processed by
        the mixing engine (defaults to 64).  */
     uint16_t channels;
-#define AVSEQ_MODULE_CHANNELS   64
 
     /** Array of pointers containing every unknown data field where
        the last element is indicated by a NULL pointer reference. The
