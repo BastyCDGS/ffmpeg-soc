@@ -35,6 +35,12 @@
  * version bump.
  */
 typedef struct AVSequencerSong {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original sub-song file name, sub-song
      * title, song message, artist, genre, album, begin and finish
      * date of composition and comment.  */
@@ -96,46 +102,36 @@ enum AVSequencerSongFlags {
     /** Maximum number of host channels, as edited in the track view.
        to be allocated and usable for order list (defaults to 16).  */
     uint16_t channels;
-#define AVSEQ_SONG_CHANNELS     16
-#define AVSEQ_SONG_CHANNELS_MIN 1
-#define AVSEQ_SONG_CHANNELS_MAX 256
 
     /** Initial number of frames per row, i.e. sequencer tempo
        (defaults to 6 as in most tracker formats), a value of
        zero is pointless, since that would mean to play unlimited
        rows and tracks in just one tick.  */
     uint16_t frames;
-#define AVSEQ_SONG_FRAMES   6
 
     /** Initial speed multiplier, i.e. nominator which defaults
        to disabled = 0.  */
     uint8_t speed_mul;
-#define AVSEQ_SONG_SPEED_MUL    0
 
     /** Initial speed divider, i.e. denominator which defaults
        to disabled = 0.  */
     uint8_t speed_div;
-#define AVSEQ_SONG_SPEED_DIV    0
 
     /** Initial MED style SPD speed (defaults to 33 as in
        OctaMED Soundstudio).  */
     uint16_t spd_speed;
-#define AVSEQ_SONG_SPD_SPEED    33
 
     /** Initial number of rows per beat (defaults to 4 rows are a beat).  */
     uint16_t bpm_tempo;
-#define AVSEQ_SONG_BPM_TEMPO    4
 
     /** Initial beats per minute speed (defaults to 50 Hz => 125 BpM).  */
     uint16_t bpm_speed;
-#define AVSEQ_SONG_BPM_SPEED    125
 
     /** Minimum and lower limit of number of frames per row
        (defaults to 1), a value of zero is pointless, since
        that would mean to play unlimited rows and tracks in
        just one tick.  */
     uint16_t frames_min;
-#define AVSEQ_SONG_FRAMES_MIN   1
 
     /** Maximum and upper limit of number of frames per row
        (defaults to 255) since a larger value would not make
@@ -143,12 +139,10 @@ enum AVSequencerSongFlags {
        if we would allow a higher speed here, we could never
        change the speed values which are larger than 255.  */
     uint16_t frames_max;
-#define AVSEQ_SONG_FRAMES_MAX   255
 
     /** Minimum and lower limit of MED style SPD timing values
        (defaults to 1).  */
     uint16_t spd_min;
-#define AVSEQ_SONG_SPD_MIN  1
 
     /** Maximum and upper limit of MED style SPD timing values
        (defaults to 255) since a larger value would not make
@@ -156,12 +150,10 @@ enum AVSequencerSongFlags {
        if we would allow a higher speed here, we could never
        change the speed values which are larger than 255.  */
     uint16_t spd_max;
-#define AVSEQ_SONG_SPD_MAX  255
 
     /** Minimum and lower limit of rows per beat timing values
        (defaults to 1).  */
     uint16_t bpm_tempo_min;
-#define AVSEQ_SONG_BPM_TEMPO_MIN    1
 
     /** Maximum and upper limit of rows per beat timing values
        (defaults to 255) since a larger value would not make
@@ -169,12 +161,10 @@ enum AVSequencerSongFlags {
        if we would allow a higher speed here, we could never
        change the speed values which are larger than 255.  */
     uint16_t bpm_tempo_max;
-#define AVSEQ_SONG_BPM_TEMPO_MAX    255
 
     /** Minimum and lower limit of beats per minute timing values
        (defaults to 1).  */
     uint16_t bpm_speed_min;
-#define AVSEQ_SONG_BPM_SPEED_MIN    1
 
     /** Maximum and upper limit of beats per minute timing values
        (defaults to 255) since a larger value would not make
@@ -182,30 +172,25 @@ enum AVSequencerSongFlags {
        if we would allow a higher speed here, we could never
        change the speed values which are larger than 255.  */
     uint16_t bpm_speed_max;
-#define AVSEQ_SONG_BPM_SPEED_MAX    255
 
     /** Global volume of this sub-song. All other volume related
        commands are scaled by this (defaults to 255 = no scaling).  */
     uint8_t global_volume;
-#define AVSEQ_SONG_VOLUME   255
 
     /** Global sub-volume of this sub-song. This is basically
        volume divided by 256, but the sub-volume doesn't account
        into actual mixer output (defaults to 0).  */
     uint8_t global_sub_volume;
-#define AVSEQ_SONG_SUB_VOLUME   0
 
     /** Global panning of this sub-song. All other panning related
        commands are scaled by this stereo separation factor
        (defaults to 0 which means full stereo separation).  */
     uint8_t global_panning;
-#define AVSEQ_SONG_PANNING  0
 
     /** Global sub-panning of this sub-song. This is basically
        panning divided by 256, but the sub-panning doesn't account
        into actual mixer output (defaults to 0).  */
     uint8_t global_sub_panning;
-#define AVSEQ_SONG_SUB_PANNING  0
 
     /** Array of pointers containing every unknown data field where
        the last element is indicated by a NULL pointer reference. The
@@ -218,5 +203,18 @@ enum AVSequencerSongFlags {
        chunks, which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerSong;
+
+/**
+ * Opens and registers a new sub-song to a module.
+ *
+ * @param module the AVSequencerModule to register the new sub-song to
+ * @param song the AVSequencerSong structure to initialize
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
 
 #endif /* AVSEQUENCER_SONG_H */
