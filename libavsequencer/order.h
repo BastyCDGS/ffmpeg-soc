@@ -83,12 +83,11 @@ typedef struct AVSequencerOrderList {
        be taken care specially in the internal playback engine.
        Also sequencers differ in how they handle slides.  */
     uint8_t flags;
-enum AVSequencerOrderListFlags {
+    enum AVSequencerOrderListFlags {
     AVSEQ_ORDER_LIST_FLAG_CHANNEL_SURROUND  = 0x01, ///< Initial channel surround instead of stereo panning
     AVSEQ_ORDER_LIST_FLAG_TRACK_SURROUND    = 0x02, ///< Initial track surround instead of stereo panning
     AVSEQ_ORDER_LIST_FLAG_MUTED             = 0x04, ///< Initial muted channel
-};
-
+    };
 } AVSequencerOrderList;
 
 /**
@@ -153,14 +152,14 @@ typedef struct AVSequencerOrderData {
        change volume), which has to be taken care specially
        in the internal playback engine.  */
     uint8_t flags;
-enum AVSequencerOrderDataFlags {
+    enum AVSequencerOrderDataFlags {
     AVSEQ_ORDER_DATA_FLAG_END_ORDER     = 0x01, ///< Order data indicates end of order
     AVSEQ_ORDER_DATA_FLAG_END_SONG      = 0x02, ///< Order data indicates end of whole song
     AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE   = 0x04, ///< Order data will be skipped if you're playing in one-time mode
     AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT = 0x08, ///< Order data will be skipped if you're playing in repeat mode
     AVSEQ_ORDER_DATA_FLAG_TRACK_SYNC    = 0x10, ///< Order data is a track synchronization point.
     AVSEQ_ORDER_DATA_FLAG_SET_VOLUME    = 0x20, ///< Order data takes advantage of the order list volume set
-};
+    };
 
     /** Relative note transpose for full track. Allows playing several
        tracks some half-tones up/down.  */

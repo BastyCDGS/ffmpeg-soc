@@ -41,7 +41,7 @@ typedef struct AVSequencerSynthTable {
 
     /** Input and output flags for this synth code instruction.  */
     uint8_t flags;
-enum AVSequencerSynthTableFlags {
+    enum AVSequencerSynthTableFlags {
     AVSEQ_SYNTH_TABLE_SRC           = 0x01, ///< Source parameter required
     AVSEQ_SYNTH_TABLE_SRC_LINE      = 0x02, ///< Source parameter is a line number
     AVSEQ_SYNTH_TABLE_SRC_NO_V0     = 0x04, ///< Don't display source variable if v0
@@ -50,7 +50,7 @@ enum AVSequencerSynthTableFlags {
     AVSEQ_SYNTH_TABLE_DEST_DOUBLE   = 0x20, ///< Destination double register required (= vH:vL)
     AVSEQ_SYNTH_TABLE_VAR_PRIORITY  = 0x40, ///< Variables are prioritized against immediate data
     AVSEQ_SYNTH_TABLE_SRC_NOT_REQ   = 0x80, ///< Source parameter is optional
-};
+    };
 } AVSequencerSynthTable;
 
 /**
@@ -91,10 +91,10 @@ typedef struct AVSequencerSynthWave {
        and 16-bit waveforms which have to be taken care specially
        in the internal playback engine.  */
     uint16_t flags;
-enum AVSequencerSynthWaveFlags {
+    enum AVSequencerSynthWaveFlags {
     AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP   = 0x0080, ///< Don't loop the waveform
     AVSEQ_SYNTH_WAVE_FLAGS_8BIT     = 0x8000, ///< 8-bit waveform instead of a 16-bit one, the GETxxxW instructions return 8-bit values in the upper 8-bits of the 16-bit result
-};
+    };
 } AVSequencerSynthWave;
 
 /**
@@ -146,7 +146,7 @@ enum AVSequencerSynthWaveFlags {
 typedef struct AVSequencerSynthCode {
     /** Instruction code to execute on this line.  */
     int8_t instruction;
-enum AVSequencerSynthCodeInstruction {
+    enum AVSequencerSynthCodeInstruction {
     /** Synth sound instruction codes.  */
 
     /** Flow control / variable accessing instructions (00-1D).  */
@@ -1149,7 +1149,7 @@ enum AVSequencerSynthCodeInstruction {
        obtained from vX+YYYY or 0 to use the previous one. The
        condition variable will remain unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANVAL     = 0x7E,
-};
+    };
     /** Synth code instruction templates.  */
 #define AVSEQ_SYNTH_CODE_INSTRUCTION_INSTR_NAME "INSTR\0\0\0"
 #define AVSEQ_SYNTH_CODE_INSTRUCTION_SETFX_NAME "SETFX\0\0\0"
@@ -1201,21 +1201,21 @@ typedef struct AVSequencerSynthSymbolTable {
        immediate values, source or destination variable or is
        just referencing a label.  */
     int8_t type;
-enum AVSequencerSynthSymbolTableType {
+    enum AVSequencerSynthSymbolTableType {
     AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_PARAM     = 0x00, ///< Symbol is an ordinary instruction parameter constant value. symbol_value points to the constant to be referenced
     AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_SRC   = 0x01, ///< Symbol is a source variable reference. symbol_value points to variable number to be referenced (0 - 15)
     AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_DEST  = 0x02, ///< Symbol is a destination variable reference. symbol_value points to variable number to be referenced (0 - 15)
     AVSEQ_SYNTH_SYMBOL_TABLE_TYPE_VAR_BOTH  = 0x03, ///< Symbol is a source and destination variable reference. symbol_value points to single value variable number to be referenced (0 - 15)
     AVSEQ_SYNTH_SYMBOL_TABEL_TYPE_LABEL     = 0x04, ///< Symbol is a label reference pointing to a target line. symbol_value points to the line number (instruction number) to be referenced.
-};
+    };
 
     /** Special symbol flags for this symbol. These flags contains
        stuff like if the symbol is currently disabled or enabled so
        it can be turned off without deleting it.  */
     uint8_t flags;
-enum AVSequencerSynthSymbolTableFlags {
+    enum AVSequencerSynthSymbolTableFlags {
     AVSEQ_SYNTH_SYMBOL_TABLE_FLAGS_UNUSED   = 0x80, ///< Symbol is currently disabled, i.e. not evaluated
-};
+    };
 } AVSequencerSynthSymbolTable;
 
 /**
@@ -1283,18 +1283,18 @@ typedef struct AVSequencerSynth {
     /** Initial status of volume [0], panning [1], slide [2] and
        special [3] variable condition status register.  */
     uint16_t cond_var[4];
-enum AVSequencerSynthCondVar {
+    enum AVSequencerSynthCondVar {
     AVSEQ_SYNTH_COND_VAR_CARRY      = 0x01, ///< Carry (C) bit for condition variable
     AVSEQ_SYNTH_COND_VAR_OVERFLOW   = 0x02, ///< Overflow (V) bit for condition variable
     AVSEQ_SYNTH_COND_VAR_ZERO       = 0x04, ///< Zero (Z) bit for condition variable
     AVSEQ_SYNTH_COND_VAR_NEGATIVE   = 0x08, ///< Negative (N) bit for condition variable
     AVSEQ_SYNTH_COND_VAR_EXTEND     = 0x10, ///< Extend (X) bit for condition variable
-};
+    };
 
     /** Use NNA trigger entry fields. This will run custom synth sound
        code execution on a new note action trigger.  */
     uint8_t use_nna_flags;
-enum AVSequencerSynthUseNNAFlags {
+    enum AVSequencerSynthUseNNAFlags {
     AVSEQ_SYNTH_USE_NNA_FLAGS_VOLUME_NNA    = 0x01, ///< Use NNA trigger entry field for volume
     AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_NNA   = 0x02, ///< Use NNA trigger entry field for panning
     AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_NNA     = 0x04, ///< Use NNA trigger entry field for slide
@@ -1303,12 +1303,12 @@ enum AVSequencerSynthUseNNAFlags {
     AVSEQ_SYNTH_USE_NNA_FLAGS_PANNING_DNA   = 0x20, ///< Use NNA trigger entry field for panning
     AVSEQ_SYNTH_USE_NNA_FLAGS_SLIDE_DNA     = 0x40, ///< Use NNA trigger entry field for slide
     AVSEQ_SYNTH_USE_NNA_FLAGS_SPECIAL_DNA   = 0x80, ///< Use NNA trigger entry field for special
-};
+    };
 
     /** Use sustain entry position fields. This will run custom synth
        sound code execution on a note off trigger.  */
     uint8_t use_sustain_flags;
-enum AVSequencerSynthUseSustainFlags {
+    enum AVSequencerSynthUseSustainFlags {
     AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME        = 0x01, ///< Use sustain entry position field for volume
     AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING       = 0x02, ///< Use sustain entry position field for panning
     AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE         = 0x04, ///< Use sustain entry position field for slide
@@ -1317,24 +1317,24 @@ enum AVSequencerSynthUseSustainFlags {
     AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING_KEEP  = 0x20, ///< Keep sustain entry position for panning
     AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE_KEEP    = 0x40, ///< Keep sustain entry position for slide
     AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SPECIAL_KEEP  = 0x80, ///< Keep sustain entry position for special
-};
+    };
 
     /** Position keep mask. All initial entry positions will be taken
        from the previous instrument if the approciate bit is set.  */
     int8_t pos_keep_mask;
-enum AVSequencerSynthPosKeepMask {
+    enum AVSequencerSynthPosKeepMask {
     AVSEQ_SYNTH_POS_KEEP_MASK_VOLUME    = 0x01, ///< Keep entry position for volume
     AVSEQ_SYNTH_POS_KEEP_MASK_PANNING   = 0x02, ///< Keep entry position for panning
     AVSEQ_SYNTH_POS_KEEP_MASK_SLIDE     = 0x04, ///< Keep entry position for slide
     AVSEQ_SYNTH_POS_KEEP_MASK_SPECIAL   = 0x08, ///< Keep entry position for special
     AVSEQ_SYNTH_POS_KEEP_MASK_WAVEFORMS = 0x40, ///< Keep the synthetic waveforms
     AVSEQ_SYNTH_POS_KEEP_MASK_CODE      = 0x80, ///< Keep the synthetic programming code
-};
+    };
 
     /** NNA position trigger keep mask. All initial entry positions
        will be taken from the previous instrument if bit is set.  */
     int8_t nna_pos_keep_mask;
-enum AVSequencerSynthNNAPosKeepMask {
+    enum AVSequencerSynthNNAPosKeepMask {
     AVSEQ_SYNTH_NNA_POS_KEEP_MASK_VOLUME_NNA    = 0x01, ///< Keep NNA trigger position for volume
     AVSEQ_SYNTH_NNA_POS_KEEP_MASK_PANNING_NNA   = 0x02, ///< Keep NNA trigger position for panning
     AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SLIDE_NNA     = 0x04, ///< Keep NNA trigger position for slide
@@ -1343,7 +1343,7 @@ enum AVSequencerSynthNNAPosKeepMask {
     AVSEQ_SYNTH_NNA_POS_KEEP_MASK_PANNING_DNA   = 0x20, ///< Keep DNA trigger position for panning
     AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SLIDE_DNA     = 0x40, ///< Keep DNA trigger position for slide
     AVSEQ_SYNTH_NNA_POS_KEEP_MASK_SPECIAL_DNA   = 0x80, ///< Keep DNA trigger position for special
-};
+    };
 
     /** Variable keep mask. All variables where bit is set will be
        keeped (normally they will be overwritten with the initial

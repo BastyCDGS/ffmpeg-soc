@@ -42,7 +42,7 @@ typedef struct AVSequencerTrackData {
 
     /** Array (of size effects) of pointers containing all effects
        used by this track.  */
-    AVSequencerTrack **effects_data;
+    AVSequencerTrackEffect **effects_data;
 
     /** Number of effects used by this track.  */
     uint16_t effects;
@@ -59,7 +59,7 @@ typedef struct AVSequencerTrackData {
 
     /** Note to be played (see defines below, n is octave number).  */
     int8_t note;
-enum AVSequencerTrackDataNote {
+    enum AVSequencerTrackDataNote {
     /** C-n  */
     AVSEQ_TRACK_DATA_NOTE_C             = 1,
     AVSEQ_TRACK_DATA_NOTE_MIN           = AVSEQ_TRACK_DATA_NOTE_MIN,
@@ -120,7 +120,7 @@ enum AVSequencerTrackDataNote {
 
     /** END = pattern end marker  */
     AVSEQ_TRACK_DATA_NOTE_END           = -16,
-};
+    };
 
     /** Number of instrument to be played or 0 to take previous one.  */
     uint16_t instrument;
@@ -193,7 +193,7 @@ typedef struct AVSequencerTrack {
        flags which tag the player to handle it to that special
        way.  */
     uint8_t compat_flags;
-enum AVSequencerTrackCompatFlags {
+    enum AVSequencerTrackCompatFlags {
     AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       = 0x01, ///< Sample offset beyond end of sample will be ignored (IT compatibility)
     AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          = 0x02, ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
     AVSEQ_TRACK_COMPAT_FLAG_SLIDES              = 0x04, ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
@@ -201,20 +201,20 @@ enum AVSequencerTrackCompatFlags {
     AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           = 0x10, ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
     AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    = 0x20, ///< Oppositional non-portamento slide directions don't share the same memory
     AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        = 0x40, ///< Volume & pitch slides share same memory (S3M compatibility)
-};
+    };
 
     /** Track playback flags. Some sequencers feature
        surround panning or allow initial reverse playback,
        different timing methods which have all to be taken
        care specially in the internal playback engine.  */
     uint8_t flags;
-enum AVSequencerTrackFlags {
+    enum AVSequencerTrackFlags {
     AVSEQ_TRACK_FLAG_USE_TIMING             = 0x01, ///< Use track timing fields
     AVSEQ_TRACK_FLAG_SPD_TIMING             = 0x02, ///< SPD speed timing instead of BpM
     AVSEQ_TRACK_FLAG_PANNING                = 0x04, ///< Use track panning and sub-panning fields
     AVSEQ_TRACK_FLAG_SURROUND               = 0x08, ///< Use track surround panning
     AVSEQ_TRACK_FLAG_REVERSE                = 0x10, ///< Playback of track in backward direction
-};
+    };
 
     /** Initial number of frames per row, i.e. sequencer tempo
        (defaults to 6 as in most tracker formats).  */
@@ -280,7 +280,7 @@ typedef struct AVSequencerTrackEffect {
 
     /** Effect command byte.  */
     uint8_t command;
-enum AVSequencerTrackEffectCommand {
+    enum AVSequencerTrackEffectCommand {
     /** Note effect commands.
        0x00 - Arpeggio:
        Data word consists of two 8-bit pairs named xx and yy
@@ -1782,7 +1782,7 @@ enum AVSequencerTrackEffectCommand {
 
     /** User customized effect for trigger in demos, etc.  */
     AVSEQ_TRACK_EFFECT_CMD_USER             = 0x7F,
-};
+    };
 
     /** Effect command data word.  */
     uint16_t data;

@@ -63,12 +63,12 @@ typedef struct AVSequencerEnvelope {
        loop points of various kinds, which have to be taken
        care specially in the internal playback engine.  */
     uint16_t flags;
-enum AVSequencerEnvelopeFlags {
+    enum AVSequencerEnvelopeFlags {
     AVSEQ_ENVELOPE_LOOP             = 0x0001, ///< Envelope uses loop nodes
     AVSEQ_ENVELOPE_SUSTAIN          = 0x0002, ///< Envelope uses sustain nodes
     AVSEQ_ENVELOPE_PINGPONG         = 0x0004, ///< Envelope loop is in ping pong mode
     AVSEQ_ENVELOPE_SUSTAIN_PINGPONG = 0x0008, ///< Envelope sustain loop is in ping pong mode
-};
+    };
 
     /** Envelope tempo in ticks (defaults to 1, i.e. change envelope
        at every frame / tick).  */
@@ -170,12 +170,12 @@ typedef struct AVSequencerArpeggio {
        customized arpeggio command control.which have to be taken
        care specially in the internal playback engine.  */
     uint16_t flags;
-enum AVSequencerArpeggioFlags {
+    enum AVSequencerArpeggioFlags {
     AVSEQ_ARPEGGIO_FLAG_LOOP                = 0x0001, ///< Arpeggio control is looped
     AVSEQ_ARPEGGIO_FLAG_SUSTAIN             = 0x0002, ///< Arpeggio control has a sustain loop
     AVSEQ_ARPEGGIO_FLAG_PINGPONG            = 0x0004, ///< Arpeggio control will be looped in ping pong mpde
     AVSEQ_ARPEGGIO_FLAG_SUSTAIN_PINGPONG    = 0x0008, ///< Arpeggio control will have sustain loop ping pong mode enabled
-};
+    };
 
     /** Number of arpeggio ticks handled by this arpeggio control
        (defaults to 3 points as in normal arpeggio command).  */
@@ -275,12 +275,12 @@ typedef struct AVSequencerInstrument {
 
     /** NNA (New Note Action) mode.  */
     uint8_t nna;
-enum AVSequencerInstrumentNNA {
+    enum AVSequencerInstrumentNNA {
     AVSEQ_INSTRUMENT_NNA_NOTE_CUT       = 0x00, ///< Cut previous note
     AVSEQ_INSTRUMENT_NNA_NOTE_CONTINUE  = 0x01, ///< Continue previous note
     AVSEQ_INSTRUMENT_NNA_NOTE_OFF       = 0x02, ///< Perform key-off on previous note
     AVSEQ_INSTRUMENT_NNA_NOTE_FADE      = 0x03, ///< Perform fadeout on previous note
-};
+    };
 
     /** Random note swing in semi-tones. This value will cause
        a flip between each play of this instrument making it
@@ -312,7 +312,7 @@ enum AVSequencerInstrumentNNA {
 
     /** Duplicate note check type.  */
     uint8_t dct;
-enum AVSequencerInstrumentDCT {
+    enum AVSequencerInstrumentDCT {
     AVSEQ_INSTRUMENT_DCT_INSTR_NOTE_OR      = 0x01, ///< Check for duplicate OR instrument notes
     AVSEQ_INSTRUMENT_DCT_SAMPLE_NOTE_OR     = 0x02, ///< Check for duplicate OR sample notes
     AVSEQ_INSTRUMENT_DCT_INSTR_OR           = 0x04, ///< Check for duplicate OR instruments
@@ -321,47 +321,47 @@ enum AVSequencerInstrumentDCT {
     AVSEQ_INSTRUMENT_DCT_SAMPLE_NOTE_AND    = 0x20, ///< Check for duplicate AND sample notes
     AVSEQ_INSTRUMENT_DCT_INSTR_AND          = 0x40, ///< Check for duplicate AND instruments
     AVSEQ_INSTRUMENT_DCT_SAMPLE_AND         = 0x80, ///< Check for duplicate AND samples
-};
+    };
 
     /** Duplicate note check action.  */
     uint8_t dna;
-enum AVSequencerInstrumentDNA {
+    enum AVSequencerInstrumentDNA {
     AVSEQ_INSTRUMENT_DNA_NOTE_CUT       = 0x00. ///< Do note cut on duplicate note
     AVSEQ_INSTRUMENT_DNA_NOTE_OFF       = 0x01. ///< Perform keyoff on duplicate note
     AVSEQ_INSTRUMENT_DNA_NOTE_FADE      = 0x02. ///< Fade off notes on duplicate note
     AVSEQ_INSTRUMENT_DNA_NOTE_CONTINUE  = 0x03. ///< Nothing (only useful for synth sound handling)
-};
+    };
 
     /** Compatibility flags for playback. There are rare cases
        where instrument to sample mapping has to be handled
        a different way, or a different policy for no sample
        specified cases.  */
     uint8_t compat_flags;
-enum AVSequencerInstrumentCompatFlags {
+    enum AVSequencerInstrumentCompatFlags {
     AVSEQ_INSTRUMENT_COMPAT_FLAG_LOCK_INSTR_WAVE    = 0x01, ///< Instrument wave is locked as in MOD, but volume / panning / etc. is taken, if both bits are clear it will handle like S3M/IT, i.e. instrument is changed
     AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN = 0x02, ///< Instrument panning affects channel panning (IT compatibility)
     AVSEQ_INSTRUMENT_COMPAT_FLAG_PREV_SAMPLE        = 0x04, ///< If no sample in keyboard definitions, use previous one
     AVSEQ_INSTRUMENT_COMPAT_FLAG_SEPARATE_SAMPLES   = 0x08, ///< Use absolute instead of relative sample values (IT compatibility)
-};
+    };
 
     /** Instrument playback flags. Some sequencers feature
        surround panning or allow different types of envelope
        interpretations, differend types of slides which have to
        be taken care specially in the internal playback engine.  */
     uint8_t flags;
-enum AVSequencerInstrumentFlags {
+    enum AVSequencerInstrumentFlags {
     AVSEQ_INSTRUMENT_FLAG_NO_TRANSPOSE          = 0x01, ///< Instrument can't be transpoed by the order list
     AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV       = 0x02, ///< Slide envelopes will be portamento values, otherwise transpose + finetune
     AVSEQ_INSTRUMENT_FLAG_LINEAR_SLIDE_ENV      = 0x04, ///< Use linear freqency table for slide envelope for portamento mode
     AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING       = 0x10, ///< Use instrument panning and override sample default panning
     AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING      = 0x20, ///< Use surround sound as default instrument panning
     AVSEQ_INSTRUMENT_FLAG_NO_INSTR_TRANSPOSE    = 0x40, ///< Order instrument transpose doesn't apply to this instrument
-};
+    };
 
     /** Envelope usage flags. Some sequencers feature
        reloading of envelope data when a new note is played.  */
     uint16_t env_usage_flags;
-enum AVSequencerInstrumentEnvUsageFlags {
+    enum AVSequencerInstrumentEnvUsageFlags {
     AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV            = 0x0001, ///< Use (reload) volume envelope
     AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV           = 0x0002, ///< Use (reload) panning envelope
     AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV             = 0x0004, ///< Use (reload) slide envelope
@@ -375,14 +375,14 @@ enum AVSequencerInstrumentEnvUsageFlags {
     AVSEQ_INSTRUMENT_FLAG_USE_GLOBAL_TREMOLO_ENV    = 0x0400, ///< Use (reload) global tremolo envelope
     AVSEQ_INSTRUMENT_FLAG_USE_GLOBAL_PANNOLO_ENV    = 0x0800, ///< Use (reload) global pannolo envelope
     AVSEQ_INSTRUMENT_FLAG_USE_RESONANCE_ENV         = 0x1000, ///< Use (reload) resonance filter
-};
+    };
 
     /** Envelope processing flags. Some sequencers differ in the
        way how they handle envelopes. Some first increment
        envelope node and then get the data and some do first
        get the data and then increment the envelope data.  */
     uint16_t env_proc_flags;
-enum AVSequencerInstrumentEnvProcFlags {
+    enum AVSequencerInstrumentEnvProcFlags {
     AVSEQ_INSTRUMENT_FLAG_PROC_VOLUME_ENV           = 0x0001, ///< Add first, then get volume envelope value
     AVSEQ_INSTRUMENT_FLAG_PROC_PANNING_ENV          = 0x0002, ///< Add first, then get panning envelope value
     AVSEQ_INSTRUMENT_FLAG_PROC_SLIDE_ENV            = 0x0004, ///< Add first, then get slide envelope value
@@ -396,7 +396,7 @@ enum AVSequencerInstrumentEnvProcFlags {
     AVSEQ_INSTRUMENT_FLAG_PROC_GLOBAL_TREMOLO_ENV   = 0x0400, ///< Add first, then get global tremolo envelope value
     AVSEQ_INSTRUMENT_FLAG_PROC_GLOBAL_PANNOLO_ENV   = 0x0800, ///< Add first, then get global pannolo envelope value
     AVSEQ_INSTRUMENT_FLAG_PROC_RESONANCE_ENV        = 0x1000, ///< Add first, then get resonance filter value
-};
+    };
 
     /** Envelope retrigger flags. Some sequencers differ in the
        way how they handle envelopes restart. Some continue
@@ -404,7 +404,7 @@ enum AVSequencerInstrumentEnvProcFlags {
        does not define an envelope, others disable this
        envelope instead.  */
     uint16_t env_retrig_flags;
-enum AVSequencerInstrumentEnvRetrigFlags {
+    enum AVSequencerInstrumentEnvRetrigFlags {
     AVSEQ_INSTRUMENT_FLAG_RETRIG_VOLUME_ENV         = 0x0001, ///< Not retrigger volume envelope
     AVSEQ_INSTRUMENT_FLAG_RETRIG_PANNING_ENV        = 0x0002, ///< Not retrigger panning envelope
     AVSEQ_INSTRUMENT_FLAG_RETRIG_SLIDE_ENV          = 0x0004, ///< Not retrigger slide envelope
@@ -418,14 +418,14 @@ enum AVSequencerInstrumentEnvRetrigFlags {
     AVSEQ_INSTRUMENT_FLAG_RETRIG_GLOBAL_TREMOLO_ENV = 0x0400, ///< Not retrigger global tremolo envelope
     AVSEQ_INSTRUMENT_FLAG_RETRIG_GLOBAL_PANNOLO_ENV = 0x0800, ///< Not retrigger global pannolo envelope
     AVSEQ_INSTRUMENT_FLAG_RETRIG_RESONANCE_ENV      = 0x1000, ///< Not retrigger resonance filter
-};
+    };
 
     /** Envelope randomize flags. Some sequencers allow to use
        data from a pseudo random number generator. If the
        approciate bit is set, the envelope data will be
        randomized each access.  */
     uint16_t env_random_flags;
-enum AVSequencerInstrumentEnvRandomFlags {
+    enum AVSequencerInstrumentEnvRandomFlags {
     AVSEQ_INSTRUMENT_FLAG_RANDOM_VOLUME_ENV         = 0x0001, ///< Randomize volume envelope
     AVSEQ_INSTRUMENT_FLAG_RANDOM_PANNING_ENV        = 0x0002, ///< Randomize panning envelope
     AVSEQ_INSTRUMENT_FLAG_RANDOM_SLIDE_ENV          = 0x0004, ///< Randomize slide envelope
@@ -439,13 +439,13 @@ enum AVSequencerInstrumentEnvRandomFlags {
     AVSEQ_INSTRUMENT_FLAG_RANDOM_GLOBAL_TREMOLO_ENV = 0x0400, ///< Randomize global tremolo envelope
     AVSEQ_INSTRUMENT_FLAG_RANDOM_GLOBAL_PANNOLO_ENV = 0x0800, ///< Randomize global pannolo envelope
     AVSEQ_INSTRUMENT_FLAG_RANDOM_RESONANCE_ENV      = 0x1000, ///< Randomize resonance filter
-);
+    );
 
     /** Envelope randomize delay flags. Some sequencers allow
        to specify a time interval when a new random value
        can be read.  */
     uint16_t env_rnd_delay_flags;
-enum AVSequencerInstrumentEnvRndDelayFlags {
+    enum AVSequencerInstrumentEnvRndDelayFlags {
     AVSEQ_INSTRUMENT_FLAG_RND_DELAY_VOLUME_ENV          = 0x0001, ///< Speed is randomized delay for volume envelope
     AVSEQ_INSTRUMENT_FLAG_RND_DELAY_PANNING_ENV         = 0x0002, ///< Speed is randomized delay for panning envelope
     AVSEQ_INSTRUMENT_FLAG_RND_DELAY_SLIDE_ENV           = 0x0004, ///< Speed is randomized delay for slide envelope
@@ -459,7 +459,7 @@ enum AVSequencerInstrumentEnvRndDelayFlags {
     AVSEQ_INSTRUMENT_FLAG_RND_DELAY_GLOBAL_TREMOLO_ENV  = 0x0400, ///< Speed is randomized delay for global tremolo envelope
     AVSEQ_INSTRUMENT_FLAG_RND_DELAY_GLOBAL_PANNOLO_ENV  = 0x0800, ///< Speed is randomized delay for global pannolo envelope
     AVSEQ_INSTRUMENT_FLAG_RND_DELAY_RESONANCE_ENV       = 0x1000, ///< Speed is randomized delay for resonance filter
-};
+    };
 
     /** Fade out value which defaults to 65535 (full volume level as in XM).  */
     uint16_t fade_out;
@@ -489,14 +489,14 @@ enum AVSequencerInstrumentEnvRndDelayFlags {
        and can play certain instruments directly through a MIDI
        channel.  */
     uint8_t midi_flags;
-enum AVSequencerInstrumentMIDIFlags {
+    enum AVSequencerInstrumentMIDIFlags {
     AVSEQ_INSTRUMENT_FLAG_MIDI_TICK_QUANTIZE    = 0x01, ///< Tick quantize (insert note delays)
     AVSEQ_INSTRUMENT_FLAG_MIDI_NOTE_OFF         = 0x02, ///< Record note off (keyoff note)
     AVSEQ_INSTRUMENT_FLAG_MIDI_VELOCITY         = 0x04, ///< Record velocity
     AVSEQ_INSTRUMENT_FLAG_MIDI_AFTER_TOUCH      = 0x08, ///< Record after touch
     AVSEQ_INSTRUMENT_FLAG_MIDI_EXTERNAL_SYNC    = 0x10, ///< External synchronization when recording
     AVSEQ_INSTRUMENT_FLAG_MIDI_ENABLE           = 0x80, ///< MIDI enabled
-};
+    };
 
     /** MIDI transpose (in half-tones).  */
     int8_t midi_transpose;
