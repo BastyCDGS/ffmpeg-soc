@@ -29,7 +29,7 @@
 
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     AVSequencerTrack **track_list = song->track_list;
-    uint16_t tracks               = tracks->songs;
+    uint16_t tracks               = track->songs;
     int res;
 
     if (!track || !++tracks) {
@@ -63,7 +63,7 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     AVSequencerTrackData *track_data;
     const unsigned last_row = track->last_row + 1;
 
-    if (!track)
+    if (!track) {
         return AVERROR_INVALIDDATA;
     } else if (!(track_data = av_relloc(track_data, last_row * sizeof(AVSequencerTrackData *)))) {
         av_log(track, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
