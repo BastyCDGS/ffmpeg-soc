@@ -67,7 +67,7 @@ typedef struct AVSequencerModule {
     uint16_t envelopes;
 
     /** Array (of size keyboards) of pointers containing every
-       keyboard definitionb list for this module.  */
+       keyboard definition list for this module.  */
     AVSequencerKeyboard **keyboard_list;
 
     /** Number of keyboard definitions attached to this module.  */

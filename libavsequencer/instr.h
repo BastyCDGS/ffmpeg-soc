@@ -39,25 +39,16 @@ typedef struct AVSequencerEnvelope {
        to +8191. For slide, vibrato, tremolo, pannolo (and their auto
        versions), the scale range is between -256 to +256.  */
     int16_t *data;
-#define AVSEQ_ENVELOPE_SCALE_MAX        0x7FFF
-#define AVSEQ_ENVELOPE_SCALE_INVALID    ((FF_AVSEQ_ENVELOPE_SCALE_MAX) + 1)
-#define AVSEQ_ENVELOPE_VOLUME_SCALE     0x7FFF
-#define AVSEQ_ENVELOPE_PANNING_SCALE    0x1FFF
-#define AVSEQ_ENVELOPE_SLIDE_SCALE      0x0100
-#define AVSEQ_ENVELOPE_VIBRATO_SCALE    0x0100
-#define AVSEQ_ENVELOPE_VIBRATO_SCALE    0x0100
 
     /** The node points values or 0 if the envelope is empty.  */
     uint16_t *node_points;
 
     /** Number of dragable nodes of this envelope (defaults to 12).  */
     uint16_t nodes;
-#define AVSEQ_ENVELOPE_NODES    12
 
     /** Number of envelope points, i.e. node data values which
        defaults to 64.  */
     uint16_t points;
-#define AVSEQ_ENVELOPE_POINTS   64
 
     /** Instrument envelope flags. Some sequencers feature
        loop points of various kinds, which have to be taken
@@ -73,7 +64,6 @@ typedef struct AVSequencerEnvelope {
     /** Envelope tempo in ticks (defaults to 1, i.e. change envelope
        at every frame / tick).  */
     uint16_t tempo;
-#define AVSEQ_ENVELOPE_TEMPO    1
 
     /** Envelope sustain loop start point.  */
     uint16_t sustain_start;
@@ -112,6 +102,60 @@ typedef struct AVSequencerEnvelope {
 } AVSequencerEnvelope;
 
 /**
+ * Opens and registers a new envelope to a module.
+ *
+ * @param avctx the AVSequencerContext to add the new envelope to
+ * @param module the AVSequencerModule structure to add the new envelope to
+ * @param envelope the AVSequencerEnvelope to be added to the module
+ * @param points the number of data points to be used in the envelope data
+ * @param type the type of envelope data to initialize: 0 = create empty envelope,
+ *                                                      1 = create sine envelope,
+ *                                                      2 = create cosine envelope,
+ *                                                      3 = create ramp envelope,
+ *                                                      4 = create triangle envelope,
+ *                                                      5 = create square envelope,
+ *                                                      6 = create sawtooth envelope
+ * @param scale the scale factor for the envelope data
+ * @param y_offset the y offset value to add as absolute value to the envelope data
+ * @param nodes the number of dragable nodes with linear connection between data points
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
+                        AVSequencerEnvelope *envelope, uint32_t points,
+                        uint32_t type, uint32_t scale,
+                        uint32_t y_offset, uint32_t nodes);
+
+/**
+ * Opens and registers a new envelope data and node set to an envelope.
+ *
+ * @param avctx the AVSequencerContext to add the new envelope data and node set to
+ * @param envelope the AVSequencerEnvelope to add the new envelope data and node set to
+ * @param points the number of data points to be used in the envelope data
+ * @param type the type of envelope data to initialize: 0 = create empty envelope,
+ *                                                      1 = create sine envelope,
+ *                                                      2 = create cosine envelope,
+ *                                                      3 = create ramp envelope,
+ *                                                      4 = create triangle envelope,
+ *                                                      5 = create square envelope,
+ *                                                      6 = create sawtooth envelope
+ * @param scale the scale factor for the envelope data
+ * @param y_offset the y offset value to add as absolute value to the envelope data
+ * @param nodes the number of dragable nodes with linear connection between data points
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *envelope,
+                             uint32_t points, uint32_t type, uint32_t scale,
+                             uint32_t y_offset, uint32_t nodes);
+
+/**
  * Keyboard definitions structure used by instruments to map
  * note to samples. C-0 is first key. B-9 is 120th key.
  * New fields can be added to the end with minor version bumps.
@@ -130,6 +174,19 @@ typedef struct AVSequencerKeyboard {
         uint8_t note;
     } key[120];
 } AVSequencerKeyboard;
+
+/**
+ * Opens and registers a new keyboard definition to a module.
+ *
+ * @param module the AVSequencerModule structure to add the new keyboard definition to
+ * @param keyboard the AVSequencerKeyboard to be added to the module
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard);
 
 /**
  * Arpeggio data structure, This structure is actually for one tick
@@ -157,6 +214,19 @@ typedef struct AVSequencerArpeggioData {
 } AVSequencerArpeggioData;
 
 /**
+ * Opens and registers a new arpeggio data set to an arpeggio structure.
+ *
+ * @param arpeggio the AVSequencerArpeggio to add the new arpeggio data set to
+ * @param entries the number of arpeggio trigger entries to be used in the arpeggio data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries);
+
+/**
  * Arpeggio control envelope used by all instrumental stuff.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
@@ -180,7 +250,6 @@ typedef struct AVSequencerArpeggio {
     /** Number of arpeggio ticks handled by this arpeggio control
        (defaults to 3 points as in normal arpeggio command).  */
     uint16_t entries;
-#define AVSEQ_ARPEGGIO_FLAG_ENTRIES 3
 
     /** Sustain loop start tick of arpeggio control.  */
     uint16_t sustain_start;
@@ -204,6 +273,21 @@ typedef struct AVSequencerArpeggio {
 } AVSequencerArpeggio;
 
 /**
+ * Opens and registers a new arpeggio structure to a module.
+ *
+ * @param module the AVSequencerModule structure to add the new arpeggio to
+ * @param arpeggio the AVSequencerArpeggio to be added to the module
+ * @param entries the number of arpeggio trigger entries to be used in the arpeggio data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio,
+                        uint32_t entries);
+
+/**
  * Instrument structure used by all instrumental stuff.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
@@ -222,8 +306,6 @@ typedef struct AVSequencerInstrument {
        (a maximum number of 255 attached samples is allowed).
        The default is one attached sample.  */
     uint8_t samples;
-#define AVSEQ_INSTRUMENT_SAMPLES    1
-#define AVSEQ_INSTRUMENT_SAMPLES_MAX    255
 
     /** Pointer to envelope data interpreted as volume control
        or NULL if volume envelope control is not used.  */
@@ -463,7 +545,6 @@ typedef struct AVSequencerInstrument {
 
     /** Fade out value which defaults to 65535 (full volume level as in XM).  */
     uint16_t fade_out;
-#define AVSEQ_INSTRUMENT_FLAG_FADE_OUT_START    65535
 
     /** Hold value.  */
     uint16_t hold;
@@ -477,7 +558,6 @@ typedef struct AVSequencerInstrument {
     /** Pitch panning center (0 is C-0, 1 is C#1, 12 is C-1, 13 is C#1,
        24 is C-2, 36 is C-3 and so on. Defaults to 48 = C-4).  */
     uint8_t pitch_pan_center;
-#define AVSEQ_INSTRUMENT_FLAG_PITCH_PAN_CENTER  (4*12)
 
     /** MIDI channel this instrument is associated with.  */
     uint8_t midi_channel;
@@ -518,5 +598,18 @@ typedef struct AVSequencerInstrument {
        chunks, which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerInstrument;
+
+/**
+ * Opens and registers a new instrument to a module.
+ *
+ * @param module the AVSequencerModule structure to add the new instrument to
+ * @param instrument the AVSequencerInstrument to be added to the module
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument);
 
 #endif /* AVSEQUENCER_INSTR_H */

@@ -261,7 +261,7 @@ typedef struct AVSequencerTrack {
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_track_open(AVSequencerSong *track, AVSequencerTrack *track);
+int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track);
 
 /**
  * Song track effect structure, This structure is actually for one row
