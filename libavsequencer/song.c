@@ -36,7 +36,7 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     if (!song || !++songs) {
         return AVERROR_INVALIDDATA;
     } else if (!(song_list = av_realloc(song_list, songs * sizeof(AVSequencerSong *)))) {
-        av_log(song, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(song, AV_LOG_ERROR, "cannot allocate sub-song storage container.\n");
         return AVERROR(ENOMEM);
     }
 

@@ -33,8 +33,8 @@ int avseq_order_open(AVSequencerSong *song) {
 
     if (!song || (channels < 1) || (channels > 256))
         return AVERROR_INVALIDDATA;
-    } else if (!(order_list = av_mallocz(channels * sizeof(AVSequencerOrderData *)))) {
-        av_log(song, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+    } else if (!(order_list = av_mallocz(channels * sizeof(AVSequencerOrderData)))) {
+        av_log(song, AV_LOG_ERROR, "cannot allocate order list storage container.\n");
         return AVERROR(ENOMEM);
     }
 

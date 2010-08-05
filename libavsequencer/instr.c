@@ -29,6 +29,7 @@
 #include "libavsequencer/sample.h"
 
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument) {
+    AVSequencerSample *sample;
     AVSequencerInstrument **instrument_list = module->instrument_list;
     uint16_t instruments                    = module->instruments;
     int res;
@@ -36,7 +37,11 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     if (!instrument || !++instruments) {
         return AVERROR_INVALIDDATA;
     } else if (!(instrument_list = av_realloc(instrument_list, instruments * sizeof(AVSequencerInstrument *)))) {
-        av_log(instrument, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(instrument, AV_LOG_ERROR, "cannot allocate instrument storage container.\n");
+        return AVERROR(ENOMEM);
+    } else if (!(sample = avseq_sample_create())) {
+        av_free(instrument_list);
+        av_log(instrument, AV_LOG_ERROR, "cannot allocate first sample.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -46,7 +51,8 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     instrument->default_panning  = -128;
     instrument->env_usage_flags  = ~(AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV|AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV|AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV|-0x2000);
 
-    if ((res = avseq_sample_data_open(instrument)) < 0) {
+    if ((res = avseq_sample_open(instrument, sample)) < 0) {
+        av_free(sample);
         av_free(instrument_list);
         return res;
     }
@@ -95,7 +101,7 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
     if (!envelope || !++envelopes) {
         return AVERROR_INVALIDDATA;
     } else if (!(envelope_list = av_realloc(envelope_list, envelopes * sizeof(AVSequencerEnvelope *)))) {
-        av_log(envelope, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -125,7 +131,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
     if (!envelope) {
         return AVERROR_INVALIDDATA;
     } else if (!(data = av_realloc(data, points * sizeof(int16_t)))) {
-        av_log(envelope, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope points.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -159,7 +165,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
 
         if (!(node = (uint16_t *) av_realloc (nodes * sizeof (uint16_t)))) {
             av_free(data);
-            av_log(envelope, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+            av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope node data.\n");
             return AVERROR(ENOMEM);
         }
 
@@ -440,7 +446,7 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     if (!keyboard || !++keyboards) {
         return AVERROR_INVALIDDATA;
     } else if (!(keyboard_list = av_realloc(keyboard_list, instruments * sizeof(AVSequencerKeyboard *)))) {
-        av_log(keyboard, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(keyboard, AV_LOG_ERROR, "cannot allocate keyboard definition list storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -466,7 +472,7 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio
     if (!arpeggio || !++arpeggios) {
         return AVERROR_INVALIDDATA;
     } else if (!(arpeggio_list = av_realloc(arpeggio_list, envelopes * sizeof(AVSequencerArpeggio *)))) {
-        av_log(arpeggio, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(arpeggio, AV_LOG_ERROR, "cannot allocate arpeggio structure storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -491,7 +497,7 @@ int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries) {
     if (!arpeggio || entries >= 0x10000) {
         return AVERROR_INVALIDDATA;
     } else if (!(data = av_realloc(data, entries * sizeof(AVSequencerArpeggioData)))) {
-        av_log(envelope, AV_LOG_ERROR, "avseq: cannot allocate storage container.\n");
+        av_log(arpeggio, AV_LOG_ERROR, "cannot allocate arpeggio structure data.\n");
         return AVERROR(ENOMEM);
     }
 
