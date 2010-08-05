@@ -61,6 +61,12 @@ typedef struct AVSequencerSynthTable {
  * version bump.
  */
 typedef struct AVSequencerSynthWave {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original waveform file name, waveform
      *  name, artist and comment.
      */
@@ -75,7 +81,6 @@ typedef struct AVSequencerSynthWave {
     /** Length of synth waveform data in bytes (default is
        64 bytes).  */
     uint32_t size;
-#define AVSEQ_SYNTH_WAVE_SIZE   64
 
     /** Number of samples for this synth waveform.  */
     uint32_t samples;
@@ -96,6 +101,43 @@ typedef struct AVSequencerSynthWave {
     AVSEQ_SYNTH_WAVE_FLAGS_8BIT     = 0x8000, ///< 8-bit waveform instead of a 16-bit one, the GETxxxW instructions return 8-bit values in the upper 8-bits of the 16-bit result
     };
 } AVSequencerSynthWave;
+
+/**
+ * Creates a new uninitialized empty synth sound waveform.
+ *
+ * @return pointer to freshly allocated AVSequencerSynthWave, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSynthWave *avseq_synth_waveform_create(void);
+
+/**
+ * Opens and registers a synth sound waveform to a synth sound.
+ *
+ * @param synth the AVSequencerSynth structure to add the new synth sound waveform to
+ * @param samples the number of samples to allocate to the new synth sound waveform
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples);
+
+/**
+ * Opens and registers synth sound waveform data to a synth sound waveform.
+ *
+ * @param waveform the AVSequencerSynthWave structure to attach the synth sound waveform data to
+ * @param samples the number of samples to allocate for the synth sound waveform data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples);
 
 /**
  * Synth programming code structure. This contains the byte-layout
@@ -1172,6 +1214,19 @@ typedef struct AVSequencerSynthCode {
 } AVSequencerSynthCode;
 
 /**
+ * Opens and registers a synth sound code to a synth sound.
+ *
+ * @param synth the AVSequencerSynth structure to attach the new synth sound code to
+ * @param lines the number of synth code lines to be used for the new synth sound
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
+
+/**
  * Synth sound code symbol table. It has the same purpose as a
  * linker symbol table: replacing values by symbols.
  * This enhances the readability of complex synth sound code.
@@ -1226,6 +1281,12 @@ typedef struct AVSequencerSynthSymbolTable {
  * version bump.
  */
 typedef struct AVSequencerSynth {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original synth file name, synth name,
      *  artist and comment.  */
     AVMetadata *metadata;
@@ -1237,8 +1298,6 @@ typedef struct AVSequencerSynth {
     /** Number of waveforms. Can be 0 if this is a hybrid, the normal
        sample data is used in that case. Default is one waveform.  */
     uint16_t waveforms;
-#define AVSEQ_SYNTH_WAVEFORMS   1
-#define AVSEQ_SYNTH_WAVEFORMS_MAX   65535
 
     /** Array (of size symbols) of pointers containing named symbols
        used by this synth sound code.  */
@@ -1253,7 +1312,6 @@ typedef struct AVSequencerSynth {
     /** Number of instructions (lines) in the synth sound execution
        code (defaults to one line).  */
     uint16_t size;
-#define AVSEQ_SYNTH_SIZE    1
 
     /** Entry position (line number) of volume [0], panning [1], slide
        [2] and special [3] handling code.  */
@@ -1361,5 +1419,34 @@ typedef struct AVSequencerSynth {
        chunks, which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerSynth;
+
+/**
+ * Creates a new uninitialized empty synth sound.
+ *
+ * @return pointer to freshly allocated AVSequencerSynth, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSynth *avseq_synth_create(void);
+
+/**
+ * Opens and registers a synth sound to a sample.
+ *
+ * @param sample the AVSequencerSample structure to attach the new synth sound to
+ * @param lines the number of synth code lines to be used for the new synth sound
+ * @param waveforms the number of waveforms to allocate at once for the new synth sound
+ * @param samples the number of samples to allocate for each waveform in the new synth sound
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
+                     uint32_t waveforms, uint32_t samples);
+
+
 
 #endif /* AVSEQUENCER_SYNTH_H */

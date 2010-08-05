@@ -35,6 +35,12 @@
  * version bump.
  */
 typedef struct AVSequencerSample {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original sample file name, sample name,
      *  artist and comment.  */
     AVMetadata *metadata;
@@ -88,8 +94,6 @@ typedef struct AVSequencerSample {
     /** Sampling rate (frequency) in Hz to play C-4 at which defaults
        to 8363 (NTSC base frequency used by 60Hz sequencers).  */
     uint32_t rate;
-#define AVSEQ_SAMPLE_RATE_NTSC  8363
-#define AVSEQ_SAMPLE_RATE_PAL   8287
 
     /** Lower sample rate limit (the sample can never exceed this
        minimum allowed frequency rate during playback).  */
@@ -105,20 +109,15 @@ typedef struct AVSequencerSample {
     /** Sample bit depth (currently samples having bit depths from
        1 to 32 are supported, default is 8-bit sample).  */
     uint8_t bits_per_sample;
-#define AVSEQ_SAMPLE_BITS       8
-#define AVSEQ_SAMPLE_BITS_MIN   1
-#define AVSEQ_SAMPLE_BITS_MAX   32
 
     /** Sample transpose. This is a relative number of half-tones to
        be added to the note calculation (defaults to 0).  */
     int8_t transpose;
-#define AVSEQ_SAMPLE_TRANSPOSE  0
 
     /** Sample fine-tuning control. This is a relative number in
        one of 128th a half-tone for fine sampling rate adjustments
        (default is 0 = no fine-tuning).  */
     int8_t finetune;
-#define AVSEQ_SAMPLE_FINETUNE   0
 
     /** Compatibility flags for playback. There are rare cases
        where sample loop control has to be handled a different
@@ -170,29 +169,24 @@ typedef struct AVSequencerSample {
     /** Sample global volume. This will scale all volume operations
        of this sample (default is 255 = no scaling).  */
     uint8_t global_volume;
-#define AVSEQ_SAMPLE_GLOBAL_VOLUME  255
 
     /** Sample initial volume (defaults to 255 = maximum).  */
     uint8_t volume;
-#define AVSEQ_SAMPLE_VOLUME 255
 
     /** Sub-volume level for this sample. This is basically sample
        volume divided by 256, but the sub-volume doesn't
        account into actual mixer output (defaults to 0).  */
     uint8_t sub_volume;
-#define AVSEQ_SAMPLE_SUB_VOLUME 0
 
     /** Stereo panning level for this sample (defaults to
        -128 = central stereo panning) if instrument panning
         is not used.  */
     int8_t panning;
-#define AVSEQ_SAMPLE_PANNING    -128
 
     /** Stereo sub-panning level for this sample. This is
        basically sample panning divided by 256, but the sub-panning
        doesn't account into actual mixer output (defaults 0).  */
     uint8_t sub_panning;
-#define AVSEQ_SAMPLE_SUB_PANNING    0
 
     /** Pointer to envelope data interpreted as auto vibrato
        waveform control or NULL for turn off auto vibrato.  */
@@ -289,5 +283,46 @@ typedef struct AVSequencerSample {
        chunks, which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerSample;
+
+/**
+ * Creates a new uninitialized empty audio sample.
+ *
+ * @return pointer to freshly allocated AVSequencerSample, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSample *avseq_sample_create(void);
+
+/**
+ * Opens and registers a new audio sample to an instrument.
+ *
+ * @param instrument the AVSequencerInstrument structure to add the new sample to
+ * @param sample the AVSequencerSample to be added to the instrument
+ * @param data the original sample data to create a redirection sample or NULL for a new one
+ * @param length the number of samples to allocate initially if not a redirection sample
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *sample,
+                      int16_t *data, uint32_t length);
+
+/**
+ * Opens and registers audio sample PCM data stream to an sample.
+ *
+ * @param sample the AVSequencerSample to add the sample PCM data stream to
+ * @param data the original sample data to create a redirection sample or NULL for a new one
+ * @param samples the number of samples to allocate initially if not a redirection sample
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples);
 
 #endif /* AVSEQUENCER_SAMPLE_H */

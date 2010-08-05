@@ -33,6 +33,12 @@
  * version bump.
  */
 typedef struct AVSequencerEnvelope {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** The actual node data of this envelope as signed 16-bit integer.
        For a volume envelope, we have a default scale range of -32767
        to +32767, for panning envelopes the scale range is between -8191
@@ -163,6 +169,12 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
  * version bump.
  */
 typedef struct AVSequencerKeyboard {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     struct AVSequencerKeyboardEntry {
         /** Sample number for this keyboard note.  */
         uint16_t sample;
@@ -233,6 +245,12 @@ int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries);
  * version bump.
  */
 typedef struct AVSequencerArpeggio {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** AVSequencerArpeggioData pointer to arpeggio data structure.  */
     AVSequencerArpeggioData *data;
 
@@ -294,6 +312,12 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio
  * version bump.
  */
 typedef struct AVSequencerInstrument {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
     /** Metadata information: Original instrument file name, instrument
      *  name, artist and comment.  */
     AVMetadata *metadata;
