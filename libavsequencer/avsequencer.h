@@ -277,7 +277,6 @@ typedef struct AVSequencerMixerChannel {
 
 #include "libavsequencer/module.h"
 #include "libavsequencer/song.h"
-#include "libavsequencer/player.h"
 
 /**
  * Sequencer context structure which is the very root of the
@@ -300,13 +299,13 @@ typedef struct AVSequencerContext {
     AVPacket *pkt;
 
     /** AVSequencerPlayerGlobals pointer to global channel data.  */
-    AVSequencerPlayerGlobals *player_globals;
+    struct AVSequencerPlayerGlobals *player_globals;
 
     /** AVSequencerPlayerHostChannel pointer to host channel data.  */
-    AVSequencerPlayerHostChannel *player_host_channel;
+    struct AVSequencerPlayerHostChannel *player_host_channel;
 
     /** AVSequencerPlayerChannel pointer to virtual channel data.  */
-    AVSequencerPlayerChannel *player_channel;
+    struct AVSequencerPlayerChannel *player_channel;
 
     /** Current module used by current playback handler or NULL if
        no module is currently being processed.  */

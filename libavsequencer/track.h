@@ -1,4 +1,4 @@
-r/*
+/*
  * AVSequencer track and pattern management
  * Copyright (c) 2010 Sebastian Vater <cdgs.basty@googlemail.com>
  *
@@ -1498,12 +1498,6 @@ enum AVSequencerTrackDataNote {
  * version bump.
  */
 typedef struct AVSequencerTrackData {
-    /**
-     * information on struct for av_log
-     * - set by avseq_alloc_context
-     */
-    const AVClass *av_class;
-
     /** Array (of size effects) of pointers containing all effects
        used by this track.  */
     AVSequencerTrackEffect **effects_data;

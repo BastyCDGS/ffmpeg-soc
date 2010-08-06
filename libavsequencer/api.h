@@ -187,7 +187,7 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio,
+int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
                         uint32_t entries);
 
 /**
@@ -201,7 +201,7 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries);
+int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries);
 
 /**
  * Creates a new uninitialized empty audio sample.
@@ -336,3 +336,5 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
  *       ABI compatibility yet!
  */
 void avseq_playback_handler ( AVSequencerContext *avctx );
+
+#endif /* AVSEQUENCER_API_H */
