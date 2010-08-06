@@ -22,6 +22,7 @@
 #ifndef AVSEQUENCER_SYNTH_H
 #define AVSEQUENCER_SYNTH_H
 
+#include "libavutil/log.h"
 #include "libavformat/avformat.h"
 
 /**
@@ -103,43 +104,6 @@ typedef struct AVSequencerSynthWave {
 } AVSequencerSynthWave;
 
 /**
- * Creates a new uninitialized empty synth sound waveform.
- *
- * @return pointer to freshly allocated AVSequencerSynthWave, NULL if allocation failed
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-AVSequencerSynthWave *avseq_synth_waveform_create(void);
-
-/**
- * Opens and registers a synth sound waveform to a synth sound.
- *
- * @param synth the AVSequencerSynth structure to add the new synth sound waveform to
- * @param samples the number of samples to allocate to the new synth sound waveform
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples);
-
-/**
- * Opens and registers synth sound waveform data to a synth sound waveform.
- *
- * @param waveform the AVSequencerSynthWave structure to attach the synth sound waveform data to
- * @param samples the number of samples to allocate for the synth sound waveform data
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples);
-
-/**
  * Synth programming code structure. This contains the byte-layout
  * for executables. THis means that this is the compile target of
  * synth sound instruction set.
@@ -191,22 +155,6 @@ typedef struct AVSequencerSynthCode {
     enum AVSequencerSynthCodeInstruction {
     /** Synth sound instruction codes.  */
 
-    /** Flow control / variable accessing instructions (00-1D).  */
-    AVSEQ_SYNTH_CODE_FLOW_VAR_CTRL_MIN      = 0x00,
-    AVSEQ_SYNTH_CODE_FLOW_VAR_CTRL_MAX      = 0x1D,
-
-    /** Arithmetic instructions (1E-3E).  */
-    AVSEQ_SYNTH_CODE_ARITHMETIC_MIN         = 0x1E,
-    AVSEQ_SYNTH_CODE_ARITHMETIC_MAX         = 0x3E,
-
-    /** Sound instructions (3F-7E).  */
-    AVSEQ_SYNTH_CODE_SOUND_MIN              = 0x3F,
-    AVSEQ_SYNTH_CODE_SOUND_MAX              = 0x7E,
-
-    /** Normal effect execution instructions (80-FF).  */
-    AVSEQ_SYNTH_CODE_NORMAL_FX_EXEC_MIN     = -0x7F,
-    AVSEQ_SYNTH_CODE_NORMAL_FX_EXEC_MAX     = -0x01,
-
     /** Instruction list (only positive instruction byte ones):  */
     /** Flow control / variable accessing instructions:  */
     /** 0x00: STOP    vX+YYYY
@@ -221,7 +169,6 @@ typedef struct AVSequencerSynthCode {
        0x0004 | Forbid external JUMPSLD command for this synth.
        0x0008 | Forbid external JUMPSPC command for this synth.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_STOP       = 0x00,
-    AVSEQ_SYNTH_CODE_INSTRUCTION_END        = AVSEQ_SYNTH_CODE_INSTRUCTION_STOP,
 
     /** 0x01: KILL    vX+YYYY
        Stops and frees current channel, most likely to be used in NNA
@@ -341,14 +288,12 @@ typedef struct AVSequencerSynthCode {
        same synth code specified by vX+YYYY if the carry flag of the
        condition variable is set otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS     = 0x12,
-    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLO     = AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS,
 
     /** 0x13: JUMPCC  vX+YYYY
        Also named JUMPHS, jumps to the target line number within the
        same synth code specified by vX+YYYY if the carry flag of the
        condition variable is cleared otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC     = 0x13,
-    AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPHS     = AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC,
 
     /** 0x14: JUMPLS  vX+YYYY
        Jumps to the target line number within the same synth
@@ -1192,9 +1137,6 @@ typedef struct AVSequencerSynthCode {
        condition variable will remain unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANVAL     = 0x7E,
     };
-    /** Synth code instruction templates.  */
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_INSTR_NAME "INSTR\0\0\0"
-#define AVSEQ_SYNTH_CODE_INSTRUCTION_SETFX_NAME "SETFX\0\0\0"
 
     /** Source and destinaton variable. These are actually 2 nibbles.
        The upper nibble (bits 4-7) is the source variable where the
@@ -1212,19 +1154,6 @@ typedef struct AVSequencerSynthCode {
        synth instructions).  */
     uint16_t data;
 } AVSequencerSynthCode;
-
-/**
- * Opens and registers a synth sound code to a synth sound.
- *
- * @param synth the AVSequencerSynth structure to attach the new synth sound code to
- * @param lines the number of synth code lines to be used for the new synth sound
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
 
 /**
  * Synth sound code symbol table. It has the same purpose as a
@@ -1420,6 +1349,8 @@ typedef struct AVSequencerSynth {
     uint8_t **unknown_data;
 } AVSequencerSynth;
 
+#include "libavsequencer/sample.h"
+
 /**
  * Creates a new uninitialized empty synth sound.
  *
@@ -1447,6 +1378,54 @@ AVSequencerSynth *avseq_synth_create(void);
 int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
                      uint32_t waveforms, uint32_t samples);
 
+/**
+ * Creates a new uninitialized empty synth sound waveform.
+ *
+ * @return pointer to freshly allocated AVSequencerSynthWave, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSynthWave *avseq_synth_waveform_create(void);
 
+/**
+ * Opens and registers a synth sound waveform to a synth sound.
+ *
+ * @param synth the AVSequencerSynth structure to add the new synth sound waveform to
+ * @param samples the number of samples to allocate to the new synth sound waveform
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples);
+
+/**
+ * Opens and registers synth sound waveform data to a synth sound waveform.
+ *
+ * @param waveform the AVSequencerSynthWave structure to attach the synth sound waveform data to
+ * @param samples the number of samples to allocate for the synth sound waveform data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples);
+
+/**
+ * Opens and registers a synth sound code to a synth sound.
+ *
+ * @param synth the AVSequencerSynth structure to attach the new synth sound code to
+ * @param lines the number of synth code lines to be used for the new synth sound
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
 
 #endif /* AVSEQUENCER_SYNTH_H */

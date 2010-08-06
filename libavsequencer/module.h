@@ -22,10 +22,10 @@
 #ifndef AVSEQUENCER_MODULE_H
 #define AVSEQUENCER_MODULE_H
 
+#include "libavutil/log.h"
 #include "libavformat/avformat.h"
-#include "libavsequencer/avsequencer.h"
+#include "libavsequencer/song.h"
 #include "libavsequencer/instr.h"
-#include "libavsequencer/player.h"
 
 /**
  * Sequencer module structure.
@@ -104,6 +104,8 @@ typedef struct AVSequencerModule {
        which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerModule;
+
+#include "libavsequencer/avsequencer.h"
 
 /**
  * Opens and registers module to the AVSequencer.

@@ -22,11 +22,11 @@
 #ifndef AVSEQUENCER_SONG_H
 #define AVSEQUENCER_SONG_H
 
+#include "libavutil/log.h"
 #include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/order.h"
 #include "libavsequencer/track.h"
-#include "libavsequencer/player.h"
 
 /**
  * Sequencer song structure.
@@ -63,14 +63,12 @@ typedef struct AVSequencerSong {
     /** Stack size, i.e. maximum recursion depth of GoSub command which
        defaults to 4.  */
     uint16_t gosub_stack_size;
-#define AVSEQ_SONG_GOSUB_STACK  4
 
     /** Stack size, i.e. maximum recursion depth of the pattern loop
        command, which defaults to 1 to imitate most trackers (most
        trackers do not even support any other value than one, i.e.
        the pattern loop command is not nestable).  */
     uint16_t loop_stack_size;
-#define AVSEQ_SONG_PATTERN_LOOP_STACK   1
 
     /** Compatibility flags for playback. There are rare cases
        where effect handling can not be mapped into internal
@@ -203,6 +201,8 @@ typedef struct AVSequencerSong {
        chunks, which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerSong;
+
+#include "libavsequencer/module.h"
 
 /**
  * Opens and registers a new sub-song to a module.

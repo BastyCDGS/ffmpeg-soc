@@ -22,6 +22,7 @@
 #ifndef AVSEQUENCER_SAMPLE_H
 #define AVSEQUENCER_SAMPLE_H
 
+#include "libavutil/log.h"
 #include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/instr.h"

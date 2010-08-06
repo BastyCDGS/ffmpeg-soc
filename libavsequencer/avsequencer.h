@@ -51,11 +51,9 @@ const char *avsequencer_configuration(void);
  */
 const char *avsequencer_license(void);
 
+#include "libavutil/log.h"
 #include "libavformat/avformat.h"
 #include "libavcodec/avcodec.h"
-#include "libavsequencer/module.h"
-#include "libavsequencer/song.h"
-#include "libavsequencer/player.h"
 
 /**
  * Identify the mixing engines.
@@ -270,6 +268,10 @@ typedef struct AVSequencerMixerChannel {
        panning and -127 to -1 indicate right stereo panning).  */
     int8_t panning;
 } AVSequencerMixerChannel;
+
+#include "libavsequencer/module.h"
+#include "libavsequencer/song.h"
+#include "libavsequencer/player.h"
 
 /**
  * Sequencer context structure which is the very root of the

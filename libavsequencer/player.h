@@ -484,11 +484,11 @@ typedef struct AVSequencerPlayerGlobals {
     AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED           = 0x01, ///< Change BPM speed (beats per minute)
     AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_TEMPO           = 0x02, ///< Change BPM tempo (rows per beat)
     AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_SPD_SPEED           = 0x03, ///< Change SPD (MED-style timing)
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED           = 0x07, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_NOM_DENOM           = 0x07, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed
     AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED_NO_USE    = 0x08, ///< Change BPM speed (beats per minute) but do not use it for playback
     AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_TEMPO_NO_USE    = 0x09, ///< Change BPM tempo (rows per beat) but do not use it for playback
     AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_SPD_SPEED_NO_USE    = 0x0A, ///< Change SPD (MED-style timing) but do not use it for playback
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED_NO_USE    = 0x0F, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed but do not use it for playback
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_NOM_DENOM_NO_USE    = 0x0F, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed but do not use it for playback
     };
 
     /** Play type, if the song bit is set, the sub-song is currently
@@ -1138,7 +1138,7 @@ typedef struct AVSequencerPlayerHostChannel {
     AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_TREM_ENV = 0x0D, ///< Global tremolo envelope selected
     AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_PAN_ENV  = 0x0E, ///< Global pannolo (panbrello) envelope selected
     AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_ARPEGGIO_ENV    = 0x0F, ///< Arpeggio definition envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_ARPEGGIO_ENV    = 0x10, ///< Resonance filter envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_RESONANCE_ENV   = 0x10, ///< Resonance filter envelope selected
     };
 
     /** Current type of envelope to be changed by the envelope control
@@ -1733,23 +1733,23 @@ typedef struct AVSequencerPlayerChannel {
 
     /** Pointer to current sample data waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerPlayerSynthWave *sample_waveform;
+    AVSequencerSynthWave *sample_waveform;
 
     /** Pointer to current vibrato waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerPlayerSynthWave *vibrato_waveform;
+    AVSequencerSynthWave *vibrato_waveform;
 
     /** Pointer to current tremolo waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerPlayerSynthWave *tremolo_waveform;
+    AVSequencerSynthWave *tremolo_waveform;
 
     /** Pointer to current pannolo (panbrello) waveform used by the
        synth sound currently being played by this virtual channel.  */
-    AVSequencerPlayerSynthWave *pannolo_waveform;
+    AVSequencerSynthWave *pannolo_waveform;
 
     /** Pointer to current arpeggio data waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerPlayerSynthWave *arpeggio_waveform;
+    AVSequencerSynthWave *arpeggio_waveform;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the
