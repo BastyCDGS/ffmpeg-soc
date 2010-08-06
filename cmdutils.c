@@ -39,6 +39,7 @@
 #include "libavutil/eval.h"
 #include "libavcodec/opt.h"
 #include "libavcore/avcore.h"
+#include "libavsequencer/avsequencer.h"
 #include "cmdutils.h"
 #include "version.h"
 #if CONFIG_NETWORK
@@ -340,6 +341,7 @@ static void print_all_libs_info(FILE* outstream, int flags)
     PRINT_LIB_INFO(outstream, avcore,   AVCORE,   flags);
     PRINT_LIB_INFO(outstream, avcodec,  AVCODEC,  flags);
     PRINT_LIB_INFO(outstream, avformat, AVFORMAT, flags);
+    PRINT_LIB_INFO(outstream, avsequencer, AVSEQUENCER, flags);
     PRINT_LIB_INFO(outstream, avdevice, AVDEVICE, flags);
     PRINT_LIB_INFO(outstream, avfilter, AVFILTER, flags);
     PRINT_LIB_INFO(outstream, swscale,  SWSCALE,  flags);

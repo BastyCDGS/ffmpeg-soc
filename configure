@@ -90,6 +90,7 @@ Configuration options:
   --disable-avformat       disable libavformat build
   --disable-swscale        disable libswscale build
   --enable-postproc        enable GPLed postprocessing support [no]
+  --disable-avsequencer    disable libavsequencer build
   --disable-avfilter       disable video filter support [no]
   --disable-pthreads       disable pthreads [auto]
   --enable-w32threads      use Win32 threads [no]
@@ -850,6 +851,7 @@ CONFIG_LIST="
     avdevice
     avfilter
     avformat
+    avsequencer
     avisynth
     bzlib
     dct
@@ -1534,6 +1536,7 @@ enable avcore
 enable avdevice
 enable avfilter
 enable avformat
+enable avsequencer
 enable avutil
 enable asm
 enable debug
@@ -2810,7 +2813,7 @@ enabled extra_warnings && check_cflags -Winline
 # add some linker flags
 check_ldflags -Wl,--warn-common
 check_ldflags -Wl,--as-needed
-check_ldflags '-Wl,-rpath-link,\$(BUILD_ROOT)/libpostproc -Wl,-rpath-link,\$(BUILD_ROOT)/libswscale -Wl,-rpath-link,\$(BUILD_ROOT)/libavfilter -Wl,-rpath-link,\$(BUILD_ROOT)/libavdevice -Wl,-rpath-link,\$(BUILD_ROOT)/libavformat -Wl,-rpath-link,\$(BUILD_ROOT)/libavcodec -Wl,-rpath-link,\$(BUILD_ROOT)/libavcore -Wl,-rpath-link,\$(BUILD_ROOT)/libavutil'
+check_ldflags '-Wl,-rpath-link,\$(BUILD_ROOT)/libpostproc -Wl,-rpath-link,\$(BUILD_ROOT)/libswscale -Wl,-rpath-link,\$(BUILD_ROOT)/libavsequencer -Wl,-rpath-link,\$(BUILD_ROOT)/libavfilter -Wl,-rpath-link,\$(BUILD_ROOT)/libavdevice -Wl,-rpath-link,\$(BUILD_ROOT)/libavformat -Wl,-rpath-link,\$(BUILD_ROOT)/libavcodec -Wl,-rpath-link,\$(BUILD_ROOT)/libavcore -Wl,-rpath-link,\$(BUILD_ROOT)/libavutil'
 check_ldflags -Wl,-Bsymbolic
 
 echo "X{};" > $TMPV
@@ -3009,6 +3012,7 @@ if enabled source_path_used; then
         libavdevice
         libavfilter
         libavformat
+        libavsequencer
         libavutil
         libavutil/$arch
         libpostproc
@@ -3028,6 +3032,7 @@ if enabled source_path_used; then
         libavdevice/Makefile
         libavfilter/Makefile
         libavformat/Makefile
+        libavsequencer/Makefile
         libavutil/Makefile
         libpostproc/Makefile
         libswscale/Makefile
@@ -3127,6 +3132,7 @@ get_version LIBAVCODEC  libavcodec/avcodec.h
 get_version LIBAVCORE   libavcore/avcore.h
 get_version LIBAVDEVICE libavdevice/avdevice.h
 get_version LIBAVFORMAT libavformat/avformat.h
+get_version LIBAVSEQUENCER libavsequencer/avsequencer.h
 get_version LIBAVUTIL   libavutil/avutil.h
 get_version LIBAVFILTER libavfilter/avfilter.h
 
@@ -3248,5 +3254,6 @@ pkgconfig_generate libavcodec "FFmpeg codec library" "$LIBAVCODEC_VERSION" "$ext
 pkgconfig_generate libavformat "FFmpeg container format library" "$LIBAVFORMAT_VERSION" "$extralibs" "libavcodec = $LIBAVCODEC_VERSION"
 pkgconfig_generate libavdevice "FFmpeg device handling library" "$LIBAVDEVICE_VERSION" "$extralibs" "libavformat = $LIBAVFORMAT_VERSION"
 pkgconfig_generate libavfilter "FFmpeg video filtering library" "$LIBAVFILTER_VERSION" "$extralibs" "libavcore = $LIBAVCORE_VERSION"
+pkgconfig_generate libavsequencer "FFmpeg audio sequencer library" "$LIBAVSEQUENCER_VERSION" "$extralibs" "libavcodec = $LIBAVCODEC_VERSION"
 pkgconfig_generate libpostproc "FFmpeg post processing library" "$LIBPOSTPROC_VERSION"
 pkgconfig_generate libswscale "FFmpeg image rescaling library" "$LIBSWSCALE_VERSION" "" "libavutil = $LIBAVUTIL_VERSION"
