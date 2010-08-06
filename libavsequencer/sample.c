@@ -50,14 +50,14 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
     sample->volume          = 255;
     sample->panning         = -128;
 
-    if ((res = avseq_sample_data_open(sample, data, length)) < 0) {
+    if (length && (res = avseq_sample_data_open(sample, data, length)) < 0) {
         av_free(sample_list);
         return res;
     }
 
-    instrument_list[samples] = sample;
-    instrument->sample_list  = sample_list;
-    instrument->samples      = samples;
+    sample_list[samples]    = sample;
+    instrument->sample_list = sample_list;
+    instrument->samples     = samples;
 
     return 0;
 }

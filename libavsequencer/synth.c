@@ -47,8 +47,8 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
 
     if (!sample || !lines >= 0x10000 || waveforms >= 0x10000) {
         return AVERROR_INVALIDDATA;
-    } else if (!(synth = av_seq_synth_create())) {
-        av_log(, AV_LOG_ERROR, "cannot allocate synth sound container.\n");
+    } else if (!(synth = avseq_synth_create())) {
+        av_log(sample, AV_LOG_ERROR, "cannot allocate synth sound container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -80,7 +80,7 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
     if (!lines)
         lines = 1;
 
-    if (!synth || lines >= 0x10000)
+    if (!synth || lines >= 0x10000) {
         return AVERROR_INVALIDDATA;
     } else if (!(code = av_realloc(code, lines * sizeof(AVSequencerSynthCode)))) {
         av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound code.\n");
@@ -89,6 +89,8 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
 
     synth->code = code;
     synth->size = (uint16_t) lines;
+
+    return 0;
 }
 
 AVSequencerSynthWave *avseq_synth_waveform_create(void) {
@@ -96,11 +98,12 @@ AVSequencerSynthWave *avseq_synth_waveform_create(void) {
 }
 
 int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
+    AVSequencerSynthWave *waveform;
     AVSequencerSynthWave **waveform_list = synth->waveform_list;
     uint16_t waveforms                   = synth->waveforms;
     int res;
 
-    if (!waveform || !++waveforms) {
+    if (!synth || !++waveforms) {
         return AVERROR_INVALIDDATA;
     } else if (!(waveform_list = av_realloc(waveform_list, waveforms * sizeof(AVSequencerSynthWave *)))) {
         av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound waveform storage container.\n");
@@ -113,7 +116,7 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
 
     waveform->repeat_len = samples;
 
-    if ((res = avseq_waveform_data_open(waveform, samples)) < 0) {
+    if ((res = avseq_synth_waveform_data_open(waveform, samples)) < 0) {
         av_free(waveform);
         av_free(waveform_list);
         return res;
@@ -145,4 +148,6 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
     waveform->data       = data;
     waveform->size       = size;
     waveform->samples    = samples;
+
+    return 0;
 }

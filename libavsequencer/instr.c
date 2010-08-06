@@ -49,7 +49,7 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     instrument->default_panning  = -128;
     instrument->env_usage_flags  = ~(AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV|AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV|AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV|-0x2000);
 
-    if ((res = avseq_sample_open(instrument, sample)) < 0) {
+    if ((res = avseq_sample_open(instrument, sample, NULL, 0)) < 0) {
         av_free(sample);
         av_free(instrument_list);
         return res;
@@ -63,12 +63,12 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
 }
 
 #define CREATE_ENVELOPE(env_type) \
-    static void *create_##env_type##_envelope ( AVSequencerContext *avctx, \
-                                                int16_t *data, \
-                                                uint32_t points, \
-                                                uint32_t scale, \
-                                                uint32_t scale_type, \
-                                                uint32_t y_offset )
+    static void create_##env_type##_envelope ( AVSequencerContext *avctx, \
+                                               int16_t *data, \
+                                               uint32_t points, \
+                                               uint32_t scale, \
+                                               uint32_t scale_type, \
+                                               uint32_t y_offset )
 
 CREATE_ENVELOPE(empty);
 CREATE_ENVELOPE(sine);
@@ -78,7 +78,7 @@ CREATE_ENVELOPE(triangle);
 CREATE_ENVELOPE(square);
 CREATE_ENVELOPE(sawtooth);
 
-static const void *create_envelope_lut[] = {
+static const void *create_env_lut[] = {
     create_empty_envelope,
     create_sine_envelope,
     create_cosine_envelope,
@@ -161,7 +161,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
         if (nodes == 1)
             nodes++;
 
-        if (!(node = (uint16_t *) av_realloc (nodes * sizeof (uint16_t)))) {
+        if (!(node = (uint16_t *) av_malloc(nodes * sizeof (uint16_t)))) {
             av_free(data);
             av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope node data.\n");
             return AVERROR(ENOMEM);
@@ -236,13 +236,13 @@ static const int16_t sine_lut[] = {
 CREATE_ENVELOPE(sine) {
     uint32_t i, sine_div, sine_mod, pos = 0, count = 0;
     int32_t value = 0;
-    int16_t *sine_lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
+    const int16_t *const lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
 
     sine_div = 360 / points;
     sine_mod = 360 % points;
 
     for (i = points; i > 0; i--) {
-        value = sine_lut[pos];
+        value = lut[pos];
 
         if (scale_type)
             value = -value;
@@ -265,13 +265,13 @@ CREATE_ENVELOPE(sine) {
 CREATE_ENVELOPE(cosine) {
     uint32_t i, sine_div, sine_mod, count = 0;
     int32_t pos = 90, value = 0;
-    int16_t *sine_lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
+    const int16_t *const lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
 
     sine_div = 360 / points;
     sine_mod = 360 % points;
 
     for (i = points; i > 0; i--) {
-        value = sine_lut[pos];
+        value = lut[pos];
 
         if (scale_type)
             value = -value;
@@ -439,11 +439,10 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     AVSequencerKeyboard **keyboard_list = module->keyboard_list;
     uint16_t keyboards                  = module->keyboards;
     unsigned i;
-    int res;
 
     if (!keyboard || !++keyboards) {
         return AVERROR_INVALIDDATA;
-    } else if (!(keyboard_list = av_realloc(keyboard_list, instruments * sizeof(AVSequencerKeyboard *)))) {
+    } else if (!(keyboard_list = av_realloc(keyboard_list, keyboards * sizeof(AVSequencerKeyboard *)))) {
         av_log(keyboard, AV_LOG_ERROR, "cannot allocate keyboard definition list storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -461,7 +460,7 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     return 0;
 }
 
-int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio,
+int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
                         uint32_t entries) {
     AVSequencerArpeggio **arpeggio_list = module->arpeggio_list;
     uint16_t arpeggios                  = module->arpeggios;
@@ -469,7 +468,7 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio
 
     if (!arpeggio || !++arpeggios) {
         return AVERROR_INVALIDDATA;
-    } else if (!(arpeggio_list = av_realloc(arpeggio_list, envelopes * sizeof(AVSequencerArpeggio *)))) {
+    } else if (!(arpeggio_list = av_realloc(arpeggio_list, arpeggios * sizeof(AVSequencerArpeggio *)))) {
         av_log(arpeggio, AV_LOG_ERROR, "cannot allocate arpeggio structure storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -479,15 +478,15 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio
         return res;
     }
 
-    arpeggio_list[envelopes] = arpeggio;
+    arpeggio_list[arpeggios] = arpeggio;
     module->arpeggio_list    = arpeggio_list;
     module->arpeggios        = arpeggios;
 
     return 0;
 }
 
-int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries) {
-    int16_t *data = arpeggio->data;
+int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries) {
+    AVSequencerArpeggioData *data = arpeggio->data;
 
     if (!entries)
         entries = 3;
