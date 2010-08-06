@@ -24,7 +24,7 @@
  * Implement AVSequencer synth sound, code, symbol and waveform management.
  */
 
-#include "libavsequencer/api.h"
+#include "libavsequencer/avsequencer.h"
 
 AVSequencerSynth *avseq_synth_create(void) {
     return av_mallocz(sizeof(AVSequencerSynth));

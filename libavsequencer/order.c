@@ -24,7 +24,7 @@
  * Implement AVSequencer order list and data stuff.
  */
 
-#include "libavsequencer/api.h"
+#include "libavsequencer/avsequencer.h"
 
 int avseq_order_open(AVSequencerSong *song) {
     AVSequencerOrderList *order_list;

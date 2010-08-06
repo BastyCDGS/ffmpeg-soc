@@ -24,7 +24,7 @@
  * Implement AVSequencer samples management.
  */
 
-#include "libavsequencer/api.h"
+#include "libavsequencer/avsequencer.h"
 
 AVSequencerSample *avseq_sample_create(void) {
     return av_mallocz(sizeof(AVSequencerSample));

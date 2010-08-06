@@ -24,7 +24,7 @@
  * Implement AVSequencer instrument management.
  */
 
-#include "libavsequencer/api.h"
+#include "libavsequencer/avsequencer.h"
 
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument) {
     AVSequencerSample *sample;

@@ -24,7 +24,7 @@
  * Implement AVSequencer module stuff.
  */
 
-#include "libavsequencer/api.h"
+#include "libavsequencer/avsequencer.h"
 
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     AVSequencerModule **module_list = avctx->module_list;

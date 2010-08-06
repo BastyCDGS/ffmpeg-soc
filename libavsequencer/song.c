@@ -24,7 +24,7 @@
  * Implement AVSequencer sub-song stuff.
  */
 
-#include "libavsequencer/api.h"
+#include "libavsequencer/avsequencer.h"
 
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     AVSequencerSong **song_list = module->song_list;
