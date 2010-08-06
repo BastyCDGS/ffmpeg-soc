@@ -1,0 +1,23189 @@
+/*
+ * Sequencer low quality integer mixer
+ * Copyright (c) 2010 Sebastian Vater <cdgs.basty@googlemail.com>
+ *
+ * This file is part of FFmpeg.
+ *
+ * FFmpeg is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * FFmpeg is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with FFmpeg; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+/**
+ * @file
+ * Sequencer low quality integer mixer.
+ */
+
+#include "libavformat/avformat.h"
+#include "libavsequencer/avsequencer.h"
+#include "libavsequencer/player.h"
+
+typedef struct AVSequencerLQMixerData {
+    AVSequencerMixerData mixer_data;
+    int32_t *buf;
+    uint32_t buf_size;
+    uint32_t mix_buf_size;
+    int32_t *volume_lut;
+    AVSequencerLQMixerChannelInfo *channel_info;
+    uint32_t amplify;
+    uint32_t mix_rate;
+    uint32_t mix_rate_frac;
+    uint32_t current_left;
+    uint32_t current_left_frac;
+    uint32_t pass_len;
+    uint32_t pass_len_frac;
+    uint16_t channels;
+    uint8_t interpolation;
+    uint8_t real_16_bit_mode;
+    uint8_t stereo_mode;
+    uint8_t previous_stereo_mode;
+} AVSequencerLQMixerData;
+
+typedef struct AVSequencerLQMixerChannelInfo {
+    struct ChannelBlock {
+        int16_t *sample_start_ptr;
+        uint32_t sample_len;
+        uint32_t offset;
+        uint32_t fraction;
+        uint32_t advance;
+        uint32_t advance_frac;
+        void (*mix_func)( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len );
+        uint32_t end_offset;
+        uint32_t restart_offset;
+        uint32_t repeat;
+        uint32_t repeat_len;
+        uint32_t count_restart;
+        uint32_t counted;
+        uint32_t rate;
+        int32_t *volume_left_lut;
+        int32_t *volume_right_lut;
+        uint32_t mult_left_volume;
+        uint32_t div_volume;
+        uint32_t mult_right_volume;
+        void (*mix_backwards_func)( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len );
+        uint8_t bits_per_sample;
+        uint8_t flags;
+        uint8_t volume;
+        uint8_t panning;
+    } current;
+    struct ChannelBlock next;
+} AVSequencerLQMixerChannelInfo;
+
+static AVSequencerMixerData *mixer_alloc ( void );
+static uint32_t mixer_free ( AVSequencerMixerData *mixer_data );
+static uint32_t mixer_init ( AVSequencerMixerData *mixer_data );
+static uint32_t change_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate );
+static uint32_t change_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo );
+static uint32_t change_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels );
+static void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static void set_channel_pos_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static void do_mix ( AVSequencerMixerData *mixer_data, int32_t *buf );
+
+static void mix_sample ( AVSequencerLQMixerData *mixer_data, int32_t *buf, uint32_t len );
+
+static void set_sample_mix_rate ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, uint32_t rate );
+static void advance_ok ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info );
+
+#define CHANNEL_PREPARE(type)                                                           \
+    static void channel_prepare_##type ( AVSequencerLQMixerData *mixer_data,            \
+                                         AVSequencerLQMixerChannelInfo *channel_info,   \
+                                         uint16_t volume,                               \
+                                         uint16_t panning )
+
+CHANNEL_PREPARE(skip);
+CHANNEL_PREPARE(stereo_8);
+CHANNEL_PREPARE(stereo_8_left);
+CHANNEL_PREPARE(stereo_8_right);
+CHANNEL_PREPARE(stereo_8_center);
+CHANNEL_PREPARE(stereo_16);
+CHANNEL_PREPARE(stereo_16_left);
+CHANNEL_PREPARE(stereo_16_right);
+CHANNEL_PREPARE(stereo_16_center);
+CHANNEL_PREPARE(stereo_32);
+CHANNEL_PREPARE(stereo_32_left);
+CHANNEL_PREPARE(stereo_32_right);
+CHANNEL_PREPARE(stereo_32_center);
+
+#define MIX(type)                                                                   \
+    static void mix_##type ( AVSequencerLQMixerData *mixer_data,                    \
+                             AVSequencerLQMixerChannelInfo *channel_info,           \
+                             int32_t **buf, uint32_t *offset, uint32_t *fraction,   \
+                             uint32_t advance, uint32_t adv_frac, uint32_t len )
+
+MIX(skip);
+MIX(skip_backwards);
+
+MIX(mono_8);
+MIX(mono_backwards_8);
+MIX(mono_16);
+MIX(mono_backwards_16);
+MIX(mono_32);
+MIX(mono_backwards_32);
+MIX(mono_x);
+MIX(mono_backwards_x);
+MIX(mono_16_to_8);
+MIX(mono_backwards_16_to_8);
+MIX(mono_32_to_8);
+MIX(mono_backwards_32_to_8);
+MIX(mono_x_to_8);
+MIX(mono_backwards_x_to_8);
+
+MIX(stereo_8);
+MIX(stereo_backwards_8);
+MIX(stereo_16);
+MIX(stereo_backwards_16);
+MIX(stereo_32);
+MIX(stereo_backwards_32);
+MIX(stereo_x);
+MIX(stereo_backwards_x);
+MIX(stereo_16_to_8);
+MIX(stereo_backwards_16_to_8);
+MIX(stereo_32_to_8);
+MIX(stereo_backwards_32_to_8);
+MIX(stereo_x_to_8);
+MIX(stereo_backwards_x_to_8);
+
+MIX(stereo_8_left);
+MIX(stereo_backwards_8_left);
+MIX(stereo_16_left);
+MIX(stereo_backwards_16_left);
+MIX(stereo_32_left);
+MIX(stereo_backwards_32_left);
+MIX(stereo_x_left);
+MIX(stereo_backwards_x_left);
+MIX(stereo_16_to_8_left);
+MIX(stereo_backwards_16_to_8_left);
+MIX(stereo_32_to_8_left);
+MIX(stereo_backwards_32_to_8_left);
+MIX(stereo_x_to_8_left);
+MIX(stereo_backwards_x_to_8_left);
+
+MIX(stereo_8_right);
+MIX(stereo_backwards_8_right);
+MIX(stereo_16_right);
+MIX(stereo_backwards_16_right);
+MIX(stereo_32_right);
+MIX(stereo_backwards_32_right);
+MIX(stereo_x_right);
+MIX(stereo_backwards_x_right);
+MIX(stereo_16_to_8_right);
+MIX(stereo_backwards_16_to_8_right);
+MIX(stereo_32_to_8_right);
+MIX(stereo_backwards_32_to_8_right);
+MIX(stereo_x_to_8_right);
+MIX(stereo_backwards_x_to_8_right);
+
+MIX(stereo_8_center);
+MIX(stereo_backwards_8_center);
+MIX(stereo_16_center);
+MIX(stereo_backwards_16_center);
+MIX(stereo_32_center);
+MIX(stereo_backwards_32_center);
+MIX(stereo_x_center);
+MIX(stereo_backwards_x_center);
+MIX(stereo_16_to_8_center);
+MIX(stereo_backwards_16_to_8_center);
+MIX(stereo_32_to_8_center);
+MIX(stereo_backwards_32_to_8_center);
+MIX(stereo_x_to_8_center);
+MIX(stereo_backwards_x_to_8_center);
+
+MIX(stereo_8_surround);
+MIX(stereo_backwards_8_surround);
+MIX(stereo_16_surround);
+MIX(stereo_backwards_16_surround);
+MIX(stereo_32_surround);
+MIX(stereo_backwards_32_surround);
+MIX(stereo_x_surround);
+MIX(stereo_backwards_x_surround);
+MIX(stereo_16_to_8_surround);
+MIX(stereo_backwards_16_to_8_surround);
+MIX(stereo_32_to_8_surround);
+MIX(stereo_backwards_32_to_8_surround);
+MIX(stereo_x_to_8_surround);
+MIX(stereo_backwards_x_to_8_surround);
+
+extern AVSequencerMixerContext InternalMixerBase;
+extern struct InternalMixerFlagStr InternalMixerSaveFlags;
+extern STRPTR SaveButton2 [];
+
+static uint8_t InternalMixerName[] = "internal_lqmix.library\0";
+static uint8_t InternalMixerLoadID[] = "Low Quality Mixer\0";
+static uint8_t InternalMixerIDString[] = "Internal Low Quality Mixer Lib Version 1.00 (v31) (03 Aug 99) by Basty/Seasons.\0";
+
+struct TuComposerExtList InternalMixer =
+{
+    {NULL, NULL},
+    EXTLF_Intern|EXTLF_Loader|EXTLF_Saver, 0,
+    (struct TuComposerExtLibBase *) &InternalMixerBase,
+    NULL,
+    (STRPTR) &InternalMixerName,
+    (STRPTR) &InternalMixerLoadID,
+    NULL,
+    (struct TuComposerExtFlagStr *) &InternalMixerSaveFlags,
+    0
+};
+
+#include "InternalLQMix_library.h"
+
+static uint8_t SaveText0[] = "True 16-bit mixing\0";
+static uint8_t SaveText1[] = "stereo output\0";
+static uint8_t SaveText2[] = "Interpolation\0";
+static uint8_t SaveText21[] = "Disabled\0";
+static uint8_t SaveText22[] = "Fast\0";
+static uint8_t SaveText23[] = "Effective\0";
+static uint8_t SaveText24[] = "Full\0";
+
+static struct InternalMixerFlagStr {
+    uint16_t    tefs_NumEntries;
+    uint16_t    tefs_StructSize;
+    union FlagEntryBooleanStruct tefs_Flag0;
+    union FlagEntryBooleanStruct tefs_Flag1;
+    union FlagEntryButtonStruct tefs_Flag2;
+} InternalMixerSaveFlags =
+{
+    3, sizeof (InternalMixerSaveFlags),
+    {(STRPTR) &SaveText0, EXTFLAG_BOOLEAN, TEFSF_Update, 0, 0, 0, 0xFFFFFFFFL},
+    {(STRPTR) &SaveText1, EXTFLAG_BOOLEAN, TEFSF_Update, 0, 0, 0, 0xFFFFFFFFL},
+    {(STRPTR *) &SaveButton2, EXTFLAG_BUTTON, TEFSF_Update, 1+4, 0, 0, 1L}
+};
+
+static STRPTR SaveButton2[] =
+{
+    SaveText2,
+    SaveText21,
+    SaveText22,
+    SaveText23,
+    SaveText24
+};
+
+static const void *mixer_skip[] = {
+    channel_prepare_skip,
+    channel_prepare_skip,
+    channel_prepare_skip,
+    mix_skip,
+    mix_skip,
+    mix_skip,
+    mix_skip,
+    mix_skip_backwards,
+    mix_skip_backwards,
+    mix_skip_backwards,
+    mix_skip_backwards
+};
+
+static const void *mixer_mono[] = {
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_16_center,
+    channel_prepare_stereo_32_center,
+    mix_mono_8,
+    mix_mono_16,
+    mix_mono_32,
+    mix_mono_x,
+    mix_mono_backwards_8,
+    mix_mono_backwards_16,
+    mix_mono_backwards_32,
+    mix_mono_backwards_x
+};
+
+static const void *mixer_stereo[] = {
+    channel_prepare_stereo_8,
+    channel_prepare_stereo_16,
+    channel_prepare_stereo_32,
+    mix_stereo_8,
+    mix_stereo_16,
+    mix_stereo_32,
+    mix_stereo_x,
+    mix_stereo_backwards_8,
+    mix_stereo_backwards_16,
+    mix_stereo_backwards_32,
+    mix_stereo_backwards_x
+};
+
+static const void *mixer_stereo_left[] = {
+    channel_prepare_stereo_8_left,
+    channel_prepare_stereo_16_left,
+    channel_prepare_stereo_32_left,
+    mix_stereo_8_left,
+    mix_stereo_16_left,
+    mix_stereo_32_left,
+    mix_stereo_x_left,
+    mix_stereo_backwards_8_left,
+    mix_stereo_backwards_16_left,
+    mix_stereo_backwards_32_left,
+    mix_stereo_backwards_x_left
+};
+
+static const void *mixer_stereo_right[] = {
+    channel_prepare_stereo_8_right,
+    channel_prepare_stereo_16_right,
+    channel_prepare_stereo_32_right,
+    mix_stereo_8_right,
+    mix_stereo_16_right,
+    mix_stereo_32_right,
+    mix_stereo_x_right,
+    mix_stereo_backwards_8_right,
+    mix_stereo_backwards_16_right,
+    mix_stereo_backwards_32_right,
+    mix_stereo_backwards_x_right
+};
+
+static const void *mixer_stereo_center[] = {
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_16_center,
+    channel_prepare_stereo_32_center,
+    mix_stereo_8_center,
+    mix_stereo_16_center,
+    mix_stereo_32_center,
+    mix_stereo_x_center,
+    mix_stereo_backwards_8_center,
+    mix_stereo_backwards_16_center,
+    mix_stereo_backwards_32_center,
+    mix_stereo_backwards_x_center
+};
+
+static const void *mixer_stereo_surround[] = {
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_16_center,
+    channel_prepare_stereo_32_center,
+    mix_stereo_8_surround,
+    mix_stereo_16_surround,
+    mix_stereo_32_surround,
+    mix_stereo_x_surround,
+    mix_stereo_backwards_8_surround,
+    mix_stereo_backwards_16_surround,
+    mix_stereo_backwards_32_surround,
+    mix_stereo_backwards_x_surround
+};
+
+static const void *mixer_skip_16_to_8[] = {
+    channel_prepare_skip,
+    channel_prepare_skip,
+    channel_prepare_skip,
+    mix_skip,
+    mix_skip,
+    mix_skip,
+    mix_skip,
+    mix_skip_backwards,
+    mix_skip_backwards,
+    mix_skip_backwards,
+    mix_skip_backwards
+};
+
+static const void *mixer_mono_16_to_8[] = {
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_8_center,
+    mix_mono_8,
+    mix_mono_16_to_8,
+    mix_mono_32_to_8,
+    mix_mono_x_to_8,
+    mix_mono_backwards_8,
+    mix_mono_backwards_16_to_8,
+    mix_mono_backwards_32_to_8,
+    mix_mono_backwards_x_to_8
+};
+
+static const void *mixer_stereo_16_to_8[] = {
+    channel_prepare_stereo_8,
+    channel_prepare_stereo_8,
+    channel_prepare_stereo_8,
+    mix_stereo_8,
+    mix_stereo_16_to_8,
+    mix_stereo_32_to_8,
+    mix_stereo_x_to_8,
+    mix_stereo_backwards_8,
+    mix_stereo_backwards_16_to_8,
+    mix_stereo_backwards_32_to_8,
+    mix_stereo_backwards_x_to_8
+};
+
+static const void *mixer_stereo_left_16_to_8[] = {
+    channel_prepare_stereo_8_left,
+    channel_prepare_stereo_8_left,
+    channel_prepare_stereo_8_left,
+    mix_stereo_8_left,
+    mix_stereo_16_to_8_left,
+    mix_stereo_32_to_8_left,
+    mix_stereo_x_to_8_left,
+    mix_stereo_backwards_8_left,
+    mix_stereo_backwards_16_to_8_left,
+    mix_stereo_backwards_32_to_8,
+    mix_stereo_backwards_x_to_8_left
+};
+
+static const void *mixer_stereo_right_16_to_8[] = {
+    channel_prepare_stereo_8_right,
+    channel_prepare_stereo_8_right,
+    channel_prepare_stereo_8_right,
+    mix_stereo_8_right,
+    mix_stereo_16_to_8_right,
+    mix_stereo_32_to_8_right,
+    mix_stereo_x_to_8_right,
+    mix_stereo_backwards_8_right,
+    mix_stereo_backwards_16_to_8_right,
+    mix_stereo_backwards_32_to_8_right,
+    mix_stereo_backwards_x_to_8_right
+};
+
+static const void *mixer_stereo_center_16_to_8[] = {
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_8_center,
+    mix_stereo_8_center,
+    mix_stereo_16_to_8_center,
+    mix_stereo_32_to_8_center,
+    mix_stereo_x_to_8_center,
+    mix_stereo_backwards_8_center,
+    mix_stereo_backwards_16_to_8_center,
+    mix_stereo_backwards_32_to_8_center,
+    mix_stereo_backwards_x_to_8_center
+};
+
+static const void *mixer_stereo_surround_16_to_8[] = {
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_8_center,
+    channel_prepare_stereo_8_center,
+    mix_stereo_8_surround,
+    mix_stereo_16_to_8_surround,
+    mix_stereo_32_to_8_surround,
+    mix_stereo_x_to_8_surround,
+    mix_stereo_backwards_8_surround,
+    mix_stereo_backwards_16_to_8_surround,
+    mix_stereo_backwards_32_to_8_surround,
+    mix_stereo_backwards_x_to_8_surround
+};
+
+static AVSequencerMixerData *mixer_alloc () {
+    AVSequencerLQMixerData *mixer_data;
+
+    if (mixer_data = (AVSequencerLQMixerData *) av_mallocz(sizeof (AVSequencerLQMixerData))) {
+        mixer_data->mixer_data.mixctx = (AVSequencerMixerContext *) &InternalMixerBase;
+
+        if (!(mixer_data->volume_lut = (int32_t *) av_malloc(256 * 256 * sizeof (int32_t)))) {
+            av_free ( mixer_data );
+
+            return NULL;
+        }
+
+        // TODO: Initialize libavfilter for post-processing
+    }
+
+    return (AVSequencerMixerData *) mixer_data;
+}
+
+static uint32_t mixer_free ( AVSequencerMixerData *mixer_data ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+
+    if (mixer_data) {
+        if (mixer_data->channel_info)
+            av_free ( mixer_data->channel_info );
+
+        if (mixer_data->buf)
+            av_free ( mixer_data->buf, mixer_data->mix_buf_size );
+
+        if (mixer_data->volume_lut)
+            av_free ( mixer_data->volume_lut );
+
+        av_free ( mixer_data );
+
+        return 0;
+    }
+
+    return ERROR_EXTLIB_MIXNOALLOC;
+}
+
+static uint32_t mixer_init ( AVSequencerMixerData *mixer_data ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+    uint32_t buf_size = mixer_data->mixer_data.mix_buf_size, mix_bufMemSize, channel_rate;
+    uint16_t channels = mixer_data->mixer_data.channels_max, i;
+    uint8_t stereo;
+    uint64_t pass_value;
+
+    // TODO: Implement stereo and mono settings
+
+    if ((channels != mixer_data->channels) || (mixer_data->mixer_data.volume_boost != mixer_data->amplify) || (stereo != mixer_data->stereo_mode)) {
+        int32_t *volume_lut  = mixer_data->volume_lut;
+        uint32_t volume_mult = 0, volume_div = mixer_data->mixer_data.channels_max << 8;
+        uint32_t amplify     = mixer_data->mixer_data.volume_boost;
+        uint8_t i = 0, j = 0;
+
+        mixer_data->amplify              = amplify;
+        mixer_data->previous_stereo_mode = mixer_data->stereo_mode;
+        mixer_data->stereo_mode          = stereo;
+
+        do {
+            do {
+                int32_t volume = (int8_t) j << 8;
+                *volume_lut++  = (int64_t) volume * volume_mult / volume_div;
+            } while (++j);
+
+            volume_mult += amplify;
+        } while (++i);
+    }
+
+    if (!mixer_data->channel_info || (channels != mixer_data->channels)) {
+        AVSequencerLQMixerChannelInfo *old_channel_info;
+
+        if (!(channel_info = (AVSequencerLQMixerChannelInfo *) av_mallocz ( channels * sizeof (AVSequencerLQMixerChannelInfo))))
+            return ERROR_EXTLIB_MIXNOALLOC;
+
+        if ((old_channel_info = mixer_data->channel_info)) {
+            uint16_t copy_channels = channels;
+            uint16_t old_channels  = mixer_data->channels;
+
+            if ( copy_channels > old_channels )
+                copy_channels = old_channels;
+
+            memcpy ( channel_info, old_channel_info, copy_channels * sizeof (AVSequencerLQMixerChannelInfo));
+
+            av_free ( old_channel_info );
+        }
+
+        mixer_data->channel_info = channel_info;
+        mixer_data->channels     = channels;
+    }
+
+    mixer_data->mixer_data.channels_max = mixer_data->channels;
+
+    mix_bufMemSize = buf_size << 2;
+
+    if (stereo)
+        mix_bufMemSize += mix_bufMemSize;
+
+    if (!mixer_data->buf || (mixer_data->mix_buf_size != mix_bufMemSize)) {
+        int32_t *buf;
+
+        if (!(buf = (int32_t *) av_mallocz ( mix_bufMemSize ))) {
+            if (mixer_data->channel_info)
+                av_free ( mixer_data->channel_info );
+
+            return ERROR_EXTLIB_MIXNOALLOC;
+        }
+
+        if (mixer_data->buf)
+            av_free ( mixer_data->buf );
+
+        mixer_data->mix_buf_size = mix_bufMemSize;
+        mixer_data->buf          = buf;
+        mixer_data->buf_size     = buf_size;
+    }
+
+    mixer_data->mixer_data.mix_buf_size = mixer_data->buf_size;
+
+    mixer_data->mixer_data.mix_buf = mixer_data->buf;
+    channel_rate                   = mixer_data->mixer_data.rate;
+    mixer_data->mix_rate           = channel_rate;
+    mixer_data->mixer_data.flags  &= ~AVSEQ_MIXER_DATA_FLAG_STEREO;
+
+    if (stereo)
+        mixer_data->mixer_data.flags |= AVSEQ_MIXER_DATA_FLAG_STEREO;
+
+    channel_rate                *= 10;
+    pass_value                   = ((uint64_t) channel_rate << 16) + ((uint64_t) mixer_data->mix_rate_frac >> 16);
+    mixer_data->pass_len         = (uint64_t) pass_value / mixer_data->mixer_data.tempo;
+    mixer_data->pass_len_frac    = (((uint64_t) pass_value % mixer_data->mixer_data.tempo) << 32) / mixer_data->mixer_data.tempo;
+    mixer_data->real_16_bit_mode = 0;
+
+    if ( FlagPassStr[0].flg_Value != 0 )
+        mixer_data->real_16_bit_mode = -1;
+
+    mixer_data->interpolation = FlagPassStr[2].flg_Value - 1;
+
+    channel_info = mixer_data->channel_info;
+
+    for (i = channels; i > 0; i--) {
+        set_sample_mix_rate ( mixer_data, channel_info, channel_info->current.rate );
+
+        channel_info++;
+    }
+
+    return 0;
+}
+static uint32_t change_rate ( AVSequencerMixerData *mixer_data,
+        uint32_t new_mix_rate )
+{
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    uint32_t mix_rate, mix_rate_frac;
+
+    mixer_data->mixer_data.rate = new_mix_rate;
+
+    if (mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_MIXING) {
+        mix_rate      = new_mix_rate; // TODO: Add check here if this mix rate is supported by target device
+        mix_rate_frac = 0;
+
+        if (mixer_data->mix_rate != mix_rate) {
+            AVSequencerLQMixerChannelInfo *channel_info = mixer_data->channel_info;
+            uint16_t i;
+
+            mixer_data->mix_rate      = mix_rate;
+            mixer_data->mix_rate_frac = mix_rate_frac;
+
+            change_tempo ( (AVSequencerMixerData *) mixer_data, mixer_data->mixer_data.tempo );
+
+            for (i = mixer_data->channels; i > 0; i--) {
+                channel_info->current.advance      = channel_info->current.rate / mix_rate;
+                channel_info->current.advance_frac = (((uint64_t) channel_info->current.rate % mix_rate) << 32) / mix_rate;
+                channel_info->next.advance         = channel_info->next.rate / mix_rate;
+                channel_info->next.advance_frac    = (((uint64_t) channel_info->next.rate % mix_rate) << 32) / mix_rate;
+
+                channel_info++;
+            }
+        }
+    }
+
+    // TODO: Inform libavfilter that the target mixing rate has been changed.
+
+    return 0;
+}
+
+static uint32_t change_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    uint32_t channel_rate;
+    uint64_t pass_value;
+
+    mixer_data->mixer_data.tempo = new_tempo;
+    channel_rate                 = mixer_data->mix_rate * 10;
+    pass_value                   = ((uint64_t) channel_rate << 16) + ((uint64_t) mixer_data->mix_rate_frac >> 16);
+    mixer_data->pass_len         = (uint64_t) pass_value / mixer_data->mixer_data.tempo;
+    mixer_data->pass_len_frac    = (((uint64_t) pass_value % mixer_data->mixer_data.tempo) << 32) / mixer_data->mixer_data.tempo;
+
+    return 0;
+}
+
+static uint32_t change_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels ) {
+    AVSequencerLQMixerData *mixer_data              = (AVSequencerLQMixerData *) mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+    AVSequencerLQMixerChannelInfo *old_channel_info = mixer_data->channel_info;
+    uint32_t old_channels, i;
+
+    if (((old_channels = mixer_data->channels) != channels) && (!(channel_info = (AVSequencerLQMixerChannelInfo *) av_mallocz ( channels * sizeof (AVSequencerLQMixerChannelInfo)))))
+        return ERROR_EXTLIB_MIXNOALLOC;
+
+    mixer_data->mixer_data.volume_boost = amplify;
+    mixer_data->mixer_data.volume_left  = left_volume;
+    mixer_data->mixer_data.volume_right = right_volume;
+    mixer_data->mixer_data.channels_max = channels;
+
+    if ((old_channels != channels) || (mixer_data->amplify != amplify)) {
+        int32_t *volume_lut  = mixer_data->volume_lut;
+        uint32_t volume_mult = 0, volume_div = channels << 8;
+        uint8_t i            = 0, j = 0;
+
+        mixer_data->amplify = amplify;
+
+        do {
+            do {
+                int32_t volume = (int8_t) j << 8;
+
+                *volume_lut++ = (int64_t) volume * volume_mult / volume_div;
+            } while (++j);
+
+            volume_mult += amplify;
+        } while (++i);
+    }
+
+    if (old_channels != channels) {
+        uint32_t copy_channels = old_channels;
+
+        Disable ();
+
+        if (copy_channels > channels)
+            copy_channels = channels;
+
+        memcpy ( channel_info, old_channel_info, copy_channels * sizeof (AVSequencerLQMixerChannelInfo ));
+
+        mixer_data->channel_info = channel_info;
+        mixer_data->channels     = channels;
+
+        Enable ();
+
+        av_free ( old_channel_info );
+    }
+
+    Disable ();
+
+    channel_info = mixer_data->channel_info;
+
+    for (i = channels; i > 0; i--) {
+        set_sample_mix_rate ( mixer_data, channel_info, channel_info->current.rate );
+
+        channel_info++;
+    }
+
+    Enable ();
+
+    return 0;
+}
+
+static void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+
+    if (channel < mixer_data->channels) {
+        channel_info                   = mixer_data->channel_info + channel;
+        mixer_channel->pos             = channel_info->current.offset;
+        mixer_channel->bits_per_sample = channel_info->current.bits_per_sample;
+        mixer_channel->flags           = channel_info->current.flags;
+        mixer_channel->volume          = channel_info->current.volume;
+        mixer_channel->panning         = channel_info->current.panning;
+        mixer_channel->data            = channel_info->current.sample_start_ptr;
+        mixer_channel->len             = channel_info->current.sample_len;
+        mixer_channel->repeat_start    = channel_info->current.repeat;
+        mixer_channel->repeat_length   = channel_info->current.repeat_len;
+        mixer_channel->repeat_count    = channel_info->current.count_restart;
+        mixer_channel->repeat_counted  = channel_info->current.counted;
+        mixer_channel->rate            = channel_info->current.rate;
+    }
+}
+
+static void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+
+    if (channel < mixer_data->channels) {
+        uint32_t repeat, repeat_len;
+
+        channel_info                        = mixer_data->channel_info + channel;
+        channel_info->next.sample_start_ptr = NULL;
+
+        if (mixer_channel->flags & AVSEQ_MIXER_CHANNEL_FLAG_SYNTH) {
+            channel_info->next.flags           |= AVSEQ_MIXER_CHANNEL_FLAG_SYNTH;
+            channel_info->next.offset           = mixer_channel->pos;
+            channel_info->next.fraction         = 0;
+            channel_info->next.bits_per_sample  = mixer_channel->bits_per_sample;
+            channel_info->next.flags            = mixer_channel->flags;
+            channel_info->next.volume           = mixer_channel->volume;
+            channel_info->next.panning          = mixer_channel->panning;
+            channel_info->next.sample_start_ptr = mixer_channel->data;
+            channel_info->next.sample_len       = mixer_channel->len;
+            repeat                              = mixer_channel->repeat_start;
+            repeat_len                          = mixer_channel->repeat_length;
+            channel_info->next.repeat           = repeat;
+            channel_info->next.repeat_len       = repeat_len;
+
+            if (!(channel_info->next.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
+                repeat     = mixer_channel->len;
+                repeat_len = 0;
+            }
+
+            repeat += repeat_len;
+
+            if (channel_info->next.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+                repeat -= repeat_len;
+
+                if (!(channel_info->next.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+                    repeat = -1;
+            }
+
+            channel_info->next.end_offset     = repeat;
+            channel_info->next.restart_offset = repeat_len;
+            channel_info->next.count_restart  = mixer_channel->repeat_count;
+            channel_info->next.counted        = mixer_channel->repeat_counted;
+
+            set_sample_mix_rate ( mixer_data, &(channel_info->next), mixer_channel->rate );
+        } else {
+            channel_info->current.offset           = mixer_channel->pos;
+            channel_info->current.fraction         = 0;
+            channel_info->current.bits_per_sample  = mixer_channel->bits_per_sample;
+            channel_info->current.flags            = mixer_channel->flags;
+            channel_info->current.volume           = mixer_channel->volume;
+            channel_info->current.panning          = mixer_channel->panning;
+            channel_info->current.sample_start_ptr = mixer_channel->data;
+            channel_info->current.sample_len       = mixer_channel->len;
+            repeat                                 = mixer_channel->repeat_start;
+            repeat_len                             = mixer_channel->repeat_length;
+            channel_info->current.repeat           = repeat;
+            channel_info->current.repeat_len       = repeat_len;
+
+            if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
+                repeat     = mixer_channel->len;
+                repeat_len = 0;
+            }
+
+            repeat += repeat_len;
+
+            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+                repeat -= repeat_len;
+
+                if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+                    repeat = -1;
+            }
+
+            channel_info->current.end_offset     = repeat;
+            channel_info->current.restart_offset = repeat_len;
+            channel_info->current.count_restart  = mixer_channel->repeat_count;
+            channel_info->current.counted        = mixer_channel->repeat_counted;
+
+            set_sample_mix_rate ( mixer_data, &(channel_info->current), mixer_channel->rate );
+        }
+    }
+}
+
+static void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+
+    if (channel < mixer_data->channels) {
+        channel_info = mixer_data->channel_info + channel;
+
+        if ((channel_info->current.volume == mixer_channel->volume) && (channel_info->current.panning == mixer_channel->panning)) {
+            uint32_t rate = mixer_channel->rate, mix_rate = mixer_data->mix_rate, rate_frac;
+
+            channel_info->current.rate         = rate;
+            channel_info->next.rate            = rate;
+            rate_frac                          = rate / mix_rate;
+            channel_info->current.advance      = rate_frac;
+            channel_info->next.advance         = rate_frac;
+            rate_frac                          = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
+            channel_info->current.advance_frac = rate_frac;
+            channel_info->next.advance_frac    = rate_frac;
+        } else {
+            uint32_t rate  = mixer_channel->rate, mix_rate = mixer_data->mix_rate, rate_frac;
+            uint8_t volume = mixer_channel->volume;
+            int8_t panning = mixer_channel->panning;
+
+            channel_info->current.volume       = volume;
+            channel_info->next.volume          = volume;
+            channel_info->current.panning      = panning;
+            channel_info->next.panning         = panning;
+            channel_info->current.rate         = rate;
+            channel_info->next.rate            = rate;
+            rate_frac                          = rate / mix_rate;
+            channel_info->current.advance      = rate_frac;
+            channel_info->next.advance         = rate_frac;
+            rate_frac                          = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
+            channel_info->current.advance_frac = rate_frac;
+            channel_info->next.advance_frac    = rate_frac;
+
+            advance_ok ( mixer_data, channel_info );
+            advance_ok ( mixer_data, (AVSequencerLQMixerChannelInfo *) &(channel_info->next) );
+        }
+    }
+}
+
+static void set_channel_pos_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+
+    if (channel < mixer_data->channels) {
+        channel_info = mixer_data->channel_info + channel;
+
+        if (channel_info->current.flags == mixer_channel->flags) {
+            uint32_t repeat = mixer_channel->pos, repeat_len;
+
+            if (repeat != channel_info->current.offset) {
+                channel_info->current.offset   = repeat;
+                channel_info->current.fraction = 0;
+            }
+
+            repeat                           = mixer_channel->repeat_start;
+            repeat_len                       = mixer_channel->repeat_length;
+            channel_info->current.repeat     = repeat;
+            channel_info->current.repeat_len = repeat_len;
+
+            if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
+                repeat     = mixer_channel->len;
+                repeat_len = 0;
+            }
+
+            repeat += repeat_len;
+
+            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+                repeat -= repeat_len;
+
+                if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+                    repeat = -1;
+            }
+
+            channel_info->current.end_offset     = repeat;
+            channel_info->current.restart_offset = repeat_len;
+            channel_info->current.count_restart  = mixer_channel->repeat_count;
+            channel_info->current.counted        = mixer_channel->repeat_counted;
+        } else {
+            uint32_t repeat, repeat_len;
+
+            channel_info->current.flags = mixer_channel->flags;
+            repeat                      = mixer_channel->pos;
+
+            if (repeat != channel_info->current.offset) {
+                channel_info->current.offset   = repeat;
+                channel_info->current.fraction = 0;
+            }
+
+            repeat                           = mixer_channel->repeat_start;
+            repeat_len                       = mixer_channel->repeat_length;
+            channel_info->current.repeat     = repeat;
+            channel_info->current.repeat_len = repeat_len;
+
+            if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
+                repeat     = mixer_channel->len;
+                repeat_len = 0;
+            }
+
+            repeat += repeat_len;
+
+            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+                repeat -= repeat_len;
+
+                if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+                    repeat = -1;
+            }
+
+            channel_info->current.end_offset     = repeat;
+            channel_info->current.restart_offset = repeat_len;
+            channel_info->current.count_restart  = mixer_channel->repeat_count;
+            channel_info->current.counted        = mixer_channel->repeat_counted;
+
+            advance_ok ( mixer_data, channel_info );
+        }
+    }
+}
+
+static void do_mix ( AVSequencerMixerData *mixer_data, int32_t *buf ) {
+    AVSequencerLQMixerData *mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    uint32_t mix_rate, current_left, current_left_frac, buf_size;
+
+    if (!(mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
+        mix_rate          = mixer_data->mix_rate;
+        current_left      = mixer_data->current_left;
+        current_left_frac = mixer_data->current_left_frac;
+        buf_size          = mixer_data->buf_size;
+
+        if (mixer_data->stereo_mode)
+            memset ( buf, 0, buf_size << 3 );
+        else
+            memset ( buf, 0, buf_size << 2 );
+
+        while (buf_size) {
+            if (current_left) {
+                uint32_t mix_len = buf_size;
+
+                if (buf_size > current_left)
+                    mix_len = current_left;
+
+                current_left -= mix_len;
+                buf_size     -= mix_len;
+
+                mix_sample ( mixer_data, buf, mix_len );
+
+                if (mixer_data->stereo_mode)
+                    mix_len += mix_len;
+
+                buf += mix_len;
+            }
+
+            if (current_left)
+                continue;
+
+            avseq_playback_handler ( mixer_data->mixer_data.mixctx->mix_Library.extb_TuComposerBase );
+
+            current_left       = mixer_data->pass_len;
+            current_left_frac += mixer_data->pass_len_frac;
+
+            if (current_left_frac < mixer_data->pass_len_frac)
+                current_left++;
+        }
+
+        mixer_data->current_left      = current_left;
+        mixer_data->current_left_frac = current_left_frac;
+    }
+
+    // TODO: Execute post-processing step in libavfilter and pass the PCM data.
+}
+
+static void mix_sample ( AVSequencerLQMixerData *mixer_data, int32_t *buf, uint32_t len ) {
+    AVSequencerLQMixerChannelInfo *channel_info = mixer_data->channel_info;
+    uint16_t i;
+
+    for (i = mixer_data->channels; i > 0; i--) {
+        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
+            void (*mix_func)( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint32_t len );
+            int32_t *mix_buf    = buf;
+            uint32_t offset     = channel_info->current.offset;
+            uint32_t fraction   = channel_info->current.fraction;
+            uint32_t advance    = channel_info->current.advance;
+            uint32_t adv_frac   = channel_info->current.advance_frac;
+            uint32_t remain_len = len, remain_mix;
+            uint32_t counted;
+            uint32_t count_restart;
+            uint64_t calc_mix;
+
+            mix_func = (void *) channel_info->current.mix_func;
+
+            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+mix_sample_backwards:
+                for (;;)
+                {
+                    calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
+
+                    if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
+                        if ((uint32_t) calc_mix < remain_mix) {
+                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len );
+
+                            if ((int32_t) offset <= (int32_t) channel_info->current.end_offset) {
+                                remain_len = 0;
+                            else
+                                break;
+                        } else {
+                            calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
+                            remain_len -= (uint32_t) calc_mix;
+
+                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix );
+
+                            if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
+                                break;
+                        }
+                    }
+
+                    if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
+                        counted = channel_info->current.counted++;
+
+                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                            channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+                            channel_info->current.end_offset = -1;
+
+                            goto mix_sample_synth;
+                        } else {
+                            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
+                                void *mixer_change_func;
+
+                                if (channel_info->next.sample_start_ptr) {
+                                    memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+
+                                    channel_info->next.sample_start_ptr = NULL;
+                                }
+
+                                mixer_change_func                        = (void *) channel_info->current.mix_backwards_func;
+                                channel_info->current.mix_backwards_func = mix_func;
+                                mix_func                                 = (void *) mixer_change_func;
+                                channel_info->current.mix_func           = (void *) mix_func;
+                                channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+                                remain_mix                               = channel_info->current.end_offset;
+                                offset                                  -= remain_mix;
+                                offset                                   = -offset + remain_mix;
+                                remain_mix                              += channel_info->current.restart_offset;
+                                channel_info->current.end_offset         = remain_mix;
+
+                                if ((int32_t) remain_len > 0)
+                                    goto mix_sample_forwards;
+
+                                break;
+                            } else {
+                                offset += channel_info->current.restart_offset;
+
+                                if (channel_info->next.sample_start_ptr)
+                                    goto mix_sample_synth;
+
+                                if ((int32_t) remain_len > 0)
+                                    continue;
+
+                                break;
+                            }
+                        }
+                    } else {
+                        if (channel_info->next.sample_start_ptr)
+                            goto mix_sample_synth;
+                        else
+                            channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+
+                        break;
+                    }
+                }
+            } else {
+mix_sample_forwards:
+                for (;;) {
+                    calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
+
+                    if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
+                        if ((uint32_t) calc_mix < remain_mix) {
+                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len );
+
+                            if (offset >= channel_info->current.end_offset)
+                                remain_len = 0;
+                            else
+                                break;
+                        } else {
+                            calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
+                            remain_len -= (uint32_t) calc_mix;
+
+                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix );
+
+                            if ((offset < channel_info->current.end_offset) && !remain_len)
+                                break;
+                        }
+                    }
+
+                    if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
+                        counted = channel_info->current.counted++;
+
+                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                            channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+                            channel_info->current.end_offset = channel_info->current.sample_len;
+
+                            goto mix_sample_synth;
+                        } else {
+                            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
+                                void *mixer_change_func;
+
+                                if (channel_info->next.sample_start_ptr) {
+                                    memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+
+                                    channel_info->next.sample_start_ptr = NULL;
+                                }
+
+                                mixer_change_func = (void *) channel_info->current.mix_backwards_func;
+                                channel_info->current.mix_backwards_func = mix_func;
+                                mix_func = (void *) mixer_change_func;
+                                channel_info->current.mix_func   = (void *) mix_func;
+                                channel_info->current.flags     ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+                                remain_mix                       = channel_info->current.end_offset;
+                                offset                          -= remain_mix;
+                                offset                           = -offset + remain_mix;
+                                remain_mix                      -= channel_info->current.restart_offset;
+                                channel_info->current.end_offset = remain_mix;
+
+                                if (remain_len)
+                                    goto mix_sample_backwards;
+
+                                break;
+                            } else
+                            {
+                                offset -= channel_info->current.restart_offset;
+
+                                if (channel_info->next.sample_start_ptr) {
+                                    memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+
+                                    channel_info->next.sample_start_ptr = NULL;
+                                }
+
+                                if ((int32_t) remain_len > 0)
+                                    continue;
+
+                                break;
+                            }
+                        }
+                    } else {
+                        if (channel_info->next.sample_start_ptr) {
+mix_sample_synth:
+                            memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+
+                            channel_info->next.sample_start_ptr = NULL;
+
+                            if ((int32_t) remain_len > 0)
+                                continue;
+                        } else {
+                            channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            channel_info->current.offset   = offset;
+            channel_info->current.fraction = fraction;
+        }
+
+        channel_info++;
+    }
+}
+
+static void set_sample_mix_rate ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, uint32_t rate ) {
+    uint32_t mix_rate;
+
+    channel_info->current.rate         = rate;
+    mix_rate                           = mixer_data->mix_rate;
+    channel_info->current.advance      = rate / mix_rate;
+    channel_info->current.advance_frac = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
+
+    advance_ok ( mixer_data, channel_info );
+}
+
+static void advance_ok ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info ) {
+    void **mix_func;
+    void (*init_mixer_func)( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, uint16_t volume, uint16_t panning );
+    uint16_t panning;
+
+    if ((channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || (channel_info->current.volume == 0)) {
+        mix_func = (void *) &mixer_skip;
+    } else if (!mixer_data->stereo_mode) {
+        mix_func = (void *) &mixer_mono;
+    } else if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
+        panning  = 0x80;
+        mix_func = (void *) &mixer_stereo;
+
+        if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
+            mix_func = (void *) &mixer_stereo_surround;
+    } else {
+        switch ((panning = channel_info->current.panning)) {
+        case 0 :
+            mix_func = (void *) &mixer_skip;
+
+            if (mixer_data->mixer_data.volume_left)
+                mix_func = (void *) &mixer_stereo_left;
+
+            break;
+        case 0xFF :
+            mix_func = (void *) &mixer_skip;
+
+            if (mixer_data->mixer_data.volume_right)
+                mix_func = (void *) &mixer_stereo_right;
+
+            break;
+        case 0x80 :
+            mix_func = (void *) &mixer_stereo;
+
+            if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
+                mix_func = (void *) &mixer_stereo_center;
+
+            break;
+        default :
+            mix_func = (void *) &mixer_stereo;
+
+            break;
+        }
+    }
+
+    if ((channel_info->current.bits_per_sample <= 8) || (mixer_data->real_16_bit_mode == 0))
+        mix_func += ((int8_t *) &mixer_skip_16_to_8 - (int8_t *) &mixer_skip);
+
+    switch (channel_info->current.bits_per_sample) {
+    case 8 :
+        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+            channel_info->current.mix_func           = (void **) mix_func[7];
+            channel_info->current.mix_backwards_func = (void **) mix_func[3];
+        } else {
+            channel_info->current.mix_func           = (void **) mix_func[3];
+            channel_info->current.mix_backwards_func = (void **) mix_func[7];
+        }
+
+        init_mixer_func = (void **) mix_func[0];
+
+        break;
+    case 16 :
+        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+            channel_info->current.mix_func           = (void **) mix_func[8];
+            channel_info->current.mix_backwards_func = (void **) mix_func[4];
+        } else {
+            channel_info->current.mix_func           = (void **) mix_func[4];
+            channel_info->current.mix_backwards_func = (void **) mix_func[8];
+        }
+
+        init_mixer_func = (void **) mix_func[1];
+
+        break;
+    case 32 :
+        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+            channel_info->current.mix_func           = (void **) mix_func[9];
+            channel_info->current.mix_backwards_func = (void **) mix_func[5];
+        } else {
+            channel_info->current.mix_func           = (void **) mix_func[5];
+            channel_info->current.mix_backwards_func = (void **) mix_func[9];
+        }
+
+        init_mixer_func = (void **) mix_func[2];
+
+        break;
+    default :
+        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+            channel_info->current.mix_func           = (void **) mix_func[10];
+            channel_info->current.mix_backwards_func = (void **) mix_func[6];
+        } else {
+            channel_info->current.mix_func           = (void **) mix_func[6];
+            channel_info->current.mix_backwards_func = (void **) mix_func[10];
+        }
+
+        init_mixer_func = (void **) mix_func[2];
+
+        break;
+    }
+
+    init_mixer_func ( mixer_data, channel_info, channel_info->current.volume, panning );
+}
+
+CHANNEL_PREPARE(skip) {
+}
+
+CHANNEL_PREPARE(stereo_8) {
+    uint32_t left_volume = 255 - panning;
+
+    left_volume                           *= mixer_data->mixer_data.volume_left * volume;
+    left_volume                          >>= 8;
+    left_volume                           &= 0xFF00;
+    channel_info->current.volume_left_lut  = mixer_data->volume_lut + left_volume;
+    left_volume                            = ((panning * mixer_data->mixer_data.volume_right * volume) >> 8) & 0xFF00;
+    channel_info->current.volume_right_lut = mixer_data->volume_lut + left_volume;
+}
+
+CHANNEL_PREPARE(stereo_8_left) {
+    volume                               *= mixer_data->mixer_data.volume_left;
+    volume                               &= 0xFF00;
+    channel_info->current.volume_left_lut = mixer_data->volume_lut + volume;
+}
+
+CHANNEL_PREPARE(stereo_8_right) {
+    volume                                *= mixer_data->mixer_data.volume_right;
+    volume                                &= 0xFF00;
+    channel_info->current.volume_right_lut = mixer_data->volume_lut + volume;
+}
+
+CHANNEL_PREPARE(stereo_8_center) {
+    volume                               *= mixer_data->mixer_data.volume_left;
+    volume                              >>= 1;
+    volume                               &= 0xFF00;
+    channel_info->current.volume_left_lut = mixer_data->volume_lut + volume;
+}
+
+CHANNEL_PREPARE(stereo_16) {
+    uint32_t left_volume = 255 - panning;
+
+    left_volume                            *= mixer_data->mixer_data.volume_left * volume;
+    left_volume                           >>= 16;
+    channel_info->current.mult_left_volume  = left_volume * mixer_data->amplify;
+    left_volume                             = ((panning * mixer_data->mixer_data.volume_right * volume) >> 16) * mixer_data->amplify;
+    channel_info->current.mult_right_volume = left_volume * mixer_data->amplify;
+    channel_info->current.div_volume        = (uint32_t) mixer_data->channels << 8;
+}
+
+CHANNEL_PREPARE(stereo_16_left) {
+    volume                                *= mixer_data->mixer_data.volume_left;
+    volume                               >>= 8;
+    channel_info->current.mult_left_volume = (uint32_t) volume * mixer_data->amplify;
+    channel_info->current.div_volume       = (uint32_t) mixer_data->channels << 8;
+}
+
+CHANNEL_PREPARE(stereo_16_right) {
+    volume                                 *= mixer_data->mixer_data.volume_right;
+    volume                                >>= 8;
+    channel_info->current.mult_right_volume = (uint32_t) volume * mixer_data->amplify;
+    channel_info->current.div_volume        = (uint32_t) mixer_data->channels << 8;
+}
+
+CHANNEL_PREPARE(stereo_16_center) {
+    volume                                *= mixer_data->mixer_data.volume_left;
+    volume                               >>= 9;
+    channel_info->current.mult_left_volume = (uint32_t) volume * mixer_data->amplify;
+    channel_info->current.div_volume       = (uint32_t) mixer_data->channels << 8;
+}
+
+CHANNEL_PREPARE(stereo_32) {
+    uint32_t left_volume = 255 - panning;
+
+    left_volume                            *= mixer_data->mixer_data.volume_left * volume;
+    left_volume                           >>= 16;
+    channel_info->current.mult_left_volume  = (left_volume * mixer_data->amplify) >> 8;
+    left_volume                             = ((panning * mixer_data->mixer_data.volume_right * volume) >> 16) * mixer_data->amplify;
+    channel_info->current.mult_right_volume = (left_volume * mixer_data->amplify) >> 8;
+    channel_info->current.div_volume        = (uint32_t) mixer_data->channels << 16;
+}
+
+CHANNEL_PREPARE(stereo_32_left) {
+    volume                                *= mixer_data->mixer_data.volume_left;
+    volume                               >>= 8;
+    channel_info->current.mult_left_volume = ((uint32_t) volume * mixer_data->amplify) >> 8;
+    channel_info->current.div_volume       = (uint32_t) mixer_data->channels << 16;
+}
+
+CHANNEL_PREPARE(stereo_32_right) {
+    volume                                 *= mixer_data->mixer_data.volume_right;
+    volume                                >>= 8;
+    channel_info->current.mult_right_volume = ((uint32_t) volume * mixer_data->amplify) >> 8;
+    channel_info->current.div_volume        = (uint32_t) mixer_data->channels << 16;
+}
+
+CHANNEL_PREPARE(stereo_32_center) {
+    volume                               *= mixer_data->mixer_data.volume_left;
+    volume                              >>= 9;
+    channel_info->current.mult_left_volume = ((uint32_t) volume * mixer_data->amplify) >> 8;
+    channel_info->current.div_volume       = (uint32_t) mixer_data->channels << 16;
+}
+
+MIX(skip) {
+    uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
+    uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
+
+    skip_div     = skip_len >> 32;
+    curr_offset += skip_div;
+    skip_div     = skip_len;
+    curr_frac   += skip_div;
+
+    if (curr_frac < skip_div)
+        curr_offset++;
+
+    *offset   = curr_offset;
+    *fraction = curr_frac;
+}
+
+MIX(skip_backwards) {
+    uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
+    uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
+
+    skip_div     = skip_len >> 32;
+    curr_offset -= skip_div;
+    skip_div     = skip_len;
+    curr_frac   += skip_div;
+
+    if (curr_frac < skip_div)
+        curr_offset--;
+
+    *offset   = curr_offset;
+    *fraction = curr_frac;
+}
+
+MIX(mono_8) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if ((curr_frac + adv_frac) < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint8_t) *sample++];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_8) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset + 1;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset + 1;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset + 1;
+            smp     = volume_lut[(uint8_t) *--sample];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_16) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_16) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_32) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_32) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_x) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_x) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data  = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_16_to_8) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *sample++ >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_16_to_8) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *--sample >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_32_to_8) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_32_to_8) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++   += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_x_to_8) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32)
+                    {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = volume_lut[(uint32_t) smp_data >> 24];
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(mono_backwards_x_to_8) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = volume_lut[(uint32_t) smp_data >> 24];
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_8) {
+    int8_t *sample            = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_left_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += volume_right_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += volume_left_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += volume_right_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int8_t smp_in;
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = *sample++;
+            smp       = volume_left_lut[(uint8_t) smp_in];
+            smp_right = volume_right_lut[(uint8_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *sample++;
+                    smp       = volume_left_lut[(uint8_t) smp_in];
+                    smp_right = volume_right_lut[(uint8_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *sample++;
+                    smp       = volume_left_lut[(uint8_t) smp_in];
+                    smp_right = volume_right_lut[(uint8_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_8) {
+    int8_t *sample            = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset + 1;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += volume_left_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += volume_right_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += volume_left_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += volume_right_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset + 1;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += volume_left_lut[(uint8_t) smp];
+                *mix_buf++ += volume_right_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int8_t smp_in;
+            int32_t smp_right;
+
+            sample   += curr_offset + 1;
+            smp_in    = *--sample;
+            smp       = volume_left_lut[(uint8_t) smp_in];
+            smp_right = volume_right_lut[(uint8_t) smp_in];
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *--sample;
+                    smp       = volume_left_lut[(uint8_t) smp_in];
+                    smp_right = volume_right_lut[(uint8_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *--sample;
+                    smp       = volume_left_lut[(uint8_t) smp_in];
+                    smp_right = volume_right_lut[(uint8_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int16_t smp_in;
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = *sample++;
+            smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+            smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *sample++;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *sample++;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int16_t smp_in;
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = *--sample;
+            smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+            smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *--sample;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *--sample;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else
+        {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_in;
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = *sample++;
+            smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+            smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *sample++;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *sample++;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_in;
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = *--sample;
+            smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+            smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *--sample;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = *--sample;
+                    smp       = (((int64_t) smp_in * mult_left_volume) / div_volume);
+                    smp_right = (((int64_t) smp_in * mult_right_volume) / div_volume);
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+
+                        bit &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+
+                bit &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            smp_right = ((int64_t) smp_data * mult_right_volume) / div_volume;
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                    smp_right = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                    smp_right = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf++  += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            smp_right = ((int64_t) smp_data * mult_right_volume) / div_volume;
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                    smp_right = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                    smp_right = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_to_8) {
+    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 8;
+                *mix_buf++ += volume_left_lut[(uint16_t) smp];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 8;
+                *mix_buf++ += volume_left_lut[(uint16_t) smp];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp          = ((uint16_t) sample[curr_offset] >> 8);
+                *mix_buf++  += volume_left_lut[(uint16_t) smp];
+                *mix_buf++  += volume_right_lut[(uint16_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp          = ((uint16_t) sample[curr_offset] >> 8);
+                *mix_buf++  += volume_left_lut[(uint16_t) smp];
+                *mix_buf++  += volume_right_lut[(uint16_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        uint16_t smp_in;
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((uint16_t) smp >> 8);
+                *mix_buf++ += volume_left_lut[(uint16_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((uint16_t) smp >> 8);
+                *mix_buf++ += volume_left_lut[(uint16_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = (((uint16_t) *sample++ >> 8));
+            smp       = volume_left_lut[(uint16_t) smp_in];
+            smp_right = volume_right_lut[(uint16_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = (((uint16_t) *sample++ >> 8));
+                    smp       = volume_left_lut[(uint16_t) smp_in];
+                    smp_right = volume_right_lut[(uint16_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = (((uint16_t) *sample++ >> 8));
+                    smp       = volume_left_lut[(uint16_t) smp_in];
+                    smp_right = volume_right_lut[(uint16_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_to_8) {
+    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 8;
+                *mix_buf++ += volume_left_lut[(uint16_t) smp];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 8;
+                *mix_buf++ += volume_left_lut[(uint16_t) smp];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp          = ((uint16_t) sample[curr_offset] >> 8);
+                *mix_buf++  += volume_left_lut[(uint16_t) smp];
+                *mix_buf++  += volume_right_lut[(uint16_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp          = ((uint16_t) sample[curr_offset] >> 8);
+                *mix_buf++  += volume_left_lut[(uint16_t) smp];
+                *mix_buf++  += volume_right_lut[(uint16_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        uint16_t smp_in;
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = (uint16_t) smp >> 8;
+                *mix_buf++ += volume_left_lut[(uint16_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = (uint16_t) smp >> 8;
+                *mix_buf++ += volume_left_lut[(uint16_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint16_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = ((uint16_t) *--sample >> 8);
+            smp       = volume_left_lut[(uint16_t) smp_in];
+            smp_right = volume_right_lut[(uint16_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = ((uint16_t) *--sample >> 8);
+                    smp       = volume_left_lut[(uint16_t) smp_in];
+                    smp_right = volume_right_lut[(uint16_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = ((uint16_t) *--sample >> 8);
+                    smp       = volume_left_lut[(uint16_t) smp_in];
+                    smp_right = volume_right_lut[(uint16_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_to_8) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp          = ((uint32_t) sample[curr_offset] >> 24);
+                *mix_buf++  += volume_left_lut[(uint32_t) smp];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp          = ((uint32_t) sample[curr_offset] >> 24);
+                *mix_buf++  += volume_left_lut[(uint32_t) smp];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        uint32_t smp_in;
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = (uint32_t) smp >> 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = (uint32_t) smp >> 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = ((uint32_t) *sample++ >> 24);
+            smp       = volume_left_lut[(uint32_t) smp_in];
+            smp_right = volume_right_lut[(uint32_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = ((uint32_t) *sample++ >> 24);
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = ((uint32_t) *sample++ >> 24);
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_to_8) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp;
+
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp          = ((uint32_t) sample[curr_offset] >> 24);
+                *mix_buf++  += volume_left_lut[(uint32_t) smp];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp          = ((uint32_t) sample[curr_offset] >> 24);
+                *mix_buf++  += volume_left_lut[(uint32_t) smp];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        uint32_t smp_in;
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = (uint32_t) smp >> 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = (uint32_t) smp >> 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            sample   += curr_offset;
+            smp_in    = (uint32_t) *sample++ >> 24;
+            smp       = volume_left_lut[(uint32_t) smp_in];
+            smp_right = volume_right_lut[(uint32_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = (uint32_t) *sample++ >> 24;
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp_in    = (uint32_t) *sample++ >> 24;
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_to_8) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_data   >>= 24;
+                *mix_buf++  += volume_left_lut[(uint32_t) smp_data];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp_data];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_data   >>= 24;
+                *mix_buf++  += volume_left_lut[(uint32_t) smp_data];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp_data];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        uint32_t smp_in;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = (uint32_t) smp >> 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((uint32_t) smp >> 24);
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp_in    = (uint32_t) smp_data >> 24;
+            smp       = volume_left_lut[(uint32_t) smp_in];
+            smp_right = volume_right_lut[(uint32_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp_in    = (uint32_t) smp_data >> 24;
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp_in    = (uint32_t) smp_data >> 24;
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_to_8) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
+    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *mix_buf          = *buf;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp       >>= 24;
+                *mix_buf++ += volume_left_lut[(uint32_t) smp];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_data   >>= 24;
+                *mix_buf++  += volume_left_lut[(uint32_t) smp_data];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp_data];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_data   >>= 24;
+                *mix_buf++  += volume_left_lut[(uint32_t) smp_data];
+                *mix_buf++  += volume_right_lut[(uint32_t) smp_data];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        uint32_t smp_in;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((uint32_t) smp >> 24);
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((uint32_t) smp >> 24);
+                *mix_buf++ += volume_left_lut[(uint32_t) smp_in];
+                *mix_buf++ += volume_right_lut[(uint32_t) smp_in];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            int32_t smp_right;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp_in    = (uint32_t) smp_data >> 24;
+            smp       = volume_left_lut[(uint32_t) smp_in];
+            smp_right = volume_right_lut[(uint32_t) smp_in];
+            i         = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_in    = (uint32_t) smp_data >> 24;
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp_right;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_in    = (uint32_t) smp_data >> 24;
+                    smp       = volume_left_lut[(uint32_t) smp_in];
+                    smp_right = volume_right_lut[(uint32_t) smp_in];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_8_left) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint8_t) smp];
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint8_t) smp];
+                mix_buf    += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += volume_lut[(uint8_t) sample[curr_offset]];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf    += volume_lut[(uint8_t) sample[curr_offset]];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint8_t) smp];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint8_t) smp];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint8_t) *sample++];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_8_left) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset + 1;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint8_t) smp];
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint8_t) smp];
+                mix_buf    += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += volume_lut[(uint8_t) sample[curr_offset]];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf    += volume_lut[(uint8_t) sample[curr_offset]];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset + 1;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint8_t) smp];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint8_t) smp];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset + 1;
+            smp     = volume_lut[(uint8_t) *--sample];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_left) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_left) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_left) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_left) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf    += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_left) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp       /= interpolate_div;
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+
+                        bit &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_left) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp       /= interpolate_div;
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += ((int64_t) smp_data * mult_left_volume) / div_volume;
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += ((int64_t) smp * mult_left_volume) / div_volume;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_to_8_left) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint16_t) smp >> 8];
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += volume_lut[(uint16_t) smp >> 8];
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf    += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint16_t) smp >> 8];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint16_t) smp >> 8];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *sample++ >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_to_8_left) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint16_t) smp >> 8];
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += volume_lut[(uint16_t) smp >> 8];
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf    += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint16_t) smp >> 8];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint16_t) smp >> 8];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *--sample >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_to_8_left) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint32_t) smp >> 24];
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += volume_lut[(uint32_t) smp >> 24];
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                *mix_buf    += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_to_8_left) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint32_t) smp >> 24];
+                mix_buf    += 2;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += volume_lut[(uint32_t) smp >> 24];
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                *mix_buf    += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                *mix_buf    += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_to_8_left) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp       /= interpolate_div;
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                *mix_buf   += volume_lut[(uint32_t) smp >> 24];
+                mix_buf    += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += volume_lut[(uint32_t) smp_data >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += volume_lut[(uint32_t) smp_data >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+
+                        bit &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp = volume_lut[(uint32_t) smp_data >> 24];
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32)
+                    {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_to_8_left) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += volume_lut[(uint32_t) smp >> 24];
+                mix_buf  += 2;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp      /= interpolate_div;
+                *mix_buf += volume_lut[(uint32_t) smp >> 24];
+                mix_buf  += 2;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += volume_lut[(uint32_t) smp_data >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                *mix_buf    += volume_lut[(uint32_t) smp_data >> 24];
+                mix_buf     += 2;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                *mix_buf  += volume_lut[(uint32_t) smp >> 24];
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = volume_lut[(uint32_t) smp_data >> 24];
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf  += smp;
+                mix_buf   += 2;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_8_right) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint8_t) *sample++];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_8_right) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset + 1;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint8_t) sample[curr_offset]];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += (curr_offset + 1);
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint8_t) smp];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset + 1;
+            smp     = volume_lut[(uint8_t) *--sample];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_right) {
+    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf          = *buf;
+    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_right_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_right_volume) / div_volume;
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_right) {
+    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf          = *buf;
+    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_right_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_right_volume) / div_volume;
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_right) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf          = *buf;
+    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_right_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_right_volume) / div_volume;
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_right) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf          = *buf;
+    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_right_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_right_volume) / div_volume;
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_right) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf          = *buf;
+    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp = ((int64_t) smp_data * mult_right_volume) / div_volume;
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_right) {
+    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf          = *buf;
+    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    uint32_t curr_offset      = *offset;
+    uint32_t curr_frac        = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += ((int64_t) smp_data * mult_right_volume) / div_volume;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = ((int64_t) smp_data * mult_right_volume) / div_volume;
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_right_volume) / div_volume;
+                }
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_to_8_right) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *sample++ >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_to_8_right) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint16_t) smp >> 8];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *--sample >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_to_8_right) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_to_8_right) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_to_8_right) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32)
+                    {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = volume_lut[(uint32_t) smp_data >> 24];
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_to_8_right) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *mix_buf     = *buf;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                mix_buf++;
+                *mix_buf++  += volume_lut[(uint32_t) smp_data >> 24];
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                mix_buf++;
+                *mix_buf++ += volume_lut[(uint32_t) smp >> 24];
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = volume_lut[(uint32_t) smp_data >> 24];
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                mix_buf++;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_8_center) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint8_t) *sample++];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_8_center) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset + 1;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset + 1;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset + 1;
+            smp     = volume_lut[(uint8_t) *--sample];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_center) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_center) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_center) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_center) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_center) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len)
+                    {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_center) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            curr_offset--;
+            bit -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32){
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_to_8_center) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *sample++ >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_to_8_center) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *--sample >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_to_8_center) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_to_8_center) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_to_8_center) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = volume_lut[(uint32_t) smp_data >> 24];
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_to_8_center) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = volume_lut[(uint32_t) smp_data >> 24];
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_8_surround) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint8_t) *sample++];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *sample++];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_8_surround) {
+    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int8_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset + 1;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint8_t) sample[curr_offset]];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int8_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset + 1;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint8_t) smp];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset + 1;
+            smp     = volume_lut[(uint8_t) *--sample];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint8_t) *--sample];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_surround) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else
+    {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_surround) {
+    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_surround) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *sample++ * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_surround) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = ((int64_t) *--sample * mult_left_volume) / div_volume;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_surround) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit       += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_surround) {
+    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *mix_buf         = *buf;
+    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t smp_in;
+    uint32_t curr_offset     = *offset;
+    uint32_t curr_frac       = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = ((int64_t) smp * mult_left_volume) / div_volume;
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = ((int64_t) smp_data * mult_left_volume) / div_volume;
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_16_to_8_surround) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *sample++ >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *sample++ >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_16_to_8_surround) {
+    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int16_t *pos = sample;
+            int32_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint16_t) sample[curr_offset] >> 8];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int16_t *pos = sample;
+        int32_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint16_t) smp >> 8];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint16_t) *--sample >> 8];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint16_t) *--sample >> 8];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_32_to_8_surround) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *sample++;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *sample++;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *sample++;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *sample++ >> 24];
+
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_32_to_8_surround) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int32_t *pos = sample;
+            int64_t smp;
+            uint32_t interpolate_div;
+
+            sample += curr_offset;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                curr_offset = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    curr_offset++;
+
+                smp             = 0;
+                interpolate_div = 0;
+
+                do
+                {
+                    smp += *--sample;
+                    interpolate_div++;
+                } while (--curr_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            i = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+get_second_advance_sample:
+                smp_in       = volume_lut[(uint32_t) sample[curr_offset] >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+
+                if (curr_frac < adv_frac)
+                    curr_offset--;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int32_t *pos = sample;
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            sample   += curr_offset;
+            smp       = *--sample;
+            smp_value = 0;
+
+            if (len)
+                smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    smp       = *--sample;
+                    smp_value = 0;
+
+                    if (len)
+                        smp_value = (*sample - smp) * (int64_t) adv_frac;
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        } else {
+            sample += curr_offset;
+            smp     = volume_lut[(uint32_t) *sample++ >> 24];
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp = volume_lut[(uint32_t) *--sample >> 24];
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = (sample - pos) - 1;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_x_to_8_surround) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    += smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset += advance;
+                bit         += real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset++;
+                    bit += bits_per_sample;
+                }
+
+                smp_offset += bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit      += bits_per_sample;
+            curr_offset++;
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit      += bits_per_sample;
+                    curr_offset++;
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample++ << bit;
+                smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                bit      &= 31;
+            }
+
+            bit += bits_per_sample;
+            curr_offset++;
+            smp  = volume_lut[(uint32_t) smp_data >> 24];
+            i    = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        bit      &= 31;
+                    }
+
+                    bit += bits_per_sample;
+                    curr_offset++;
+                    smp  = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
+
+MIX(stereo_backwards_x_to_8_surround) {
+    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *mix_buf     = *buf;
+    int32_t smp_in;
+    uint32_t curr_offset = *offset;
+    uint32_t curr_frac   = *fraction;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+
+    if (advance) {
+        if (mixer_data->interpolation) {
+            int64_t smp;
+            uint32_t interpolate_div, smp_offset;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            i       = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_offset = advance;
+                curr_frac += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+get_second_advance_interpolated_sample:
+                smp_offset  = advance;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac)
+                    smp_offset++;
+
+                curr_offset    -= smp_offset;
+                smp             = 0;
+                interpolate_div = 0;
+
+                do {
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp += smp_data;
+                    interpolate_div++;
+                } while (--smp_offset);
+
+                smp        /= interpolate_div;
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            uint32_t real_advance = advance * bits_per_sample, smp_offset;
+
+            bit        = curr_offset * bits_per_sample;
+            smp_offset = bit >> 5;
+            bit       &= 31;
+            i          = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_advance_sample;
+
+            i--;
+
+            do {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+get_second_advance_sample:
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) sample[smp_offset] << bit;
+                    smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_in       = volume_lut[(uint32_t) smp_data >> 24];
+                *mix_buf++  += smp_in;
+                *mix_buf++  += ~smp_in;
+                curr_frac   += adv_frac;
+                curr_offset -= advance;
+                bit         -= real_advance;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+                }
+
+                smp_offset += (int32_t) bit >> 5;
+                bit        &= 31;
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    } else {
+        int64_t smp;
+
+        if (mixer_data->interpolation > 1) {
+            uint32_t interpolate_frac, interpolate_count;
+            int32_t interpolate_div;
+            int64_t smp_value;
+
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp       = (int32_t) smp_data;
+            smp_value = 0;
+
+            if (len) {
+                if ((bit + bits_per_sample) < 32) {
+                    smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                } else {
+                    smp_data  = (uint32_t) *sample << bit;
+                    smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                }
+
+                smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+            }
+
+            interpolate_div   = smp_value >> 32;
+            interpolate_frac  = smp_value;
+            interpolate_count = 0;
+            i                 = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_interpolated_sample;
+
+            i--;
+
+            do {
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+get_second_interpolated_sample:
+                smp_in      = volume_lut[(uint32_t) smp >> 24];
+                *mix_buf++ += smp_in;
+                *mix_buf++ += ~smp_in;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp       = (int32_t) smp_data;
+                    smp_value = 0;
+
+                    if (len) {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+
+                        smp_value = ((int32_t) smp_data - smp) * (int64_t) adv_frac;
+                    }
+
+                    interpolate_div   = smp_value >> 32;
+                    interpolate_frac  = smp_value;
+                    interpolate_count = 0;
+                } else {
+                    smp               += interpolate_div;
+                    interpolate_count += interpolate_frac;
+
+                    if (interpolate_count < interpolate_frac) {
+                        smp++;
+
+                        if (interpolate_div < 0)
+                            smp -= 2;
+                    }
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        } else {
+            bit     = curr_offset * bits_per_sample;
+            sample += bit >> 5;
+            bit    &= 31;
+            curr_offset--;
+            bit    -= bits_per_sample;
+
+            if ((int32_t) bit < 0) {
+                sample--;
+                bit &= 31;
+            }
+
+            if ((bit + bits_per_sample) < 32) {
+                smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+            } else {
+                smp_data  = (uint32_t) *sample << bit;
+                smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+            }
+
+            smp = volume_lut[(uint32_t) smp_data >> 24];
+            i   = (len >> 1) + 1;
+
+            if (len & 1)
+                goto get_second_sample;
+
+            i--;
+
+            do {
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+get_second_sample:
+                *mix_buf++ += smp;
+                *mix_buf++ += ~(int32_t) smp;
+                curr_frac  += adv_frac;
+
+                if (curr_frac < adv_frac) {
+                    curr_offset--;
+                    bit -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        sample--;
+                        bit &= 31;
+                    }
+
+                    if ((bit + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample << bit;
+                        smp_data |= ((uint32_t) *(sample + 1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp = volume_lut[(uint32_t) smp_data >> 24];
+                }
+            } while (--i);
+
+            *buf      = mix_buf;
+            *offset   = curr_offset;
+            *fraction = curr_frac;
+        }
+    }
+}
