@@ -25,24 +25,8 @@ r/*
 #include "libavutil/log.h"
 #include "libavformat/avformat.h"
 
-/**
- * Song track effect structure, This structure is actually for one row
- * and therefore actually pointed as an array with the amount of
- * rows of the whole track.
- * New fields can be added to the end with minor version bumps.
- * Removal, reordering and changes to existing fields require a major
- * version bump.
- */
-typedef struct AVSequencerTrackEffect {
-    /**
-     * information on struct for av_log
-     * - set by avseq_alloc_context
-     */
-    const AVClass *av_class;
-
-    /** Effect command byte.  */
-    uint8_t command;
-    enum AVSequencerTrackEffectCommand {
+/** AVSequencerTrackEffect->command values.  */
+enum AVSequencerTrackEffectCommand {
     /** Note effect commands.
        0x00 - Arpeggio:
        Data word consists of two 8-bit pairs named xx and yy
@@ -1427,44 +1411,26 @@ typedef struct AVSequencerTrackEffect {
 
     /** User customized effect for trigger in demos, etc.  */
     AVSEQ_TRACK_EFFECT_CMD_USER         = 0x7F,
-    };
-
-    /** Effect command data word.  */
-    uint16_t data;
-} AVSequencerTrackEffect;
+};
 
 /**
- * Song track data structure, This structure is actually for one row
+ * Song track effect structure, This structure is actually for one row
  * and therefore actually pointed as an array with the amount of
  * rows of the whole track.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
  * version bump.
  */
-typedef struct AVSequencerTrackData {
-    /**
-     * information on struct for av_log
-     * - set by avseq_alloc_context
-     */
-    const AVClass *av_class;
+typedef struct AVSequencerTrackEffect {
+    /** Effect command byte.  */
+    uint8_t command;
 
-    /** Array (of size effects) of pointers containing all effects
-       used by this track.  */
-    AVSequencerTrackEffect **effects_data;
+    /** Effect command data word.  */
+    uint16_t data;
+} AVSequencerTrackEffect;
 
-    /** Number of effects used by this track.  */
-    uint16_t effects;
-
-    /** Which octave the note is played upon, if note is a positive
-       value (defaults to 4). Allowed values are in the [0:9] range,
-       since the keyboard definition table has 120 entries (10 octave
-       range * 12 notes per octave), also expect trouble with most
-       trackers if values outside this range are used.  */
-    uint8_t octave;
-
-    /** Note to be played (see defines below, n is octave number).  */
-    int8_t note;
-    enum AVSequencerTrackDataNote {
+/** AVSequencerTrackEffect->note values.  */
+enum AVSequencerTrackDataNote {
     /** ---  */
     AVSEQ_TRACK_DATA_NOTE_NONE          = 0,
 
@@ -1521,11 +1487,63 @@ typedef struct AVSequencerTrackData {
 
     /** END = pattern end marker  */
     AVSEQ_TRACK_DATA_NOTE_END           = -16,
-    };
+};
+
+/**
+ * Song track data structure, This structure is actually for one row
+ * and therefore actually pointed as an array with the amount of
+ * rows of the whole track.
+ * New fields can be added to the end with minor version bumps.
+ * Removal, reordering and changes to existing fields require a major
+ * version bump.
+ */
+typedef struct AVSequencerTrackData {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
+    /** Array (of size effects) of pointers containing all effects
+       used by this track.  */
+    AVSequencerTrackEffect **effects_data;
+
+    /** Number of effects used by this track.  */
+    uint16_t effects;
+
+    /** Which octave the note is played upon, if note is a positive
+       value (defaults to 4). Allowed values are in the [0:9] range,
+       since the keyboard definition table has 120 entries (10 octave
+       range * 12 notes per octave), also expect trouble with most
+       trackers if values outside this range are used.  */
+    uint8_t octave;
+
+    /** Note to be played (see defines below, n is octave number).  */
+    int8_t note;
 
     /** Number of instrument to be played or 0 to take previous one.  */
     uint16_t instrument;
 } AVSequencerTrackData;
+
+/** AVSequencerTrack->compat_flags bitfield.  */
+enum AVSequencerTrackCompatFlags {
+    AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       = 0x01, ///< Sample offset beyond end of sample will be ignored (IT compatibility)
+    AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          = 0x02, ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
+    AVSEQ_TRACK_COMPAT_FLAG_SLIDES              = 0x04, ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
+    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES       = 0x08, ///< All except portamento slides share the same memory (e.g. volume/panning slides)
+    AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           = 0x10, ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
+    AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    = 0x20, ///< Oppositional non-portamento slide directions don't share the same memory
+    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        = 0x40, ///< Volume & pitch slides share same memory (S3M compatibility)
+};
+
+/** AVSequencerTrack->flags bitfield.  */
+enum AVSequencerTrackFlags {
+    AVSEQ_TRACK_FLAG_USE_TIMING             = 0x01, ///< Use track timing fields
+    AVSEQ_TRACK_FLAG_SPD_TIMING             = 0x02, ///< SPD speed timing instead of BpM
+    AVSEQ_TRACK_FLAG_PANNING                = 0x04, ///< Use track panning and sub-panning fields
+    AVSEQ_TRACK_FLAG_SURROUND               = 0x08, ///< Use track surround panning
+    AVSEQ_TRACK_FLAG_REVERSE                = 0x10, ///< Playback of track in backward direction
+};
 
 /**
  * Song track structure.
@@ -1580,28 +1598,12 @@ typedef struct AVSequencerTrack {
        flags which tag the player to handle it to that special
        way.  */
     uint8_t compat_flags;
-    enum AVSequencerTrackCompatFlags {
-    AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       = 0x01, ///< Sample offset beyond end of sample will be ignored (IT compatibility)
-    AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          = 0x02, ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
-    AVSEQ_TRACK_COMPAT_FLAG_SLIDES              = 0x04, ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
-    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES       = 0x08, ///< All except portamento slides share the same memory (e.g. volume/panning slides)
-    AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           = 0x10, ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
-    AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    = 0x20, ///< Oppositional non-portamento slide directions don't share the same memory
-    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        = 0x40, ///< Volume & pitch slides share same memory (S3M compatibility)
-    };
 
     /** Track playback flags. Some sequencers feature
        surround panning or allow initial reverse playback,
        different timing methods which have all to be taken
        care specially in the internal playback engine.  */
     uint8_t flags;
-    enum AVSequencerTrackFlags {
-    AVSEQ_TRACK_FLAG_USE_TIMING             = 0x01, ///< Use track timing fields
-    AVSEQ_TRACK_FLAG_SPD_TIMING             = 0x02, ///< SPD speed timing instead of BpM
-    AVSEQ_TRACK_FLAG_PANNING                = 0x04, ///< Use track panning and sub-panning fields
-    AVSEQ_TRACK_FLAG_SURROUND               = 0x08, ///< Use track surround panning
-    AVSEQ_TRACK_FLAG_REVERSE                = 0x10, ///< Playback of track in backward direction
-    };
 
     /** Initial number of frames per row, i.e. sequencer tempo
        (defaults to 6 as in most tracker formats).  */

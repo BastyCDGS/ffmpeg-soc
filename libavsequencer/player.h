@@ -29,6 +29,11 @@
 #include "libavsequencer/sample.h"
 #include "libavsequencer/synth.h"
 
+/** AVSequencerPlayerEffects->flags bitfield.  */
+enum AVSequencerPlayerEffectsFlags {
+    AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW    = 0x80, ///< Effect will be executed during the whole row instead of only once
+};
+
 typedef struct AVSequencerPlayerEffects {
     /** Function pointer to the actual effect to be executed for this
        effect. Can be NULL if this effect number is unused. This
@@ -57,9 +62,6 @@ typedef struct AVSequencerPlayerEffects {
        effect is executed during the whole row each tick or just only
        once per row.  */
     uint8_t flags;
-    enum AVSequencerPlayerEffectsFlags {
-    AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW    = 0x80, ///< Effect will be executed during the whole row instead of only once
-    };
 
     /** Logical AND filter mask for the channel control command
        filtering the affected channel.  */
@@ -70,6 +72,12 @@ typedef struct AVSequencerPlayerEffects {
        case tick 0 (immediately) or 1 (skip first tick at row).  */
     uint16_t std_exec_tick;
 } AVSequencerPlayerEffects;
+
+/** AVSequencerPlayerHook->flags bitfield.  */
+enum AVSequencerPlayerHookFlags {
+    AVSEQ_PLAYER_HOOK_FLAG_SONG_END     = 0x01, ///< Hook is only called when song end is being detected instead of each tick
+    AVSEQ_PLAYER_HOOK_FLAG_BEGINNING    = 0x02, ///< Hook is called before executing playback code instead of the end
+};
 
 /**
  * Playback handler hook for allowing developers to execute customized
@@ -84,10 +92,6 @@ typedef struct AVSequencerPlayerHook {
     /** Special flags for the hook which decide hook call time and
        purpose.  */
     int8_t flags;
-    enum AVSequencerPlayerHookFlags {
-    AVSEQ_PLAYER_HOOK_FLAG_SONG_END     = 0x01, ///< Hook is only called when song end is being detected instead of each tick
-    AVSEQ_PLAYER_HOOK_FLAG_BEGINNING    = 0x02, ///< Hook is called before executing playback code instead of the end
-    };
 
     /** The actual hook function to be called which gets passed the
        associated AVSequencerContext.  */
@@ -104,6 +108,25 @@ typedef struct AVSequencerPlayerHook {
        sub-song currently processed (i.e. triggered the hook).  */
     uint64_t hook_len;
 } AVSequencerPlayerHook;
+
+/** AVSequencerPlayerEnvelope->flags bitfield.  */
+enum AVSequencerPlayerEnvelopeFlags {
+    AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD    = 0x01, ///< First process envelope position then get value
+    AVSEQ_PLAYER_ENVELOPE_FLAG_NO_RETRIG    = 0x02, ///< Do not retrigger envelope on new note playback
+    AVSEQ_PLAYER_ENVELOPE_FLAG_RANDOM       = 0x04, ///< Envelope returns randomized instead of waveform data
+    AVSEQ_PLAYER_ENVELOPE_FLAG_RND_DELAY    = 0x08, ///< If randomization is enabled speed is interpreted as delay
+    AVSEQ_PLAYER_ENVELOPE_FLAG_BACKWARDS    = 0x10, ///< Envelope is currently being played backwards
+    AVSEQ_PLAYER_ENVELOPE_FLAG_LOOPING      = 0x20, ///< Envelope is looping in either sustain or normal mode
+    AVSEQ_PLAYER_ENVELOPE_FLAG_PINGPONG     = 0x40, ///< Envelope is doing ping pong style loop
+};
+
+/** AVSequencerPlayerEnvelope->rep_flags bitfield.  */
+enum AVSequencerPlayerEnvelopeRepFlags {
+    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_LOOP             = 0x01, ///< Envelope uses normal loop points
+    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_SUSTAIN          = 0x02, ///< Envelope uses sustain loop points
+    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_PINGPONG         = 0x04, ///< Envelope normal loop is in ping pong mode
+    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_SUSTAIN_PINGPONG = 0x08, ///< Envelope sustain loop is in ping pong mode
+};
 
 /**
  * Player envelope structure used by playback engine for processing
@@ -178,28 +201,41 @@ typedef struct AVSequencerPlayerEnvelope {
        randomization, processing modes which have to be taken
        care specially in the internal playback engine.  */
     int8_t flags;
-    enum AVSequencerPlayerEnvelopeFlags {
-    AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD    = 0x01, ///< First process envelope position then get value
-    AVSEQ_PLAYER_ENVELOPE_FLAG_NO_RETRIG    = 0x02, ///< Do not retrigger envelope on new note playback
-    AVSEQ_PLAYER_ENVELOPE_FLAG_RANDOM       = 0x04, ///< Envelope returns randomized instead of waveform data
-    AVSEQ_PLAYER_ENVELOPE_FLAG_RND_DELAY    = 0x08, ///< If randomization is enabled speed is interpreted as delay
-    AVSEQ_PLAYER_ENVELOPE_FLAG_BACKWARDS    = 0x10, ///< Envelope is currently being played backwards
-    AVSEQ_PLAYER_ENVELOPE_FLAG_LOOPING      = 0x20, ///< Envelope is looping in either sustain or normal mode
-    AVSEQ_PLAYER_ENVELOPE_FLAG_PINGPONG     = 0x40, ///< Envelope is doing ping pong style loop
-    };
 
     /** Player envelope repeat flags. Some sequencers allow envelopes
        to operate in different repeat mode like sustain with or
        without ping pong mode loops, which have to be taken care
        specially in the internal playback engine.  */
     int8_t rep_flags;
-    enum AVSequencerPlayerEnvelopeRepFlags {
-    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_LOOP             = 0x01, ///< Envelope uses normal loop points
-    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_SUSTAIN          = 0x02, ///< Envelope uses sustain loop points
-    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_PINGPONG         = 0x04, ///< Envelope normal loop is in ping pong mode
-    AVSEQ_PLAYER_ENVELOPE_REP_FLAG_SUSTAIN_PINGPONG = 0x08, ///< Envelope sustain loop is in ping pong mode
-    };
 } AVSequencerPlayerEnvelope;
+
+/** AVSequencerPlayerGlobals->flags bitfield.  */
+enum AVSequencerPlayerGlobalsFlags {
+    AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE         = 0x01, ///< Song is stopped at song end instead of continuous playback
+    AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN   = 0x02, ///< Do not process order list, pattern and track data
+    AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN      = 0x04, ///< Play a single pattern only, i.e. do not process order list
+    AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND          = 0x08, ///< Initial global panning is surround panning
+    AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END          = 0x10, ///< Song end found already once (marker for one-shoot playback)
+    AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING        = 0x20, ///< Use MED compatible SPD instead of the usual BpM timing
+    AVSEQ_PLAYER_GLOBALS_FLAG_TRACE_MODE        = 0x40, ///< Single step mode for synth sound instruction processing (debug mode)
+};
+
+/** AVSequencerPlayerGlobals->speed_type values.  */
+enum AVSequencerPlayerGlobalsSpeedType {
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED           = 0x01, ///< Change BPM speed (beats per minute)
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_TEMPO           = 0x02, ///< Change BPM tempo (rows per beat)
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_SPD_SPEED           = 0x03, ///< Change SPD (MED-style timing)
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_NOM_DENOM           = 0x07, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED_NO_USE    = 0x08, ///< Change BPM speed (beats per minute) but do not use it for playback
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_TEMPO_NO_USE    = 0x09, ///< Change BPM tempo (rows per beat) but do not use it for playback
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_SPD_SPEED_NO_USE    = 0x0A, ///< Change SPD (MED-style timing) but do not use it for playback
+    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_NOM_DENOM_NO_USE    = 0x0F, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed but do not use it for playback
+};
+
+/** AVSequencerPlayerGlobals->play_type bitfield.  */
+enum AVSequencerPlayerGlobalsPlayType {
+    AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG = 0x80,
+};
 
 /**
  * Player global data structure used by playback engine for processing
@@ -226,15 +262,6 @@ typedef struct AVSequencerPlayerGlobals {
        randomization, processing modes which have to be taken
        care specially in the internal playback engine.  */
     int8_t flags;
-    enum AVSequencerPlayerGlobalsFlags {
-    AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE         = 0x01, ///< Song is stopped at song end instead of continuous playback
-    AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN   = 0x02, ///< Do not process order list, pattern and track data
-    AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN      = 0x04, ///< Play a single pattern only, i.e. do not process order list
-    AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND          = 0x08, ///< Initial global panning is surround panning
-    AVSEQ_PLAYER_GLOBALS_FLAG_SONG_END          = 0x10, ///< Song end found already once (marker for one-shoot playback)
-    AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING        = 0x20, ///< Use MED compatible SPD instead of the usual BpM timing
-    AVSEQ_PLAYER_GLOBALS_FLAG_TRACE_MODE        = 0x40, ///< Single step mode for synth sound instruction processing (debug mode)
-    };
 
     /** Speed slide to target value, i.e. BpM or SPD value
        where to stop the target slide at.  */
@@ -481,31 +508,226 @@ typedef struct AVSequencerPlayerGlobals {
        (0x60) or zero if the set speed effect was not used yet during
        playback.  */ 
     uint8_t speed_type;
-    enum AVSequencerPlayerGlobalsSpeedType {
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED           = 0x01, ///< Change BPM speed (beats per minute)
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_TEMPO           = 0x02, ///< Change BPM tempo (rows per beat)
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_SPD_SPEED           = 0x03, ///< Change SPD (MED-style timing)
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_NOM_DENOM           = 0x07, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_SPEED_NO_USE    = 0x08, ///< Change BPM speed (beats per minute) but do not use it for playback
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_BPM_TEMPO_NO_USE    = 0x09, ///< Change BPM tempo (rows per beat) but do not use it for playback
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_SPD_SPEED_NO_USE    = 0x0A, ///< Change SPD (MED-style timing) but do not use it for playback
-    AVSEQ_PLAYER_GLOBALS_SPEED_TYPE_NOM_DENOM_NO_USE    = 0x0F, ///< Apply nominator (bits 4-7) and denominator (bits 0-3) to speed but do not use it for playback
-    };
 
     /** Play type, if the song bit is set, the sub-song is currently
        playing normally from the beginning to the end. Disk writers
        can use this flag to determine if there is the current mixing
        output should be really written.  */
     uint8_t play_type;
-    enum AVSequencerPlayerGlobalsPlayType {
-    AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG = 0x80,
-    };
 
     /** Current trace counter for debugging synth sound instructions.
        Rest of playback data will not continue being processed if
        trace count does not equal to zero.  */
     uint16_t trace_count;
 } AVSequencerPlayerGlobals;
+
+/** AVSequencerPlayerHostChannel->flags bitfield.  */
+enum AVSequencerPlayerHostChannelFlags {
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ      = 0x00000001, ///< Use linear frequency table instead of Amiga
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_BACKWARDS        = 0x00000002, ///< Playing back track in backwards direction
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_BREAK    = 0x00000004, ///< Pattern break encountered
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SMP_OFFSET_REL   = 0x00000008, ///< Sample offset is interpreted as relative to current position
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN    = 0x00000010, ///< Track panning is in surround mode
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN  = 0x00000020, ///< Channel panning is also affected
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHANNEL_SUR_PAN  = 0x00000040, ///< Channel panning uses surround mode
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_EXEC_FX          = 0x00000080, ///< Execute command effect at tick invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TONE_PORTA       = 0x00000100, ///< Tone portamento effect invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_TRANSPOSE    = 0x00000200, ///< Set transpose effect invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SUB_SLIDE_RETRIG = 0x00000400, ///< Allow sub-slides in multi retrigger note
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC      = 0x00000800, ///< Tremor effect in hold, i.e. invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF       = 0x00001000, ///< Tremor effect is currently turning off volume
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE      = 0x00002000, ///< Note retrigger effect invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO          = 0x00004000, ///< Vibrato effect in hold, i.e. invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOLO          = 0x00008000, ///< Tremolo effect in hold, i.e. invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHG_PATTERN      = 0x00010000, ///< Change pattern effect invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_LOOP     = 0x00020000, ///< Performing pattern loop effect
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_LOOP_JMP = 0x00040000, ///< Pattern loop effect has jumped back
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_RESET    = 0x00080000, ///< Pattern loop effect needs to be resetted
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT   = 0x00100000, ///< Only playing instrument without order list and pattern processing
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE       = 0x00200000, ///< Only playing sample without instrument, order list and pattern processing
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END         = 0x80000000, ///< Song end triggered for this host channel / track
+};
+
+/** AVSequencerPlayerHostChannel->fine_slide_flags bitfield.  */
+enum AVSequencerPlayerHostChannelFineSlideFlags {
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN           = 0x00000001, ///< Fine portamento is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE_DOWN           = 0x00000002, ///< Portamento once is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN      = 0x00000004, ///< Fine portamento once is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA                = 0x00000008, ///< Fine portamento invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE                = 0x00000010, ///< Portamento once invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TONE_PORTA           = 0x00000020, ///< Fine tone portamento invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_TONE_PORTA_ONCE           = 0x00000040, ///< Tone portamento once invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_VOL_SLIDE_DOWN            = 0x00000080, ///< Volume slide is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_VOL_SLIDE_DOWN       = 0x00000100, ///< Fine volume slide is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_VOL_SLIDE            = 0x00000200, ///< Fine volume slide invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_TRACK_VOL_SLIDE_DOWN      = 0x00000400, ///< Track volume slide is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRACK_VOL_SLIDE_DOWN = 0x00000800, ///< Fine track volume slide is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRACK_VOL_SLIDE      = 0x00001000, ///< Fine track volume slide invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PAN_SLIDE_RIGHT           = 0x00002000, ///< Panning slide is directed towards right
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PAN_SLIDE_RIGHT      = 0x00004000, ///< Fine panning slide is directed towards right
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PAN_SLIDE            = 0x00008000, ///< Fine panning slide invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_TRACK_PAN_SLIDE_RIGHT     = 0x00010000, ///< Track panning slide is directed towards right
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRK_PAN_SLIDE_RIGHT  = 0x00020000, ///< Fine track panning slide is directed towards right
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRACK_PAN_SLIDE      = 0x00040000, ///< Fine track panning slide invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_SPEED_SLIDE_SLOWER        = 0x00080000, ///< Speed slide is directed towards slowness
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_SPEED_SLIDE_SLOWER   = 0x00100000, ///< Fine speed slide is directed towards slowness
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_SPEED_SLIDE          = 0x00200000, ///< Fine speed slide invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_GLOBAL_VOL_SLIDE_DOWN     = 0x00400000, ///< Global volume slide is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOB_VOL_SLIDE_DOWN  = 0x00800000, ///< Fine global volume slide is directed downwards
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOBAL_VOL_SLIDE     = 0x01000000, ///< Fine global volume slide invoked
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_GLOBAL_PAN_SLIDE_RIGHT    = 0x02000000, ///< Global panning slide is directed towards right
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOB_PAN_SLIDE_RIGHT = 0x04000000, ///< Fine global panning slide is directed towards right
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOBAL_PAN_SLIDE     = 0x08000000, ///< Fine global panning slide invoked
+};
+
+/** AVSequencerPlayerHostChannel->env_ctrl_kind bitfield.  */
+enum AVSequencerPlayerHostChannelEnvCtrlKind {
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_VOLUME_ENV      = 0x00, ///< Volume envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_PANNING_ENV     = 0x01, ///< Panning envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_SLIDE_ENV       = 0x02, ///< Slide envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_VIBRATO_ENV     = 0x03, ///< Vibrato envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_TREMOLO_ENV     = 0x04, ///< Tremolo envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_PANNOLO_ENV     = 0x05, ///< Pannolo (panbrello) envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_CHANNOLO_ENV    = 0x06, ///< Channolo envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_SPENOLO_ENV     = 0x07, ///< Spenolo envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_AUTO_VIB_ENV    = 0x08, ///< Auto vibrato envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_AUTO_TREM_ENV   = 0x09, ///< Auto tremolo envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_AUTO_PAN_ENV    = 0x0A, ///< Auto pannolo (panbrello) envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_TRACK_TREMO_ENV = 0x0B, ///< Track tremolo envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_TRACK_PANNO_ENV = 0x0C, ///< Track pannolo (panbrello) envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_TREM_ENV = 0x0D, ///< Global tremolo envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_PAN_ENV  = 0x0E, ///< Global pannolo (panbrello) envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_ARPEGGIO_ENV    = 0x0F, ///< Arpeggio definition envelope selected
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_RESONANCE_ENV   = 0x10, ///< Resonance filter envelope selected
+};
+
+/** AVSequencerPlayerHostChannel->env_ctrl_change bitfield.  */
+enum AVSequencerPlayerHostChannelEnvCtrlChange {
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SET_WAVEFORM         = 0x00, ///< Set the waveform number
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RESET_ENVELOPE       = 0x10, ///< Reset envelope
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RETRIGGER_OFF        = 0x01, ///< Turn off retrigger
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RETRIGGER_ON         = 0x11, ///< Turn on retrigger
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_OFF           = 0x02, ///< Turn off randomization
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_ON            = 0x12, ///< Turn on randomization
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_DELAY_OFF     = 0x22, ///< Turn off randomization delay
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_DELAY_ON      = 0x32, ///< Turn on randomization delay
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_COUNT_AND_SET_OFF    = 0x03, ///< Turn off count and set
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_COUNT_AND_SET_ON     = 0x13, ///< Turn on count and set
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_POSITION_BY_TICK     = 0x04, ///< Set envelope position by number of ticks
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_POSITION_BY_NODE     = 0x14, ///< Set envelope position by node number
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_TEMPO                = 0x05, ///< Set envelope tempo
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RELATIVE_TEMPO       = 0x15, ///< Set relative envelope tempo
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_FINE_TEMPO           = 0x25, ///< Set fine envelope tempo (count)
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_START   = 0x06, ///< Set sustain loop start point
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_END     = 0x07, ///< Set sustain loop end point
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_COUNT   = 0x08, ///< Set sustain loop count value
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_COUNTED = 0x09, ///< Set sustain loop counted value
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_START           = 0x0A, ///< Set normal loop start point
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_START_CURRENT   = 0x1A, ///< Set normal current loop start value
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_END             = 0x0B, ///< Set normal loop end point
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_END_CURRENT     = 0x1B, ///< Set normal current loop end point
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_COUNT           = 0x0C, ///< Set normal loop count value
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_COUNTED         = 0x0D, ///< Set normal loop counted value
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_MIN           = 0x0E, ///< Set randomization minimum value
+    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_MAX           = 0x0F, ///< Set randomization maximum value
+};
+
+/** AVSequencerPlayerHostChannel->synth_ctrl_change bitfield.  */
+enum AVSequencerPlayerHostChannelSynthCtrlChange {
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_CODE_LINE          = 0x00, ///< Set volume handling code position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_CODE_LINE          = 0x01, ///< Set panning handling code position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_CODE_LINE          = 0x02, ///< Set slide handling code position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_CODE_LINE          = 0x03, ///< Set special handling code position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_SUSTAIN_CODE_LINE  = 0x04, ///< Set volume sustain release position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_SUSTAIN_CODE_LINE  = 0x05, ///< Set panning sustain release position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_SUSTAIN_CODE_LINE  = 0x06, ///< Set slide sustain release position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_SUSTAIN_CODE_LINE  = 0x07, ///< Set special sustain release position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_NNA_CODE_LINE      = 0x08, ///< Set volume NNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_NNA_CODE_LINE      = 0x09, ///< Set panning NNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_NNA_CODE_LINE      = 0x0A, ///< Set slide NNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_NNA_CODE_LINE      = 0x0B, ///< Set special NNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_DNA_CODE_LINE      = 0x0C, ///< Set volume DNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_DNA_CODE_LINE      = 0x0D, ///< Set panning DNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_DNA_CODE_LINE      = 0x0E, ///< Set slide DNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_DNA_CODE_LINE      = 0x0F, ///< Set special DNA trigger position
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VARIABLE_MIN           = 0x10, ///< Set first variable specified by the lowest 4 bits
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VARIABLE_MAX           = 0x1F, ///< Set last variable specified by the lowest 4 bits
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_CONDITION_VARIABLE = 0x20, ///< Set volume condition variable value
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_CONDITION_VARIABLE = 0x21, ///< Set panning condition variable value
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_CONDITION_VARIABLE = 0x22, ///< Set slide condition variable value
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_CONDITION_VARIABLE = 0x23, ///< Set special condition variable value
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SAMPLE_WAVEFORM        = 0x24, ///< Set sample waveform
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VIBRATO_WAVEFORM       = 0x25, ///< Set vibrato waveform
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_TREMOLO_WAVEFORM       = 0x26, ///< Set tremolo waveform
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PANNOLO_WAVEFORM       = 0x27, ///< Set pannolo (panbrello) waveform
+    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_ARPEGGIO_WAVEFORM      = 0x28, ///< Set arpeggio waveform
+};
+
+/** AVSequencerPlayerHostChannel->dct values.  */
+enum AVSequencerPlayerHostChannelDCT {
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_NOTE_OR     = 0x01, ///< Check for duplicate OR instrument notes
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_NOTE_OR    = 0x02, ///< Check for duplicate OR sample notes
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_OR          = 0x04, ///< Check for duplicate OR instruments
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_OR         = 0x08, ///< Check for duplicate OR samples
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_NOTE_AND    = 0x10, ///< Check for duplicate AND instrument notes
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_NOTE_AND   = 0x20, ///< Check for duplicate AND sample notes
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_AND         = 0x40, ///< Check for duplicate AND instruments
+    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_AND        = 0x80, ///< Check for duplicate AND samples
+};
+
+/** AVSequencerPlayerHostChannel->dna values.  */
+enum AVSequencerPlayerHostChannelDNA {
+    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_CUT      = 0x00, ///< Do note cut on duplicate note
+    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_OFF      = 0x01, ///< Perform keyoff on duplicate note
+    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_FADE     = 0x02, ///< Fade off notes on duplicate note
+    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_CONTINUE = 0x03, ///< Nothing (only useful for synth sound handling)
+};
+
+/** AVSequencerPlayerHostChannel->nna values.  */
+enum AVSequencerPlayerHostChannelNNA {
+    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CUT      = 0x00, ///< Cut previous note
+    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CONTINUE = 0x01, ///< Continue previous note
+    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_OFF      = 0x02, ///< Perform key-off on previous note
+    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_FADE     = 0x03, ///< Perform fadeout on previous note
+};
+
+/** AVSequencerPlayerHostChannel->ch_control_flags bitfield.  */
+enum AVSequencerPlayerHostChannelChControlFlags {
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_FLAG_NOTES     = 0x01, ///< Affect note related effects (volume, panning, etc.)
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_FLAG_NON_NOTES = 0x02, ///< Affect non-note related effects (pattern loops and breaks, etc.)
+};
+
+/** AVSequencerPlayerHostChannel->ch_control_type values.  */
+enum AVSequencerPlayerHostChannelChControlType {
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_OFF       = 0x00, ///< Channel control is turned off
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_NORMAL    = 0x01, ///< Normal single channel control
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_MULTIPLE  = 0x02, ///< Multiple channels are controlled
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_GLOBAL    = 0x03, ///< All channels are controlled
+};
+
+/** AVSequencerPlayerHostChannel->ch_control_mode values.  */
+enum AVSequencerPlayerHostChannelChControlMode {
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_NORMAL    = 0x00, ///< Channel control is for one effect
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_TICK      = 0x01, ///< Channel control is for one tick
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_ROW       = 0x02, ///< Channel control is for one row
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_TRACK     = 0x03, ///< Channel control is for one row
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_SONG      = 0x04, ///< Channel control is for the whole sub-song
+};
+
+/** AVSequencerPlayerHostChannel->ch_control_affect bitfield.  */
+enum AVSequencerPlayerHostChannelChControlAffect {
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_AFFECT_NOTES       = 0x01, ///< Affect note related effects (volume, panning, etc.)
+    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_AFFECT_NON_NOTES   = 0x02, ///< Affect non-note related effects (pattern loops and breaks, etc.)
+};
+
+/** AVSequencerPlayerHostChannel->cond_var bitfield.  */
+enum AVSequencerPlayerHostChannelCondVar {
+    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_CARRY    = 0x01, ///< Carry (C) bit for condition variable
+    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_OVERFLOW = 0x02, ///< Overflow (V) bit for condition variable
+    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_ZERO     = 0x04, ///< Zero (Z) bit for condition variable
+    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_NEGATIVE = 0x08, ///< Negative (N) bit for condition variable
+    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_EXTEND   = 0x10, ///< Extend (X) bit for condition variable
+};
 
 /**
  * Player host channel data structure used by playback engine for
@@ -561,67 +783,12 @@ typedef struct AVSequencerPlayerHostChannel {
        single note on a single row if both set instrument and set
        sample bits are set (0x00300000).  */
     uint32_t flags;
-    enum AVSequencerPlayerHostChannelFlags {
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ      = 0x00000001, ///< Use linear frequency table instead of Amiga
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_BACKWARDS        = 0x00000002, ///< Playing back track in backwards direction
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_BREAK    = 0x00000004, ///< Pattern break encountered
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SMP_OFFSET_REL   = 0x00000008, ///< Sample offset is interpreted as relative to current position
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN    = 0x00000010, ///< Track panning is in surround mode
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN  = 0x00000020, ///< Channel panning is also affected
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHANNEL_SUR_PAN  = 0x00000040, ///< Channel panning uses surround mode
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_EXEC_FX          = 0x00000080, ///< Execute command effect at tick invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TONE_PORTA       = 0x00000100, ///< Tone portamento effect invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_TRANSPOSE    = 0x00000200, ///< Set transpose effect invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SUB_SLIDE_RETRIG = 0x00000400, ///< Allow sub-slides in multi retrigger note
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC      = 0x00000800, ///< Tremor effect in hold, i.e. invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF       = 0x00001000, ///< Tremor effect is currently turning off volume
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE      = 0x00002000, ///< Note retrigger effect invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO          = 0x00004000, ///< Vibrato effect in hold, i.e. invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOLO          = 0x00008000, ///< Tremolo effect in hold, i.e. invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHG_PATTERN      = 0x00010000, ///< Change pattern effect invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_LOOP     = 0x00020000, ///< Performing pattern loop effect
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_LOOP_JMP = 0x00040000, ///< Pattern loop effect has jumped back
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_RESET    = 0x00080000, ///< Pattern loop effect needs to be resetted
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT   = 0x00100000, ///< Only playing instrument without order list and pattern processing
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE       = 0x00200000, ///< Only playing sample without instrument, order list and pattern processing
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END         = 0x80000000, ///< Song end triggered for this host channel / track
-    };
 
     /** Player host channel fine slide flags. This stores information
        about the slide commands, i.e. which direction and invoke state
        to be handled for the playback engine, i.e. execution of the
        actual slides while remaining expected behaviour.  */
     uint32_t fine_slide_flags;
-    enum AVSequencerPlayerHostChannelFineSlideFlags {
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN           = 0x00000001, ///< Fine portamento is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE_DOWN           = 0x00000002, ///< Portamento once is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN      = 0x00000004, ///< Fine portamento once is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA                = 0x00000008, ///< Fine portamento invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE                = 0x00000010, ///< Portamento once invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TONE_PORTA           = 0x00000020, ///< Fine tone portamento invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_TONE_PORTA_ONCE           = 0x00000040, ///< Tone portamento once invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_VOL_SLIDE_DOWN            = 0x00000080, ///< Volume slide is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_VOL_SLIDE_DOWN       = 0x00000100, ///< Fine volume slide is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_VOL_SLIDE            = 0x00000200, ///< Fine volume slide invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_TRACK_VOL_SLIDE_DOWN      = 0x00000400, ///< Track volume slide is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRACK_VOL_SLIDE_DOWN = 0x00000800, ///< Fine track volume slide is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRACK_VOL_SLIDE      = 0x00001000, ///< Fine track volume slide invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PAN_SLIDE_RIGHT           = 0x00002000, ///< Panning slide is directed towards right
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PAN_SLIDE_RIGHT      = 0x00004000, ///< Fine panning slide is directed towards right
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PAN_SLIDE            = 0x00008000, ///< Fine panning slide invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_TRACK_PAN_SLIDE_RIGHT     = 0x00010000, ///< Track panning slide is directed towards right
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRK_PAN_SLIDE_RIGHT  = 0x00020000, ///< Fine track panning slide is directed towards right
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_TRACK_PAN_SLIDE      = 0x00040000, ///< Fine track panning slide invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_SPEED_SLIDE_SLOWER        = 0x00080000, ///< Speed slide is directed towards slowness
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_SPEED_SLIDE_SLOWER   = 0x00100000, ///< Fine speed slide is directed towards slowness
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_SPEED_SLIDE          = 0x00200000, ///< Fine speed slide invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_GLOBAL_VOL_SLIDE_DOWN     = 0x00400000, ///< Global volume slide is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOB_VOL_SLIDE_DOWN  = 0x00800000, ///< Fine global volume slide is directed downwards
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOBAL_VOL_SLIDE     = 0x01000000, ///< Fine global volume slide invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_GLOBAL_PAN_SLIDE_RIGHT    = 0x02000000, ///< Global panning slide is directed towards right
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOB_PAN_SLIDE_RIGHT = 0x04000000, ///< Fine global panning slide is directed towards right
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_GLOBAL_PAN_SLIDE     = 0x08000000, ///< Fine global panning slide invoked
-    };
 
     /** Current tempo (number of ticks of row). The next row will be
        played when the tempo counter reaches this value.  */
@@ -1122,59 +1289,11 @@ typedef struct AVSequencerPlayerHostChannel {
        command or 0 if the envelope control effect was not used yet
        during playback.  */
     uint8_t env_ctrl_kind;
-    enum AVSequencerPlayerHostChannelEnvCtrlKind {
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_VOLUME_ENV      = 0x00, ///< Volume envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_PANNING_ENV     = 0x01, ///< Panning envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_SLIDE_ENV       = 0x02, ///< Slide envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_VIBRATO_ENV     = 0x03, ///< Vibrato envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_TREMOLO_ENV     = 0x04, ///< Tremolo envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_PANNOLO_ENV     = 0x05, ///< Pannolo (panbrello) envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_CHANNOLO_ENV    = 0x06, ///< Channolo envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_SPENOLO_ENV     = 0x07, ///< Spenolo envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_AUTO_VIB_ENV    = 0x08, ///< Auto vibrato envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_AUTO_TREM_ENV   = 0x09, ///< Auto tremolo envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_AUTO_PAN_ENV    = 0x0A, ///< Auto pannolo (panbrello) envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_TRACK_TREMO_ENV = 0x0B, ///< Track tremolo envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_TRACK_PANNO_ENV = 0x0C, ///< Track pannolo (panbrello) envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_TREM_ENV = 0x0D, ///< Global tremolo envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_GLOBAL_PAN_ENV  = 0x0E, ///< Global pannolo (panbrello) envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_ARPEGGIO_ENV    = 0x0F, ///< Arpeggio definition envelope selected
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_KIND_SEL_RESONANCE_ENV   = 0x10, ///< Resonance filter envelope selected
-    };
 
     /** Current type of envelope to be changed by the envelope control
        command or 0 if the envelope control effect was not used yet
        during playback.  */
     uint8_t env_ctrl_change;
-    enum AVSequencerPlayerHostChannelEnvCtrlChange {
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SET_WAVEFORM         = 0x00, ///< Set the waveform number
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RESET_ENVELOPE       = 0x10, ///< Reset envelope
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RETRIGGER_OFF        = 0x01, ///< Turn off retrigger
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RETRIGGER_ON         = 0x11, ///< Turn on retrigger
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_OFF           = 0x02, ///< Turn off randomization
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_ON            = 0x12, ///< Turn on randomization
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_DELAY_OFF     = 0x22, ///< Turn off randomization delay
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_DELAY_ON      = 0x32, ///< Turn on randomization delay
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_COUNT_AND_SET_OFF    = 0x03, ///< Turn off count and set
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_COUNT_AND_SET_ON     = 0x13, ///< Turn on count and set
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_POSITION_BY_TICK     = 0x04, ///< Set envelope position by number of ticks
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_POSITION_BY_NODE     = 0x14, ///< Set envelope position by node number
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_TEMPO                = 0x05, ///< Set envelope tempo
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RELATIVE_TEMPO       = 0x15, ///< Set relative envelope tempo
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_FINE_TEMPO           = 0x25, ///< Set fine envelope tempo (count)
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_START   = 0x06, ///< Set sustain loop start point
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_END     = 0x07, ///< Set sustain loop end point
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_COUNT   = 0x08, ///< Set sustain loop count value
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_SUSTAIN_LOOP_COUNTED = 0x09, ///< Set sustain loop counted value
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_START           = 0x0A, ///< Set normal loop start point
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_START_CURRENT   = 0x1A, ///< Set normal current loop start value
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_END             = 0x0B, ///< Set normal loop end point
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_END_CURRENT     = 0x1B, ///< Set normal current loop end point
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_COUNT           = 0x0C, ///< Set normal loop count value
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_LOOP_COUNTED         = 0x0D, ///< Set normal loop counted value
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_MIN           = 0x0E, ///< Set randomization minimum value
-    AVSEQ_PLAYER_HOST_CHANNEL_ENV_CTRL_RANDOM_MAX           = 0x0F, ///< Set randomization maximum value
-    };
 
     /** Current envelope control value or 0 if the envelope control
        effect was not used yet during playback.  */
@@ -1188,35 +1307,6 @@ typedef struct AVSequencerPlayerHostChannel {
     /** Current synth control first item to be changed or 0 if the
        synth control effect was not used yet during playback.  */
     uint8_t synth_ctrl_change;
-    enum AVSequencerPlayerHostChannelSynthCtrlChange {
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_CODE_LINE          = 0x00, ///< Set volume handling code position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_CODE_LINE          = 0x01, ///< Set panning handling code position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_CODE_LINE          = 0x02, ///< Set slide handling code position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_CODE_LINE          = 0x03, ///< Set special handling code position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_SUSTAIN_CODE_LINE  = 0x04, ///< Set volume sustain release position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_SUSTAIN_CODE_LINE  = 0x05, ///< Set panning sustain release position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_SUSTAIN_CODE_LINE  = 0x06, ///< Set slide sustain release position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_SUSTAIN_CODE_LINE  = 0x07, ///< Set special sustain release position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_NNA_CODE_LINE      = 0x08, ///< Set volume NNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_NNA_CODE_LINE      = 0x09, ///< Set panning NNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_NNA_CODE_LINE      = 0x0A, ///< Set slide NNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_NNA_CODE_LINE      = 0x0B, ///< Set special NNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_DNA_CODE_LINE      = 0x0C, ///< Set volume DNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_DNA_CODE_LINE      = 0x0D, ///< Set panning DNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_DNA_CODE_LINE      = 0x0E, ///< Set slide DNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_DNA_CODE_LINE      = 0x0F, ///< Set special DNA trigger position
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VARIABLE_MIN           = 0x10, ///< Set first variable specified by the lowest 4 bits
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VARIABLE_MAX           = 0x1F, ///< Set last variable specified by the lowest 4 bits
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VOL_CONDITION_VARIABLE = 0x20, ///< Set volume condition variable value
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PAN_CONDITION_VARIABLE = 0x21, ///< Set panning condition variable value
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SLD_CONDITION_VARIABLE = 0x22, ///< Set slide condition variable value
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SPC_CONDITION_VARIABLE = 0x23, ///< Set special condition variable value
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_SAMPLE_WAVEFORM        = 0x24, ///< Set sample waveform
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_VIBRATO_WAVEFORM       = 0x25, ///< Set vibrato waveform
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_TREMOLO_WAVEFORM       = 0x26, ///< Set tremolo waveform
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_PANNOLO_WAVEFORM       = 0x27, ///< Set pannolo (panbrello) waveform
-    AVSEQ_PLAYER_HOST_CHANNEL_SYNTH_CTRL_SET_ARPEGGIO_WAVEFORM      = 0x28, ///< Set arpeggio waveform
-    };
 
     /** Current synth control value or 0 if the synth control effect
        was not used yet during playback.  */
@@ -1226,79 +1316,36 @@ typedef struct AVSequencerPlayerHostChannel {
        instrument currently playing back or the instrument value
        if the NNA control effect was not used yet during playback.  */
     uint8_t dct;
-    enum AVSequencerPlayerHostChannelDCT {
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_NOTE_OR     = 0x01, ///< Check for duplicate OR instrument notes
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_NOTE_OR    = 0x02, ///< Check for duplicate OR sample notes
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_OR          = 0x04, ///< Check for duplicate OR instruments
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_OR         = 0x08, ///< Check for duplicate OR samples
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_NOTE_AND    = 0x10, ///< Check for duplicate AND instrument notes
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_NOTE_AND   = 0x20, ///< Check for duplicate AND sample notes
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_AND         = 0x40, ///< Check for duplicate AND instruments
-    AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_AND        = 0x80, ///< Check for duplicate AND samples
-    };
 
     /** Current duplicate note action (DNA) value of the foreground
        instrument currently playing back or the instrument value
        if the NNA control effect was not used yet during playback.  */
     uint8_t dna;
-    enum AVSequencerPlayerHostChannelDNA {
-    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_CUT      = 0x00, ///< Do note cut on duplicate note
-    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_OFF      = 0x01, ///< Perform keyoff on duplicate note
-    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_FADE     = 0x02, ///< Fade off notes on duplicate note
-    AVSEQ_PLAYER_HOST_CHANNEL_DNA_NOTE_CONTINUE = 0x03, ///< Nothing (only useful for synth sound handling)
-    };
 
     /** Current new note action (NNA) value of the foreground
        instrument currently playing back or the instrument value
        if the NNA control effect was not used yet during playback.  */
     uint8_t nna;
-    enum AVSequencerPlayerHostChannelNNA {
-    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CUT      = 0x00, ///< Cut previous note
-    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_CONTINUE = 0x01, ///< Continue previous note
-    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_OFF      = 0x02, ///< Perform key-off on previous note
-    AVSEQ_PLAYER_HOST_CHANNEL_NNA_NOTE_FADE     = 0x03, ///< Perform fadeout on previous note
-    };
 
     /** Current channel control flags which decide how note related
        effects affect volume and panning, etc. and how non-note
        related effects affect pattern loops and breaks, etc.  */
     uint8_t ch_control_flags;
-    enum AVSequencerPlayerHostChannelChControlFlags {
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_FLAG_NOTES     = 0x01, ///< Affect note related effects (volume, panning, etc.)
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_FLAG_NON_NOTES = 0x02, ///< Affect non-note related effects (pattern loops and breaks, etc.)
-    };
 
     /** Current channel control type which decides the channels
        affected by the channel control command or 0 if the channel
        control effect was not used yet during playback.  */
     uint8_t ch_control_type;
-    enum AVSequencerPlayerHostChannelChControlType {
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_OFF       = 0x00, ///< Channel control is turned off
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_NORMAL    = 0x01, ///< Normal single channel control
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_MULTIPLE  = 0x02, ///< Multiple channels are controlled
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_GLOBAL    = 0x03, ///< All channels are controlled
-    };
 
     /** Current channel control mode which decides the control scope
        by the channel control command or 0 if the channel control
        effect was not used yet during playback.  */
     uint8_t ch_control_mode;
-    enum AVSequencerPlayerHostChannelChControlMode {
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_NORMAL    = 0x00, ///< Channel control is for one effect
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_TICK      = 0x01, ///< Channel control is for one tick
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_ROW       = 0x02, ///< Channel control is for one row
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_TRACK     = 0x03, ///< Channel control is for one row
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_MODE_SONG      = 0x04, ///< Channel control is for the whole sub-song
-    };
 
     /** Current channel control affect which decide how note related
        effects affect volume and panning, etc. and how non-note
        related effects affect pattern loops and breaks, etc.  */
     uint8_t ch_control_affect;
-    enum AVSequencerPlayerHostChannelChControlAffect {
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_AFFECT_NOTES       = 0x01, ///< Affect note related effects (volume, panning, etc.)
-    AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_AFFECT_NON_NOTES   = 0x02, ///< Affect non-note related effects (pattern loops and breaks, etc.)
-    };
 
     /** Current channel number to be controlled for normal single
        channel control mode or 0 if the channel control effect was
@@ -1452,13 +1499,6 @@ typedef struct AVSequencerPlayerHostChannel {
        [3] variable condition status register or 0 if the current
        sample does not use synth sound.  */
     uint16_t cond_var[4];
-    enum AVSequencerPlayerHostChannelCondVar {
-    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_CARRY    = 0x01, ///< Carry (C) bit for condition variable
-    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_OVERFLOW = 0x02, ///< Overflow (V) bit for condition variable
-    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_ZERO     = 0x04, ///< Zero (Z) bit for condition variable
-    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_NEGATIVE = 0x08, ///< Negative (N) bit for condition variable
-    AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_EXTEND   = 0x10, ///< Extend (X) bit for condition variable
-    };
 
     /** Bit numbers for the controlled channels from 0-255 where the
        first byte determines channel numbers 0-7, the second byte 8-15
@@ -1471,6 +1511,63 @@ typedef struct AVSequencerPlayerHostChannel {
        channel numbers 0-7, the second byte 8-15 and so on.  */
     uint8_t effects_used[128/8];
 } AVSequencerPlayerHostChannel;
+
+/** AVSequencerPlayerChannel->flags bitfield.  */
+enum AVSequencerPlayerChannelFlags {
+    AVSEQ_PLAYER_CHANNEL_FLAG_SUSTAIN               = 0x0001, ///< Sustain triggered, i.e. release sustain loop points
+    AVSEQ_PLAYER_CHANNEL_FLAG_FADING                = 0x0002, ///< Current virtual channel is fading out
+    AVSEQ_PLAYER_CHANNEL_FLAG_DECAY                 = 0x0004, ///< Note decay action is running
+    AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN             = 0x0008, ///< Virtual channel uses track panning
+    AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN           = 0x0010, ///< Use surround mode for sample panning
+    AVSEQ_PLAYER_CHANNEL_FLAG_GLOBAL_SUR_PAN        = 0x0020, ///< Use surround mode for global panning
+    AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND              = 0x0040, ///< Use surround sound output for this virtual channel
+    AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND            = 0x0080, ///< Virtual channel is put into background, i.e. no more direct control (NNA)
+    AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV       = 0x0100, ///< Values of slide envelope will be portamento slides instead of a transpose and finetune pair
+    AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV      = 0x0200, ///< Use linear frequency table instead of Amiga for slide envelope in portamento mode
+    AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB  = 0x0400, ///< Use linear frequency table instead of Amiga for auto vibrato
+    AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED             = 0x8000, ///< Mark this virtual channel for allocation without playback
+};
+
+/** AVSequencerPlayerChannel->cond_var bitfield.  */
+enum AVSequencerPlayerChannelCondVar {
+    AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY     = 0x01, ///< Carry (C) bit for volume condition variable
+    AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW  = 0x02, ///< Overflow (V) bit for volume condition variable
+    AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO      = 0x04, ///< Zero (Z) bit for volume condition variable
+    AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE  = 0x08, ///< Negative (N) bit for volume condition variable
+    AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND    = 0x10, ///< Extend (X) bit for volume condition variable
+};
+
+/** AVSequencerPlayerChannel->use_nna_flags bitfield.  */
+enum AVSequencerPlayerChannelUseNNAFlags {
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_NNA   = 0x01, ///< Use NNA trigger entry field for volume
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_NNA  = 0x02, ///< Use NNA trigger entry field for panning
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_NNA    = 0x04, ///< Use NNA trigger entry field for slide
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SPECIAL_NNA  = 0x08, ///< Use NNA trigger entry field for special
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_DNA   = 0x10, ///< Use NNA trigger entry field for volume
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_DNA  = 0x20, ///< Use NNA trigger entry field for panning
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_DNA    = 0x40, ///< Use NNA trigger entry field for slide
+    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SPECIAL_DNA  = 0x80, ///< Use NNA trigger entry field for special
+};
+
+/** AVSequencerPlayerChannel->use_sustain_flags bitfield.  */
+enum AVSequencerPlayerChannelUseSustainFlags {
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_VOLUME       = 0x01, ///< Use sustain entry position field for volume
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_PANNING      = 0x02, ///< Use sustain entry position field for panning
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SLIDE        = 0x04, ///< Use sustain entry position field for slide
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SPECIAL      = 0x08, ///< Use sustain entry position field for special
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_VOLUME_KEEP  = 0x10, ///< Keep sustain entry position for volume
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_PANNING_KEEP = 0x20, ///< Keep sustain entry position for panning
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SLIDE_KEEP   = 0x40, ///< Keep sustain entry position for slide
+    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SPECIAL_KEEP = 0x80, ///< Keep sustain entry position for special
+};
+
+/** AVSequencerPlayerChannel->synth_flags bitfield.  */
+enum AVSequencerPlayerChannelSynthFlags {
+    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_VOLUME     = 0x0001, ///< Volume handling code is running KILL
+    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_PANNING    = 0x0002, ///< Panning handling code is running KILL
+    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SLIDE      = 0x0004, ///< Slide handling code is running KILL
+    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SPECIAL    = 0x0008, ///< Special handling code is running KILL
+};
 
 /**
  * Player virtual channel data structure used by playback engine for
@@ -1583,20 +1680,6 @@ typedef struct AVSequencerPlayerChannel {
        which allocated this virtual channel. The virtual channels are
        allocated according to the new note action (NNA) mechanism.  */
     uint16_t flags;
-    enum AVSequencerPlayerChannelFlags {
-    AVSEQ_PLAYER_CHANNEL_FLAG_SUSTAIN               = 0x0001, ///< Sustain triggered, i.e. release sustain loop points
-    AVSEQ_PLAYER_CHANNEL_FLAG_FADING                = 0x0002, ///< Current virtual channel is fading out
-    AVSEQ_PLAYER_CHANNEL_FLAG_DECAY                 = 0x0004, ///< Note decay action is running
-    AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN             = 0x0008, ///< Virtual channel uses track panning
-    AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN           = 0x0010, ///< Use surround mode for sample panning
-    AVSEQ_PLAYER_CHANNEL_FLAG_GLOBAL_SUR_PAN        = 0x0020, ///< Use surround mode for global panning
-    AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND              = 0x0040, ///< Use surround sound output for this virtual channel
-    AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND            = 0x0080, ///< Virtual channel is put into background, i.e. no more direct control (NNA)
-    AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV       = 0x0100, ///< Values of slide envelope will be portamento slides instead of a transpose and finetune pair
-    AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV      = 0x0200, ///< Use linear frequency table instead of Amiga for slide envelope in portamento mode
-    AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB  = 0x0400, ///< Use linear frequency table instead of Amiga for auto vibrato
-    AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED             = 0x8000, ///< Mark this virtual channel for allocation without playback
-    };
 
     /** Current player volume envelope for the current virtual
        channel.  */
@@ -1785,41 +1868,14 @@ typedef struct AVSequencerPlayerChannel {
        special [3] variable condition status register or 0 if the
        current sample does not use synth sound.  */
     uint16_t cond_var[4];
-    enum AVSequencerPlayerChannelCondVar {
-    AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY     = 0x01, ///< Carry (C) bit for volume condition variable
-    AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW  = 0x02, ///< Overflow (V) bit for volume condition variable
-    AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO      = 0x04, ///< Zero (Z) bit for volume condition variable
-    AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE  = 0x08, ///< Negative (N) bit for volume condition variable
-    AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND    = 0x10, ///< Extend (X) bit for volume condition variable
-    };
 
     /** Current usage of NNA trigger entry fields. This will run
        custom synth sound code execution on a NNA trigger.  */
     uint8_t use_nna_flags;
-    enum AVSequencerPlayerChannelUseNNAFlags {
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_NNA   = 0x01, ///< Use NNA trigger entry field for volume
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_NNA  = 0x02, ///< Use NNA trigger entry field for panning
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_NNA    = 0x04, ///< Use NNA trigger entry field for slide
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SPECIAL_NNA  = 0x08, ///< Use NNA trigger entry field for special
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_DNA   = 0x10, ///< Use NNA trigger entry field for volume
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_DNA  = 0x20, ///< Use NNA trigger entry field for panning
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_DNA    = 0x40, ///< Use NNA trigger entry field for slide
-    AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SPECIAL_DNA  = 0x80, ///< Use NNA trigger entry field for special
-    };
 
     /** Current usage of sustain entry position fields. This will run
        custom synth sound code execution on a note off trigger.  */
     uint8_t use_sustain_flags;
-    enum AVSequencerPlayerChannelUseSustainFlags {
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_VOLUME       = 0x01, ///< Use sustain entry position field for volume
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_PANNING      = 0x02, ///< Use sustain entry position field for panning
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SLIDE        = 0x04, ///< Use sustain entry position field for slide
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SPECIAL      = 0x08, ///< Use sustain entry position field for special
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_VOLUME_KEEP  = 0x10, ///< Keep sustain entry position for volume
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_PANNING_KEEP = 0x20, ///< Keep sustain entry position for panning
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SLIDE_KEEP   = 0x40, ///< Keep sustain entry position for slide
-    AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SPECIAL_KEEP = 0x80, ///< Keep sustain entry position for special
-    };
 
     /** Current final note being played (after applying all transpose
        values, etc.) by the formula: current octave * 12 + current
@@ -1857,12 +1913,6 @@ typedef struct AVSequencerPlayerChannel {
        status flags for some synth code instructions. Currently they
        are only defined for the KILL instruction.  */
     uint16_t synth_flags;
-    enum AVSequencerPlayerChannelSynthFlags {
-    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_VOLUME     = 0x0001, ///< Volume handling code is running KILL
-    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_PANNING    = 0x0002, ///< Panning handling code is running KILL
-    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SLIDE      = 0x0004, ///< Slide handling code is running KILL
-    AVSEQ_PLAYER_CHANNEL_SYNTH_FLAG_KILL_SPECIAL    = 0x0008, ///< Special handling code is running KILL
-    };
 
     /** Current volume [0], panning [1], slide [2] and special [3]
        KILL count in number of ticks or 0 if the current sample does

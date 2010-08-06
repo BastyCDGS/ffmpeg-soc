@@ -71,6 +71,13 @@ enum AVSequencerMixerID {
     MIXER_ID_HQ, ///< High quality mixer optimized for quality playback and disk writers
 };
 
+/** AVSequencerMixerContext->flags bitfield.  */
+enum AVSequencerMixerContextFlags {
+    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
+    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
+    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
+};
+
 /**
  * Mixer context structure which is used to describe certain features
  * of registered mixers to the sequencer context.
@@ -123,12 +130,15 @@ typedef struct AVSequencerMixerContext {
 
     /** Special flags indicating supported features by this mixer.  */
     uint8_t flags;
-    enum AVSequencerMixerContextFlags {
-    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
-    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
-    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
-    };
 } AVSequencerMixerContext;
+
+/** AVSequencerMixerData->flags bitfield.  */
+enum AVSequencerMixerDataFlags {
+    AVSEQ_MIXER_DATA_FLAG_ALLOCATED = 0x01, ///< The mixer is currently allocated and ready to use
+    AVSEQ_MIXER_DATA_FLAG_MIXING    = 0x02, ///< The mixer is currently in actual mixing to output
+    AVSEQ_MIXER_DATA_FLAG_STEREO    = 0x04, ///< The mixer is currently mixing in stereo mode instead of mono
+    AVSEQ_MIXER_DATA_FLAG_FROZEN    = 0x08, ///< The mixer has been delayed by some external process like disk I/O writing
+};
 
 /**
  * Mixer data allocation structure which is used to allocate a mixer
@@ -182,13 +192,19 @@ typedef struct AVSequencerMixerData {
        output mode (stereo or mono) or if it frozen because of some
        delaying (like caused by disk I/O when using disk writers.  */
     uint8_t flags;
-    enum AVSequencerMixerDataFlags {
-    AVSEQ_MIXER_DATA_FLAG_ALLOCATED = 0x01, ///< The mixer is currently allocated and ready to use
-    AVSEQ_MIXER_DATA_FLAG_MIXING    = 0x02, ///< The mixer is currently in actual mixing to output
-    AVSEQ_MIXER_DATA_FLAG_STEREO    = 0x04, ///< The mixer is currently mixing in stereo mode instead of mono
-    AVSEQ_MIXER_DATA_FLAG_FROZEN    = 0x08, ///< The mixer has been delayed by some external process like disk I/O writing
-    };
 } AVSequencerMixerData;
+
+/** AVSequencerMixerChannel->flags bitfield.  */
+enum AVSequencerMixerChannelFlags {
+    AVSEQ_MIXER_CHANNEL_FLAG_MUTED      = 0x01, ///< Channel is muted (i.e. processed but not outputted)
+    AVSEQ_MIXER_CHANNEL_FLAG_SYNTH      = 0x02, ///< Start new synthetic waveform when old has finished playback
+    AVSEQ_MIXER_CHANNEL_FLAG_LOOP       = 0x04, ///< Loop points are being used
+    AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG   = 0x08, ///< Channel loop is in ping-pong style
+    AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS  = 0x10, ///< Channel is currently playing in backward direction
+    AVSEQ_MIXER_CHANNEL_FLAG_BACK_LOOP  = 0x20, ///< Backward loop instead of forward
+    AVSEQ_MIXER_CHANNEL_FLAG_SURROUND   = 0x40, ///< Use surround sound output for this channel
+    AVSEQ_MIXER_CHANNEL_FLAG_PLAY       = 0x80, ///< This channel is currently playing a sample (i.e. enabled)
+};
 
 /**
  * Mixer channel structure which is used by the mixer to determine how
@@ -248,16 +264,6 @@ typedef struct AVSequencerMixerChannel {
        loop (normal forward, ping-pong or normal backward), if normal
        stereo or surround panning and if this channel is active.  */
     uint8_t flags;
-    enum AVSequencerMixerChannelFlags {
-    AVSEQ_MIXER_CHANNEL_FLAG_MUTED      = 0x01, ///< Channel is muted (i.e. processed but not outputted)
-    AVSEQ_MIXER_CHANNEL_FLAG_SYNTH      = 0x02, ///< Start new synthetic waveform when old has finished playback
-    AVSEQ_MIXER_CHANNEL_FLAG_LOOP       = 0x04, ///< Loop points are being used
-    AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG   = 0x08, ///< Channel loop is in ping-pong style
-    AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS  = 0x10, ///< Channel is currently playing in backward direction
-    AVSEQ_MIXER_CHANNEL_FLAG_BACK_LOOP  = 0x20, ///< Backward loop instead of forward
-    AVSEQ_MIXER_CHANNEL_FLAG_SURROUND   = 0x40, ///< Use surround sound output for this channel
-    AVSEQ_MIXER_CHANNEL_FLAG_PLAY       = 0x80, ///< This channel is currently playing a sample (i.e. enabled)
-    };
 
     /** Current volume for this channel which ranges from 0 (muted)
        to 255 (full volume).  */
