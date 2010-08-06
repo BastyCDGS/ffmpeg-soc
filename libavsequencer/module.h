@@ -105,19 +105,4 @@ typedef struct AVSequencerModule {
     uint8_t **unknown_data;
 } AVSequencerModule;
 
-#include "libavsequencer/avsequencer.h"
-
-/**
- * Opens and registers module to the AVSequencer.
- *
- * @param avctx the AVSequencerContext to store the opened module into
- * @param module the AVSequencerModule which has been opened to be registered
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
-
 #endif /* AVSEQUENCER_MODULE_H */

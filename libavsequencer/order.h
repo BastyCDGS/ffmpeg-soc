@@ -182,18 +182,4 @@ typedef struct AVSequencerOrderList {
     uint8_t flags;
 } AVSequencerOrderList;
 
-#include "libavsequencer/song.h"
-
-/**
- * Opens and registers a new order list to a sub-song.
- *
- * @param song the AVSequencerSong structure to store the initialized order list
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_order_open(AVSequencerSong *song);
-
 #endif /* AVSEQUENCER_ORDER_H */

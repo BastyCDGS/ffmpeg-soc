@@ -299,47 +299,4 @@ typedef struct AVSequencerSample {
     uint8_t **unknown_data;
 } AVSequencerSample;
 
-#include "libavsequencer/instr.h"
-
-/**
- * Creates a new uninitialized empty audio sample.
- *
- * @return pointer to freshly allocated AVSequencerSample, NULL if allocation failed
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-AVSequencerSample *avseq_sample_create(void);
-
-/**
- * Opens and registers a new audio sample to an instrument.
- *
- * @param instrument the AVSequencerInstrument structure to add the new sample to
- * @param sample the AVSequencerSample to be added to the instrument
- * @param data the original sample data to create a redirection sample or NULL for a new one
- * @param length the number of samples to allocate initially if not a redirection sample
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *sample,
-                      int16_t *data, uint32_t length);
-
-/**
- * Opens and registers audio sample PCM data stream to an sample.
- *
- * @param sample the AVSequencerSample to add the sample PCM data stream to
- * @param data the original sample data to create a redirection sample or NULL for a new one
- * @param samples the number of samples to allocate initially if not a redirection sample
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples);
-
 #endif /* AVSEQUENCER_SAMPLE_H */

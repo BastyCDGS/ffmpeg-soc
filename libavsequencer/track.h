@@ -1639,31 +1639,4 @@ typedef struct AVSequencerTrack {
     uint8_t **unknown_data;
 } AVSequencerTrack;
 
-#include "libavsequencer/song.h"
-
-/**
- * Opens and registers a new track to a sub-song.
- *
- * @param song the AVSequencerSong structure to add the new track to
- * @param track the AVSequencerTrack to be added to the sub-song
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track);
-
-/**
- * Opens and registers a new array of track data to a track.
- *
- * @param track the AVSequencerTrack structure to store the initialized track data
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_track_data_open(AVSequencerTrack *track);
-
 #endif /* AVSEQUENCER_TRACK_H */

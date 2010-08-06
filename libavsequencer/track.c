@@ -24,8 +24,7 @@
  * Implement AVSequencer pattern and track stuff.
  */
 
-#include "libavsequencer/song.h"
-#include "libavsequencer/track.h"
+#include "libavsequencer/api.h"
 
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     AVSequencerTrack **track_list = song->track_list;

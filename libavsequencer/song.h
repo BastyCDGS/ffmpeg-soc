@@ -205,19 +205,4 @@ typedef struct AVSequencerSong {
     uint8_t **unknown_data;
 } AVSequencerSong;
 
-#include "libavsequencer/module.h"
-
-/**
- * Opens and registers a new sub-song to a module.
- *
- * @param module the AVSequencerModule to register the new sub-song to
- * @param song the AVSequencerSong structure to initialize
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
-
 #endif /* AVSEQUENCER_SONG_H */
