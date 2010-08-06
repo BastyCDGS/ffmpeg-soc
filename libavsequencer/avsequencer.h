@@ -307,6 +307,9 @@ typedef struct AVSequencerContext {
     /** AVSequencerPlayerChannel pointer to virtual channel data.  */
     struct AVSequencerPlayerChannel *player_channel;
 
+    /** AVSequencerPlayerHook pointer to callback hook.  */
+    struct AVSequencerPlayerHook *player_hook;
+
     /** Current module used by current playback handler or NULL if
        no module is currently being processed.  */
     AVSequencerModule *player_module;
