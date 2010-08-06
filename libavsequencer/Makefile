@@ -21,5 +21,6 @@ OBJS = avsequencer.o    \
        instr.o          \
        sample.o         \
        synth.o          \
+       player.o         \
 
 include $(SUBDIR)../subdir.mak
