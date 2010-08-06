@@ -22,12 +22,7 @@
 #ifndef AVSEQUENCER_PLAYER_H
 #define AVSEQUENCER_PLAYER_H
 
-#include "libavsequencer/avsequencer.h"
-#include "libavsequencer/order.h"
-#include "libavsequencer/track.h"
 #include "libavsequencer/instr.h"
-#include "libavsequencer/sample.h"
-#include "libavsequencer/synth.h"
 
 /** AVSequencerPlayerEnvelope->flags bitfield.  */
 enum AVSequencerPlayerEnvelopeFlags {
@@ -648,6 +643,11 @@ enum AVSequencerPlayerHostChannelCondVar {
     AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_NEGATIVE = 0x08, ///< Negative (N) bit for condition variable
     AVSEQ_PLAYER_HOST_CHANNEL_COND_VAR_EXTEND   = 0x10, ///< Extend (X) bit for condition variable
 };
+
+#include "libavsequencer/order.h"
+#include "libavsequencer/track.h"
+#include "libavsequencer/sample.h"
+#include "libavsequencer/synth.h"
 
 /**
  * Player host channel data structure used by playback engine for
@@ -1944,6 +1944,8 @@ typedef struct AVSequencerPlayerChannel {
        current sample does not use synth sound.  */
     uint16_t pannolo_rate;
 } AVSequencerPlayerChannel;
+
+#include "libavsequencer/avsequencer.h"
 
 /** AVSequencerPlayerEffects->flags bitfield.  */
 enum AVSequencerPlayerEffectsFlags {
