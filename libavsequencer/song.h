@@ -24,7 +24,6 @@
 
 #include "libavutil/log.h"
 #include "libavformat/avformat.h"
-#include "libavsequencer/avsequencer.h"
 #include "libavsequencer/order.h"
 #include "libavsequencer/track.h"
 

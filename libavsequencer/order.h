@@ -22,7 +22,6 @@
 #ifndef AVSEQUENCER_ORDER_H
 #define AVSEQUENCER_ORDER_H
 
-#include "libavutil/log.h"
 #include "libavsequencer/track.h"
 
 /**
@@ -42,11 +41,11 @@ typedef struct AVSequencerOrderData {
     AVSequencerTrack *track;
 
     /** Next order list data pointer if seeking forward one frame.  */
-    AVSequencerOrderData *next_pos;
+    struct AVSequencerOrderData *next_pos;
 
     /** Previous order list data pointer if seeking backward one
-    frame.  */
-    AVSequencerOrderData *prev_pos;
+       frame.  */
+    struct AVSequencerOrderData *prev_pos;
 
     /** Number of row to jump to if forward seeking one frame.  */
     uint16_t next_row;
@@ -55,61 +54,61 @@ typedef struct AVSequencerOrderData {
     uint16_t prev_row;
 
     /** Beginning row for this track. If this is a track synchronization
-    point, the high byte is interpreted as the first track number
-    to be synchronized with and the low byte as the second track
-    number or for all channels when all 4 tracks are 0.  */
+       point, the high byte is interpreted as the first track number
+       to be synchronized with and the low byte as the second track
+       number or for all channels when all 4 tracks are 0.  */
     uint16_t first_row;
 
     /** Last row for this track. If this is a track synchronization
-    point, the high byte is interpreted as the third track number
-    to be synchronized with and the low byte as the fourth track
-    number or for all channels when all 4 tracks are 0.
-    If last row is set to 65535 in non synchronization mode,
-    the last row is always taken from AVSequencerTrack.  */
+       point, the high byte is interpreted as the third track number
+       to be synchronized with and the low byte as the fourth track
+       number or for all channels when all 4 tracks are 0.
+       If last row is set to 65535 in non synchronization mode,
+       the last row is always taken from AVSequencerTrack.  */
     uint16_t last_row;
 
     /** Order list data playback flags. Some sequencers feature
-    special end markers or even different playback routes for
-    different playback modules (one-shot and repeat mode
-    playback), mark synchronization points or temporary
-    change volume), which has to be taken care specially
-    in the internal playback engine.  */
+       special end markers or even different playback routes for
+       different playback modules (one-shot and repeat mode
+       playback), mark synchronization points or temporary
+       change volume), which has to be taken care specially
+       in the internal playback engine.  */
     uint8_t flags;
     enum AVSequencerOrderDataFlags {
-        AVSEQ_ORDER_DATA_FLAG_END_ORDER     = 0x01, ///< Order data indicates end of order
-        AVSEQ_ORDER_DATA_FLAG_END_SONG      = 0x02, ///< Order data indicates end of whole song
-        AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE   = 0x04, ///< Order data will be skipped if you're playing in one-time mode
-        AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT = 0x08, ///< Order data will be skipped if you're playing in repeat mode
-        AVSEQ_ORDER_DATA_FLAG_TRACK_SYNC    = 0x10, ///< Order data is a track synchronization point.
-        AVSEQ_ORDER_DATA_FLAG_SET_VOLUME    = 0x20, ///< Order data takes advantage of the order list volume set
+    AVSEQ_ORDER_DATA_FLAG_END_ORDER     = 0x01, ///< Order data indicates end of order
+    AVSEQ_ORDER_DATA_FLAG_END_SONG      = 0x02, ///< Order data indicates end of whole song
+    AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE   = 0x04, ///< Order data will be skipped if you're playing in one-time mode
+    AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT = 0x08, ///< Order data will be skipped if you're playing in repeat mode
+    AVSEQ_ORDER_DATA_FLAG_TRACK_SYNC    = 0x10, ///< Order data is a track synchronization point.
+    AVSEQ_ORDER_DATA_FLAG_SET_VOLUME    = 0x20, ///< Order data takes advantage of the order list volume set
     };
 
     /** Relative note transpose for full track. Allows playing several
-    tracks some half-tones up/down.  */
+       tracks some half-tones up/down.  */
     int8_t transpose;
 
     /** Instrument transpose. All instruments will be relatively
-    mapped to this if this is non-zero.  */
+       mapped to this if this is non-zero.  */
     int16_t instr_transpose;
 
     /** Tempo change or zero to skip tempo change. A tempo value of
-    zero would be zero, since that would mean literally execute
-    unlimited rows and tracks in just one tick.  */
+       zero would be zero, since that would mean literally execute
+       unlimited rows and tracks in just one tick.  */
     uint16_t tempo;
 
     /** Played nesting level (GoSub command maximum nesting depth).  */
     uint16_t played;
 
     /** Track volume (this overrides settings in AVSequencerTrack).
-    To enable this, the flag AVSEQ_ORDER_DATA_FLAG_SET_VOLUME
-    must be set in flags. This allows have a basic default track
-    volume by still allowing to override the track volume in case
-    the track is used multiple times, e.g. for creating echoes.  */
+       To enable this, the flag AVSEQ_ORDER_DATA_FLAG_SET_VOLUME
+       must be set in flags. This allows have a basic default track
+       volume by still allowing to override the track volume in case
+       the track is used multiple times, e.g. for creating echoes.  */
     uint8_t volume;
 
     /** Track sub-volume. This is basically track volume
-    divided by 256, but the sub-volume doesn't account
-    into actual mixer output (this overrides AVSequencerTrack).  */
+       divided by 256, but the sub-volume doesn't account
+       into actual mixer output (this overrides AVSequencerTrack).  */
     uint8_t sub_volume;
 } AVSequencerOrderData;
 

@@ -22,6 +22,7 @@
 #ifndef AVSEQUENCER_PLAYER_H
 #define AVSEQUENCER_PLAYER_H
 
+#include "libavsequencer/avsequencer.h"
 #include "libavsequencer/order.h"
 #include "libavsequencer/track.h"
 #include "libavsequencer/instr.h"

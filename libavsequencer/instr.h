@@ -159,19 +159,6 @@ typedef struct AVSequencerArpeggioData {
 } AVSequencerArpeggioData;
 
 /**
- * Opens and registers a new arpeggio data set to an arpeggio structure.
- *
- * @param arpeggio the AVSequencerArpeggio to add the new arpeggio data set to
- * @param entries the number of arpeggio trigger entries to be used in the arpeggio data
- * @return >= 0 on success, a negative error code otherwise
- *
- * @note This is part of the new sequencer API which is still under construction.
- *       Thus do not use this yet. It may change at any time, do not expect
- *       ABI compatibility yet!
- */
-int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries);
-
-/**
  * Arpeggio control envelope used by all instrumental stuff.
  * New fields can be added to the end with minor version bumps.
  * Removal, reordering and changes to existing fields require a major
@@ -465,7 +452,7 @@ typedef struct AVSequencerInstrument {
     AVSEQ_INSTRUMENT_FLAG_RANDOM_GLOBAL_TREMOLO_ENV = 0x0400, ///< Randomize global tremolo envelope
     AVSEQ_INSTRUMENT_FLAG_RANDOM_GLOBAL_PANNOLO_ENV = 0x0800, ///< Randomize global pannolo envelope
     AVSEQ_INSTRUMENT_FLAG_RANDOM_RESONANCE_ENV      = 0x1000, ///< Randomize resonance filter
-    );
+    };
 
     /** Envelope randomize delay flags. Some sequencers allow
        to specify a time interval when a new random value
@@ -543,7 +530,6 @@ typedef struct AVSequencerInstrument {
     uint8_t **unknown_data;
 } AVSequencerInstrument;
 
-#include "libavsequencer/avsequencer.h"
 #include "libavsequencer/module.h"
 
 /**
@@ -640,5 +626,18 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
  */
 int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerApreggio *arpeggio,
                         uint32_t entries);
+
+/**
+ * Opens and registers a new arpeggio data set to an arpeggio structure.
+ *
+ * @param arpeggio the AVSequencerArpeggio to add the new arpeggio data set to
+ * @param entries the number of arpeggio trigger entries to be used in the arpeggio data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_arpeggio_data_open(AVSequencerApreggio *arpeggio, uint32_t entries);
 
 #endif /* AVSEQUENCER_INSTR_H */

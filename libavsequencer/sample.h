@@ -24,8 +24,6 @@
 
 #include "libavutil/log.h"
 #include "libavformat/avformat.h"
-#include "libavsequencer/avsequencer.h"
-#include "libavsequencer/instr.h"
 #include "libavsequencer/synth.h"
 
 /**
@@ -284,6 +282,8 @@ typedef struct AVSequencerSample {
        chunks, which then won't get lost in that case.  */
     uint8_t **unknown_data;
 } AVSequencerSample;
+
+#include "libavsequencer/instr.h"
 
 /**
  * Creates a new uninitialized empty audio sample.

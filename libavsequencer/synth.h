@@ -1137,6 +1137,7 @@ typedef struct AVSequencerSynthCode {
        condition variable will remain unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANVAL     = 0x7E,
     };
+    /** Synth code instruction templates.  */
 
     /** Source and destinaton variable. These are actually 2 nibbles.
        The upper nibble (bits 4-7) is the source variable where the

@@ -339,7 +339,7 @@ typedef struct AVSequencerContext {
     /** Pointer to synth code instruction table which contains all the
        names and specific flags for each instruction or NULL to use the
        internal one.  */
-    AVSynthTable *synth_code_lut;
+    AVSequencerSynthTable *synth_code_lut;
 
     /** Pointer to synth sound code execution table or NULL to use the
        interal one.  */
