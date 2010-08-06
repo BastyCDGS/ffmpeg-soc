@@ -4912,7 +4912,7 @@ EXECUTE_EFFECT(fine_portamento_up_once) {
     }
 }
 
-EXECUTE_EFFECT(fx_fine_portamento_down_once) {
+EXECUTE_EFFECT(fine_portamento_down_once) {
     AVSequencerTrack *track;
     uint16_t v0, v1, v3, v4, v5, v8;
 
@@ -8230,7 +8230,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(ddivu) {
                 flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
             }
         } else {
-            uint32_t dividend = (player_channel->variable[dst_var++] << 16) + player_channel->variable[dst_var];
+            uint32_t dividend = (player_channel->variable[dst_var + 1] << 16) + player_channel->variable[dst_var];
 
             if ((udiv_res = (dividend / instruction_data)) < 0x10000) {
                 player_channel->variable[dst_var--] = udiv_res;
@@ -8273,7 +8273,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(ddivs) {
                 flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
             }
         } else {
-            int32_t dividend = ((int16_t) player_channel->variable[dst_var++] << 16) + (int16_t) player_channel->variable[dst_var];
+            int32_t dividend = ((int16_t) player_channel->variable[dst_var + 1] << 16) + (int16_t) player_channel->variable[dst_var];
             sdiv_res         = dividend / instruction_data;
 
             if ((sdiv_res < -0x10000) || (sdiv_res < 0x10000)) {
