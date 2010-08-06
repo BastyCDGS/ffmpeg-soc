@@ -29,86 +29,6 @@
 #include "libavsequencer/sample.h"
 #include "libavsequencer/synth.h"
 
-/** AVSequencerPlayerEffects->flags bitfield.  */
-enum AVSequencerPlayerEffectsFlags {
-    AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW    = 0x80, ///< Effect will be executed during the whole row instead of only once
-};
-
-typedef struct AVSequencerPlayerEffects {
-    /** Function pointer to the actual effect to be executed for this
-       effect. Can be NULL if this effect number is unused. This
-       structure is actually for one effect and there actually
-       pointed as an array with size of number of total effects.  */
-    void (*effect_func)( AVSequencerContext *avctx,
-        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t fx_byte, uint16_t data_word );
-
-    /** Function pointer for pre-pattern evaluation. Some effects
-       require a pre-initialization stage. Can be NULL if the effect
-       number either is not used or the effect does not require a
-       pre-initialization stage.  */
-    void (*pre_pattern_func)( AVSequencerContext *avctx,
-        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t data_word );
-
-    /** Function pointer for parameter checking for an effect. Can
-       be NULL if the effect number either is not used or the effect
-       does not require pre-checking.  */
-    void (*check_fx_func)( AVSequencerContext *avctx,
-        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
-
-    /** Special flags for this effect, this currently defines if the
-       effect is executed during the whole row each tick or just only
-       once per row.  */
-    uint8_t flags;
-
-    /** Logical AND filter mask for the channel control command
-       filtering the affected channel.  */
-    uint8_t and_mask_ctrl;
-
-    /** Standard execution tick when this effect starts to be executed
-       and there is no execute effect command issued which is in most
-       case tick 0 (immediately) or 1 (skip first tick at row).  */
-    uint16_t std_exec_tick;
-} AVSequencerPlayerEffects;
-
-/** AVSequencerPlayerHook->flags bitfield.  */
-enum AVSequencerPlayerHookFlags {
-    AVSEQ_PLAYER_HOOK_FLAG_SONG_END     = 0x01, ///< Hook is only called when song end is being detected instead of each tick
-    AVSEQ_PLAYER_HOOK_FLAG_BEGINNING    = 0x02, ///< Hook is called before executing playback code instead of the end
-};
-
-/**
- * Playback handler hook for allowing developers to execute customized
- * code in the playback handler under certain conditions. Currently
- * the hook can either be called once at song end found or each tick,
- * as well as before execution of the playback handler or after it.
- * New fields can be added to the end with minor version bumps.
- * Removal, reordering and changes to existing fields require a major
- * version bump.
- */
-typedef struct AVSequencerPlayerHook {
-    /** Special flags for the hook which decide hook call time and
-       purpose.  */
-    int8_t flags;
-
-    /** The actual hook function to be called which gets passed the
-       associated AVSequencerContext.  */
-    void (*hook_func)( AVSequencerContext *avctx, void *hook_data, uint64_t hook_len );
-
-    /** The actual hook data to be passed to the hook function which
-       also gets passed the associated AVSequencerContext and the
-       module and sub-song currently processed (i.e. triggered the
-       hook).  */
-    void *hook_data;
-
-    /** Size of the hook data passed to the hook function which gets
-       passed the associated AVSequencerContext and the module and
-       sub-song currently processed (i.e. triggered the hook).  */
-    uint64_t hook_len;
-} AVSequencerPlayerHook;
-
 /** AVSequencerPlayerEnvelope->flags bitfield.  */
 enum AVSequencerPlayerEnvelopeFlags {
     AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD    = 0x01, ///< First process envelope position then get value
@@ -2024,6 +1944,86 @@ typedef struct AVSequencerPlayerChannel {
        current sample does not use synth sound.  */
     uint16_t pannolo_rate;
 } AVSequencerPlayerChannel;
+
+/** AVSequencerPlayerEffects->flags bitfield.  */
+enum AVSequencerPlayerEffectsFlags {
+    AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW    = 0x80, ///< Effect will be executed during the whole row instead of only once
+};
+
+typedef struct AVSequencerPlayerEffects {
+    /** Function pointer to the actual effect to be executed for this
+       effect. Can be NULL if this effect number is unused. This
+       structure is actually for one effect and there actually
+       pointed as an array with size of number of total effects.  */
+    void (*effect_func)( AVSequencerContext *avctx,
+        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
+        uint16_t channel, uint16_t fx_byte, uint16_t data_word );
+
+    /** Function pointer for pre-pattern evaluation. Some effects
+       require a pre-initialization stage. Can be NULL if the effect
+       number either is not used or the effect does not require a
+       pre-initialization stage.  */
+    void (*pre_pattern_func)( AVSequencerContext *avctx,
+        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
+        uint16_t channel, uint16_t data_word );
+
+    /** Function pointer for parameter checking for an effect. Can
+       be NULL if the effect number either is not used or the effect
+       does not require pre-checking.  */
+    void (*check_fx_func)( AVSequencerContext *avctx,
+        AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
+        uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
+
+    /** Special flags for this effect, this currently defines if the
+       effect is executed during the whole row each tick or just only
+       once per row.  */
+    uint8_t flags;
+
+    /** Logical AND filter mask for the channel control command
+       filtering the affected channel.  */
+    uint8_t and_mask_ctrl;
+
+    /** Standard execution tick when this effect starts to be executed
+       and there is no execute effect command issued which is in most
+       case tick 0 (immediately) or 1 (skip first tick at row).  */
+    uint16_t std_exec_tick;
+} AVSequencerPlayerEffects;
+
+/** AVSequencerPlayerHook->flags bitfield.  */
+enum AVSequencerPlayerHookFlags {
+    AVSEQ_PLAYER_HOOK_FLAG_SONG_END     = 0x01, ///< Hook is only called when song end is being detected instead of each tick
+    AVSEQ_PLAYER_HOOK_FLAG_BEGINNING    = 0x02, ///< Hook is called before executing playback code instead of the end
+};
+
+/**
+ * Playback handler hook for allowing developers to execute customized
+ * code in the playback handler under certain conditions. Currently
+ * the hook can either be called once at song end found or each tick,
+ * as well as before execution of the playback handler or after it.
+ * New fields can be added to the end with minor version bumps.
+ * Removal, reordering and changes to existing fields require a major
+ * version bump.
+ */
+typedef struct AVSequencerPlayerHook {
+    /** Special flags for the hook which decide hook call time and
+       purpose.  */
+    int8_t flags;
+
+    /** The actual hook function to be called which gets passed the
+       associated AVSequencerContext.  */
+    void (*hook_func)( AVSequencerContext *avctx, void *hook_data, uint64_t hook_len );
+
+    /** The actual hook data to be passed to the hook function which
+       also gets passed the associated AVSequencerContext and the
+       module and sub-song currently processed (i.e. triggered the
+       hook).  */
+    void *hook_data;
+
+    /** Size of the hook data passed to the hook function which gets
+       passed the associated AVSequencerContext and the module and
+       sub-song currently processed (i.e. triggered the hook).  */
+    uint64_t hook_len;
+} AVSequencerPlayerHook;
 
 /**
  * Executes one tick of the playback handler, calculating everything
