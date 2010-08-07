@@ -147,6 +147,9 @@ Configuration options:
   --enable-filter=NAME     enable filter NAME
   --disable-filter=NAME    disable filter NAME
   --disable-filters        disable all filters
+  --enable-mixer=NAME      enable mixer NAME
+  --disable-mixer=NAME     disable mixer NAME
+  --disable-mixers         disable all mixers
   --list-decoders          show all available decoders
   --list-encoders          show all available encoders
   --list-hwaccels          show all available hardware accelerators
@@ -158,6 +161,7 @@ Configuration options:
   --list-indevs            show all available input devices
   --list-outdevs           show all available output devices
   --list-filters           show all available filters
+  --list-mixers            show all available mixers
 
 External library support:
   --enable-avisynth        enable reading of AVISynth script files [no]
@@ -835,6 +839,7 @@ COMPONENT_LIST="
     demuxers
     encoders
     filters
+    mixers
     hwaccels
     indevs
     muxers
@@ -1620,6 +1625,7 @@ OUTDEV_LIST=$(find_things   outdev   OUTDEV   libavdevice/alldevices.c)
 INDEV_LIST=$(find_things    indev    _IN      libavdevice/alldevices.c)
 PROTOCOL_LIST=$(find_things protocol PROTOCOL libavformat/allformats.c)
 FILTER_LIST=$(find_things   filter   FILTER   libavfilter/allfilters.c)
+MIXER_LIST=$(find_things    mixer    MIXER    libavsequencer/allmixers.c)
 
 find_tests(){
     map "echo ${2}\${v}_test" $(ls "$source_path"/tests/ref/$1 | grep -v '[^-a-z0-9_]')
@@ -2890,6 +2896,7 @@ check_deps $CONFIG_LIST       \
            $DEMUXER_LIST      \
            $MUXER_LIST        \
            $FILTER_LIST       \
+           $MIXER_LIST        \
            $INDEV_LIST        \
            $OUTDEV_LIST       \
            $PROTOCOL_LIST     \
@@ -2980,7 +2987,7 @@ echo "zlib enabled              ${zlib-no}"
 echo "bzlib enabled             ${bzlib-no}"
 echo
 
-for type in decoder encoder hwaccel parser demuxer muxer protocol filter bsf indev outdev; do
+for type in decoder encoder hwaccel parser demuxer muxer protocol filter mixer bsf indev outdev; do
     echo "Enabled ${type}s:"
     eval list=\$$(toupper $type)_LIST
     print_enabled '_*' $list | sort | pr -3 -t
@@ -3171,6 +3178,7 @@ print_config CONFIG_ $TMPH config.mak $CONFIG_LIST       \
                                       $DEMUXER_LIST      \
                                       $MUXER_LIST        \
                                       $FILTER_LIST       \
+                                      $MIXER_LIST        \
                                       $PROTOCOL_LIST     \
                                       $INDEV_LIST        \
                                       $OUTDEV_LIST       \

@@ -4,23 +4,25 @@ NAME = avsequencer
 FFLIBS = avcodec avformat avutil
 
 HEADERS = avsequencer.h \
-          module.h      \
-          song.h        \
-          order.h       \
-          track.h       \
           instr.h       \
-          sample.h      \
-          synth.h       \
+          module.h      \
+          order.h       \
           player.h      \
+          sample.h      \
+          song.h        \
+          synth.h       \
+          track.h       \
 
-OBJS = avsequencer.o    \
-       module.o         \
-       song.o           \
-       order.o          \
-       track.o          \
+OBJS = allmixers.o      \
+       avsequencer.o    \
        instr.o          \
-       sample.o         \
-       synth.o          \
+       lq_mixer.o       \
+       module.o         \
+       order.o          \
        player.o         \
+       sample.o         \
+       song.o           \
+       synth.o          \
+       track.o          \
 
 include $(SUBDIR)../subdir.mak
