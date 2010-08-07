@@ -1045,7 +1045,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
     channel = 0;
 
     do {
-        mixer_get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel, mixer->mixctx );
+        mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
 
         player_channel++;
     } while (++channel < module->channels);
@@ -1550,10 +1550,10 @@ turn_note_off:
 
             player_channel->mixer.panning = panning;
 
-            mixer_set_channel_volume_panning_pitch ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel, mixer->mixctx );
+            mixer->mixctx->set_channel_volume_panning_pitch ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
         }
 not_calculate_no_playing:
-        mixer_set_channel_position_repeat_flags ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel, mixer->mixctx );
+        mixer->mixctx->set_channel_position_repeat_flags ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
 
         player_channel++;
     } while (++channel < module->channels);
@@ -2636,7 +2636,7 @@ static void init_new_sample ( AVSequencerContext *avctx, AVSequencerPlayerHostCh
 
     player_channel->finetune = player_host_channel->finetune;
     mixer                    = avctx->player_mixer_data;
-    mixer_set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), player_host_channel->virtual_channel, mixer->mixctx );
+    mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), player_host_channel->virtual_channel );
 }
 
 static AVSequencerPlayerChannel *trigger_nna ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint16_t *virtual_channel ) {
@@ -4189,7 +4189,7 @@ static void speed_val_ok ( AVSequencerContext *avctx, uint16_t *speed_adr, uint1
         tempo                *= player_globals->relative_speed;
         tempo               >>= 16;
 
-        mixer_set_tempo ( mixer, tempo, mixer->mixctx );
+        mixer->mixctx->set_tempo ( mixer, tempo );
     }
 }
 
@@ -9391,8 +9391,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwave) {
         player_channel->mixer.flags = flags;
         mixer                       = avctx->player_mixer_data;
 
-        mixer_set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel, mixer->mixctx );
-        mixer_get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel, mixer->mixctx );
+        mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
+        mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
     }
 
     return synth_code_line;
@@ -9439,7 +9439,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav) {
         player_channel->mixer.flags = flags;
         mixer                       = avctx->player_mixer_data;
 
-        mixer_set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel, mixer->mixctx );
+        mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
     }
 
     return synth_code_line;
