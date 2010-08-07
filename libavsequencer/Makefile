@@ -16,7 +16,6 @@ HEADERS = avsequencer.h \
 OBJS = allmixers.o      \
        avsequencer.o    \
        instr.o          \
-       lq_mixer.o       \
        module.o         \
        order.o          \
        player.o         \
@@ -24,5 +23,7 @@ OBJS = allmixers.o      \
        song.o           \
        synth.o          \
        track.o          \
+
+OBJS-$(CONFIG_LOW_QUALITY_MIXER)    += lq_mixer.o
 
 include $(SUBDIR)../subdir.mak

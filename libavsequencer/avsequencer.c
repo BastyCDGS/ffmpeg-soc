@@ -28,18 +28,15 @@
  * Implement AVSequencer functions.
  */
 
-unsigned avsequencer_version(void)
-{
+unsigned avsequencer_version(void) {
     return LIBAVSEQUENCER_VERSION_INT;
 }
 
-const char *avsequencer_configuration(void)
-{
+const char *avsequencer_configuration(void) {
     return FFMPEG_CONFIGURATION;
 }
 
-const char *avsequencer_license(void)
-{
+const char *avsequencer_license(void) {
 #define LICENSE_PREFIX "libavsequencer license: "
     return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
 }
@@ -47,11 +44,9 @@ const char *avsequencer_license(void)
 #define AVSEQUENCER_MAX_REGISTERED_MIXERS_NB 64
 
 static AVSequencerMixerContext *registered_mixers[AVSEQUENCER_MAX_REGISTERED_MIXERS_NB + 1];
-
 static int next_registered_mixer_idx = 0;
 
-AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name)
-{
+AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name) {
     int i;
 
     for (i = 0; registered_mixers[i]; i++) {
@@ -64,8 +59,7 @@ AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name)
     return NULL;
 }
 
-int avseq_mixer_register(AVSequencerMixerContext *mixctx)
-{
+int avseq_mixer_register(AVSequencerMixerContext *mixctx) {
     if (next_registered_mixer_idx == AVSEQUENCER_MAX_REGISTERED_MIXERS_NB)
         return -1;
 
@@ -73,19 +67,16 @@ int avseq_mixer_register(AVSequencerMixerContext *mixctx)
     return 0;
 }
 
-AVSequencerMixerContext **avseq_mixer_next(AVSequencerMixerContext **mixctx)
-{
+AVSequencerMixerContext **avseq_mixer_next(AVSequencerMixerContext **mixctx) {
     return mixctx ? ++mixctx : &registered_mixers[0];
 }
 
-void avsequencer_uninit(void)
-{
+void avsequencer_uninit(void) {
     memset(registered_mixers, 0, sizeof(registered_mixers));
     next_registered_mixer_idx = 0;
 }
 
-static const char *mixer_name(void *p)
-{
+static const char *mixer_name(void *p) {
     AVSequencerMixerContext *mixctx = p;
     AVMetadataTag *tag              = av_metadata_get(mixctx->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
@@ -99,34 +90,33 @@ static const AVClass avsequencer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char *inst_name)
-{
-    AVSequencerContext *ret;
+AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char *inst_name) {
+    AVSequencerContext *avctx;
     int i;
 
     if (!mixctx)
         return NULL;
 
-    ret           = av_mallocz(sizeof(AVSequencerContext));
-    ret->av_class = &avsequencer_class;
+    avctx                   = av_mallocz(sizeof(AVSequencerContext));
+    avctx->av_class         = &avsequencer_class;
+    avctx->playback_handler = avseq_playback_handler;
 
-    if (!(ret->mixer_list = av_malloc(next_registered_mixer_idx * sizeof(AVSequencerMixerContext *))))
+    if (!(avctx->mixer_list = av_malloc(next_registered_mixer_idx * sizeof(AVSequencerMixerContext *))))
         return NULL;
 
     for (i = 0; i < next_registered_mixer_idx; ++i) {
-        ret->mixer_list[i] = registered_mixers[i];
+        avctx->mixer_list[i] = registered_mixers[i];
     }
 
-    ret->mixers = next_registered_mixer_idx;
-    ret->seed   = av_get_random_seed ();
+    avctx->mixers = next_registered_mixer_idx;
+    avctx->seed   = av_get_random_seed ();
 
     // TODO: Initialize selected mixer
 
-    return ret;
+    return avctx;
 }
 
-void avsequencer_destroy(AVSequencerContext *avctx)
-{
+void avsequencer_destroy(AVSequencerContext *avctx) {
     int i;
 
     for (i = 0; i < avctx->modules; ++i) {
@@ -145,12 +135,11 @@ void avsequencer_destroy(AVSequencerContext *avctx)
     av_free(avctx);
 }
 
-int avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque)
-{
-    int ret = 0;
+AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
+    AVSequencerMixerData *mixer_data = NULL;
 
     if(mixctx->init)
-        ret = mixctx->init(mixctx, args, opaque);
+        mixer_data = mixctx->init(mixctx, args, opaque);
 
-    return ret;
+    return mixer_data;
 }

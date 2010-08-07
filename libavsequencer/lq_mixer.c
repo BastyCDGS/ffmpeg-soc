@@ -79,20 +79,43 @@ typedef struct AVSequencerLQMixerChannelInfo {
     struct ChannelBlock next;
 } AVSequencerLQMixerChannelInfo;
 
-static AVSequencerMixerData *mixer_alloc ( void );
-static uint32_t mixer_free ( AVSequencerMixerData *mixer_data );
-static uint32_t mixer_init ( AVSequencerMixerData *mixer_data );
-static uint32_t change_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate );
-static uint32_t change_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo );
-static uint32_t change_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels );
-static void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static void set_channel_pos_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static void do_mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf );
+#if CONFIG_LOW_QUALITY_MIXER
+static av_cold AVSequencerMixerData *init ( AVSequencerMixerContext *mixctx, const char *args, void *opaque );
+static av_cold int destroy ( AVSequencerMixerData *mixer_data );
+static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate );
+static av_cold uint32_t set_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo );
+static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels );
+static av_cold void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf );
 
+AVSequencerMixerContext low_quality_mixer = {
+    .flags                             = AVSEQ_MIXER_CONTEXT_FLAG_STEREO|AVSEQ_MIXER_CONTEXT_FLAG_SURROUND|AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER,
+    .frequency                         = 44100,
+    .frequency_min                     = 1000,
+    .frequency_max                     = 768000,
+    .buf_size                          = 4096,
+    .buf_size_min                      = 512,
+    .buf_size_max                      = 32768,
+    .volume_boost                      = 0x10000,
+    .channels_max                      = 65535,
+
+    .init                              = init,
+    .destroy                           = destroy,
+    .set_rate                          = set_rate,
+    .set_tempo                         = set_tempo,
+    .set_volume                        = set_volume,
+    .get_channel                       = get_channel,
+    .set_channel                       = set_channel,
+    .set_channel_volume_panning_pitch  = set_channel_volume_panning_pitch,
+    .set_channel_position_repeat_flags = set_channel_position_repeat_flags,
+    .mix                               = mix,
+};
+
+static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void *opaque );
 static void mix_sample ( AVSequencerLQMixerData *mixer_data, int32_t *buf, uint32_t len );
-
 static void set_sample_mix_rate ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, uint32_t rate );
 static void advance_ok ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info );
 
@@ -413,153 +436,47 @@ static const void *mixer_stereo_surround_16_to_8[] = {
     mix_stereo_backwards_x_to_8_surround
 };
 
-static AVSequencerMixerData *mixer_alloc () {
-    AVSequencerLQMixerData *mixer_data;
+static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
+    AVSequencerLQMixerData *res = NULL;
 
-    if (mixer_data = (AVSequencerLQMixerData *) av_mallocz(sizeof (AVSequencerLQMixerData))) {
-        // TODO: Initialize mixer context
-        mixer_data->mixer_data.mixctx = NULL;
+    if (!(res = av_mallocz(sizeof (AVSequencerLQMixerData *)))) {
+        av_log(mixctx, AV_LOG_ERROR, "cannot allocate mixer data factory.\n");
 
-        if (!(mixer_data->volume_lut = (int32_t *) av_malloc(256 * 256 * sizeof (int32_t)))) {
-            av_free ( mixer_data );
-
-            return NULL;
-        }
-
-        // TODO: Initialize libavfilter for post-processing
+        return NULL;
     }
 
-    return (AVSequencerMixerData *) mixer_data;
+    res->mixer_data.mixctx = mixctx;
+
+    if (!(res->volume_lut = av_malloc(256 * 256 * sizeof (int32_t)))) {
+        av_free ( res );
+
+        return NULL;
+    }
+
+    if (mixer_init ( (AVSequencerMixerData *) res, args, opaque ) < 0) {
+        av_free(res);
+
+        return NULL;
+    }
+
+    return (AVSequencerMixerData *) res;
 }
 
-static uint32_t mixer_free ( AVSequencerMixerData *mixer_data ) {
+static av_cold int destroy(AVSequencerMixerData *mixer_data) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
 
-    if (lq_mixer_data) {
-        if (lq_mixer_data->channel_info)
-            av_free ( lq_mixer_data->channel_info );
+    if (!lq_mixer_data)
+        return AVERROR_INVALIDDATA;
 
-        if (lq_mixer_data->buf)
-            av_free ( lq_mixer_data->buf );
-
-        if (lq_mixer_data->volume_lut)
-            av_free ( lq_mixer_data->volume_lut );
-
-        av_free ( lq_mixer_data );
-
-        return 0;
-    }
-
-    return AVERROR(ENOMEM);
-}
-
-static uint32_t mixer_init ( AVSequencerMixerData *mixer_data ) {
-    AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
-    AVSequencerLQMixerChannelInfo *channel_info;
-    uint32_t buf_size = lq_mixer_data->mixer_data.mix_buf_size, mix_bufMemSize, channel_rate;
-    uint16_t channels = lq_mixer_data->mixer_data.channels_max, i;
-    uint8_t stereo;
-    uint64_t pass_value;
-
-    // TODO: Implement stereo and mono settings
-
-    if ((channels != lq_mixer_data->channels) || (lq_mixer_data->mixer_data.volume_boost != lq_mixer_data->amplify) || (stereo != lq_mixer_data->stereo_mode)) {
-        int32_t *volume_lut  = lq_mixer_data->volume_lut;
-        uint32_t volume_mult = 0, volume_div = lq_mixer_data->mixer_data.channels_max << 8;
-        uint32_t amplify     = lq_mixer_data->mixer_data.volume_boost;
-        uint8_t i = 0, j = 0;
-
-        lq_mixer_data->amplify              = amplify;
-        lq_mixer_data->previous_stereo_mode = lq_mixer_data->stereo_mode;
-        lq_mixer_data->stereo_mode          = stereo;
-
-        do {
-            do {
-                int32_t volume = (int8_t) j << 8;
-                *volume_lut++  = (int64_t) volume * volume_mult / volume_div;
-            } while (++j);
-
-            volume_mult += amplify;
-        } while (++i);
-    }
-
-    if (!lq_mixer_data->channel_info || (channels != lq_mixer_data->channels)) {
-        AVSequencerLQMixerChannelInfo *old_channel_info;
-
-        if (!(channel_info = (AVSequencerLQMixerChannelInfo *) av_mallocz ( channels * sizeof (AVSequencerLQMixerChannelInfo))))
-            return AVERROR(ENOMEM);
-
-        if ((old_channel_info = lq_mixer_data->channel_info)) {
-            uint16_t copy_channels = channels;
-            uint16_t old_channels  = lq_mixer_data->channels;
-
-            if ( copy_channels > old_channels )
-                copy_channels = old_channels;
-
-            memcpy ( channel_info, old_channel_info, copy_channels * sizeof (AVSequencerLQMixerChannelInfo));
-
-            av_free ( old_channel_info );
-        }
-
-        lq_mixer_data->channel_info = channel_info;
-        lq_mixer_data->channels     = channels;
-    }
-
-    lq_mixer_data->mixer_data.channels_max = lq_mixer_data->channels;
-
-    mix_bufMemSize = buf_size << 2;
-
-    if (stereo)
-        mix_bufMemSize += mix_bufMemSize;
-
-    if (!lq_mixer_data->buf || (lq_mixer_data->mix_buf_size != mix_bufMemSize)) {
-        int32_t *buf;
-
-        if (!(buf = (int32_t *) av_mallocz ( mix_bufMemSize ))) {
-            if (lq_mixer_data->channel_info)
-                av_free ( lq_mixer_data->channel_info );
-
-            return AVERROR(ENOMEM);
-        }
-
-        if (lq_mixer_data->buf)
-            av_free ( lq_mixer_data->buf );
-
-        lq_mixer_data->mix_buf_size = mix_bufMemSize;
-        lq_mixer_data->buf          = buf;
-        lq_mixer_data->buf_size     = buf_size;
-    }
-
-    lq_mixer_data->mixer_data.mix_buf_size = lq_mixer_data->buf_size;
-
-    lq_mixer_data->mixer_data.mix_buf = lq_mixer_data->buf;
-    channel_rate                      = lq_mixer_data->mixer_data.rate;
-    lq_mixer_data->mix_rate           = channel_rate;
-    lq_mixer_data->mixer_data.flags  &= ~AVSEQ_MIXER_DATA_FLAG_STEREO;
-
-    if (stereo)
-        lq_mixer_data->mixer_data.flags |= AVSEQ_MIXER_DATA_FLAG_STEREO;
-
-    channel_rate                   *= 10;
-    pass_value                      = ((uint64_t) channel_rate << 16) + ((uint64_t) lq_mixer_data->mix_rate_frac >> 16);
-    lq_mixer_data->pass_len         = (uint64_t) pass_value / lq_mixer_data->mixer_data.tempo;
-    lq_mixer_data->pass_len_frac    = (((uint64_t) pass_value % lq_mixer_data->mixer_data.tempo) << 32) / lq_mixer_data->mixer_data.tempo;
-    // TODO: Implement configuration of real 16-bit and interpolation mode.
-    lq_mixer_data->real_16_bit_mode = 0;
-    lq_mixer_data->interpolation    = 0;
-    channel_info                    = lq_mixer_data->channel_info;
-
-    for (i = channels; i > 0; i--) {
-        set_sample_mix_rate ( lq_mixer_data, channel_info, channel_info->current.rate );
-
-        channel_info++;
-    }
+    av_freep ( &lq_mixer_data->channel_info );
+    av_freep ( &lq_mixer_data->buf );
+    av_freep ( &lq_mixer_data->volume_lut );
+    av_free ( lq_mixer_data );
 
     return 0;
 }
-static uint32_t change_rate ( AVSequencerMixerData *mixer_data,
-        uint32_t new_mix_rate )
-{
+
+static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     uint32_t mix_rate, mix_rate_frac;
 
@@ -576,7 +493,7 @@ static uint32_t change_rate ( AVSequencerMixerData *mixer_data,
             lq_mixer_data->mix_rate      = mix_rate;
             lq_mixer_data->mix_rate_frac = mix_rate_frac;
 
-            change_tempo ( (AVSequencerMixerData *) mixer_data, lq_mixer_data->mixer_data.tempo );
+            set_tempo ( (AVSequencerMixerData *) mixer_data, lq_mixer_data->mixer_data.tempo );
 
             for (i = lq_mixer_data->channels; i > 0; i--) {
                 channel_info->current.advance      = channel_info->current.rate / mix_rate;
@@ -594,7 +511,7 @@ static uint32_t change_rate ( AVSequencerMixerData *mixer_data,
     return 0;
 }
 
-static uint32_t change_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo ) {
+static av_cold uint32_t set_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     uint32_t channel_rate;
     uint64_t pass_value;
@@ -608,9 +525,9 @@ static uint32_t change_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_te
     return 0;
 }
 
-static uint32_t change_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels ) {
+static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels ) {
     AVSequencerLQMixerData *lq_mixer_data           = (AVSequencerLQMixerData *) mixer_data;
-    AVSequencerLQMixerChannelInfo *channel_info;
+    AVSequencerLQMixerChannelInfo *channel_info     = NULL;
     AVSequencerLQMixerChannelInfo *old_channel_info = lq_mixer_data->channel_info;
     uint32_t old_channels, i;
 
@@ -640,7 +557,7 @@ static uint32_t change_volume ( AVSequencerMixerData *mixer_data, uint32_t ampli
         } while (++i);
     }
 
-    if (old_channels != channels) {
+    if (channel_info && (old_channels != channels)) {
         uint32_t copy_channels = old_channels;
 
         if (copy_channels > channels)
@@ -665,7 +582,7 @@ static uint32_t change_volume ( AVSequencerMixerData *mixer_data, uint32_t ampli
     return 0;
 }
 
-static void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     AVSequencerLQMixerChannelInfo *channel_info;
 
@@ -686,7 +603,7 @@ static void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChan
     }
 }
 
-static void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     AVSequencerLQMixerChannelInfo *channel_info;
 
@@ -730,7 +647,7 @@ static void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChan
             channel_info->next.count_restart  = mixer_channel->repeat_count;
             channel_info->next.counted        = mixer_channel->repeat_counted;
 
-            set_sample_mix_rate ( lq_mixer_data, &(channel_info->next), mixer_channel->rate );
+            set_sample_mix_rate ( lq_mixer_data, (AVSequencerLQMixerChannelInfo *) &(channel_info->next), mixer_channel->rate );
         } else {
             channel_info->current.offset           = mixer_channel->pos;
             channel_info->current.fraction         = 0;
@@ -764,12 +681,12 @@ static void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChan
             channel_info->current.count_restart  = mixer_channel->repeat_count;
             channel_info->current.counted        = mixer_channel->repeat_counted;
 
-            set_sample_mix_rate ( lq_mixer_data, &(channel_info->current), mixer_channel->rate );
+            set_sample_mix_rate ( lq_mixer_data, (AVSequencerLQMixerChannelInfo *) &(channel_info->current), mixer_channel->rate );
         }
     }
 }
 
-static void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     AVSequencerLQMixerChannelInfo *channel_info;
 
@@ -811,7 +728,7 @@ static void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data,
     }
 }
 
-static void set_channel_pos_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     AVSequencerLQMixerChannelInfo *channel_info;
 
@@ -889,7 +806,7 @@ static void set_channel_pos_repeat_flags ( AVSequencerMixerData *mixer_data, AVS
     }
 }
 
-static void do_mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf ) {
+static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
@@ -925,7 +842,8 @@ static void do_mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data
             if (current_left)
                 continue;
 
-            avseq_playback_handler ( avctx );
+            if (avctx->playback_handler)
+                avctx->playback_handler ( avctx );
 
             current_left       = lq_mixer_data->pass_len;
             current_left_frac += lq_mixer_data->pass_len_frac;
@@ -939,6 +857,118 @@ static void do_mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data
     }
 
     // TODO: Execute post-processing step in libavfilter and pass the PCM data.
+}
+
+static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void *opaque ) {
+    AVSequencerLQMixerData *lq_mixer_data;
+    AVSequencerLQMixerChannelInfo *channel_info;
+    uint64_t pass_value;
+    uint32_t buf_size, mix_buf_mem_size, channel_rate;
+    uint16_t channels, i;
+    uint8_t stereo;
+
+    if (!mixer_data)
+        return AVERROR_INVALIDDATA;
+
+   lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
+   buf_size      = lq_mixer_data->mixer_data.mix_buf_size;
+   channels      = lq_mixer_data->mixer_data.channels_max;
+
+   // TODO: Implement stereo and mono settings
+
+    if ((channels != lq_mixer_data->channels) || (lq_mixer_data->mixer_data.volume_boost != lq_mixer_data->amplify) || (stereo != lq_mixer_data->stereo_mode)) {
+        int32_t *volume_lut  = lq_mixer_data->volume_lut;
+        uint32_t volume_mult = 0, volume_div = lq_mixer_data->mixer_data.channels_max << 8;
+        uint32_t amplify     = lq_mixer_data->mixer_data.volume_boost;
+        uint8_t i            = 0, j = 0;
+
+        lq_mixer_data->amplify              = amplify;
+        lq_mixer_data->previous_stereo_mode = lq_mixer_data->stereo_mode;
+        lq_mixer_data->stereo_mode          = stereo;
+
+        do {
+            do {
+                int32_t volume = (int8_t) j << 8;
+                *volume_lut++  = (int64_t) volume * volume_mult / volume_div;
+            } while (++j);
+
+            volume_mult += amplify;
+        } while (++i);
+    }
+
+    if (!lq_mixer_data->channel_info || (channels != lq_mixer_data->channels)) {
+        AVSequencerLQMixerChannelInfo *old_channel_info;
+
+        if (!(channel_info = (AVSequencerLQMixerChannelInfo *) av_mallocz ( channels * sizeof (AVSequencerLQMixerChannelInfo))))
+            return AVERROR(ENOMEM);
+
+        if ((old_channel_info = lq_mixer_data->channel_info)) {
+            uint16_t copy_channels = channels;
+            uint16_t old_channels  = lq_mixer_data->channels;
+
+            if ( copy_channels > old_channels )
+                copy_channels = old_channels;
+
+            memcpy ( channel_info, old_channel_info, copy_channels * sizeof (AVSequencerLQMixerChannelInfo));
+
+            av_free ( old_channel_info );
+        }
+
+        lq_mixer_data->channel_info = channel_info;
+        lq_mixer_data->channels     = channels;
+    }
+
+    lq_mixer_data->mixer_data.channels_max = lq_mixer_data->channels;
+
+    mix_buf_mem_size = buf_size << 2;
+
+    if (stereo)
+        mix_buf_mem_size += mix_buf_mem_size;
+
+    if (!lq_mixer_data->buf || (lq_mixer_data->mix_buf_size != mix_buf_mem_size)) {
+        int32_t *buf;
+
+        if (!(buf = (int32_t *) av_mallocz ( mix_buf_mem_size ))) {
+            if (lq_mixer_data->channel_info)
+                av_free ( lq_mixer_data->channel_info );
+
+            return AVERROR(ENOMEM);
+        }
+
+        if (lq_mixer_data->buf)
+            av_free ( lq_mixer_data->buf );
+
+        lq_mixer_data->mix_buf_size = mix_buf_mem_size;
+        lq_mixer_data->buf          = buf;
+        lq_mixer_data->buf_size     = buf_size;
+    }
+
+    lq_mixer_data->mixer_data.mix_buf_size = lq_mixer_data->buf_size;
+
+    lq_mixer_data->mixer_data.mix_buf = lq_mixer_data->buf;
+    channel_rate                      = lq_mixer_data->mixer_data.rate;
+    lq_mixer_data->mix_rate           = channel_rate;
+    lq_mixer_data->mixer_data.flags  &= ~AVSEQ_MIXER_DATA_FLAG_STEREO;
+
+    if (stereo)
+        lq_mixer_data->mixer_data.flags |= AVSEQ_MIXER_DATA_FLAG_STEREO;
+
+    channel_rate                   *= 10;
+    pass_value                      = ((uint64_t) channel_rate << 16) + ((uint64_t) lq_mixer_data->mix_rate_frac >> 16);
+    lq_mixer_data->pass_len         = (uint64_t) pass_value / lq_mixer_data->mixer_data.tempo;
+    lq_mixer_data->pass_len_frac    = (((uint64_t) pass_value % lq_mixer_data->mixer_data.tempo) << 32) / lq_mixer_data->mixer_data.tempo;
+    // TODO: Implement configuration of real 16-bit and interpolation mode.
+    lq_mixer_data->real_16_bit_mode = 0;
+    lq_mixer_data->interpolation    = 0;
+    channel_info                    = lq_mixer_data->channel_info;
+
+    for (i = channels; i > 0; i--) {
+        set_sample_mix_rate ( lq_mixer_data, channel_info, channel_info->current.rate );
+
+        channel_info++;
+    }
+
+    return 0;
 }
 
 static void mix_sample ( AVSequencerLQMixerData *mixer_data, int32_t *buf, uint32_t len ) {
@@ -1004,7 +1034,7 @@ mix_sample_backwards:
                                 }
 
                                 mixer_change_func                        = (void *) channel_info->current.mix_backwards_func;
-                                channel_info->current.mix_backwards_func = mix_func;
+                                channel_info->current.mix_backwards_func = (void *) mix_func;
                                 mix_func                                 = (void *) mixer_change_func;
                                 channel_info->current.mix_func           = (void *) mix_func;
                                 channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
@@ -1082,7 +1112,7 @@ mix_sample_forwards:
                                 }
 
                                 mixer_change_func = (void *) channel_info->current.mix_backwards_func;
-                                channel_info->current.mix_backwards_func = mix_func;
+                                channel_info->current.mix_backwards_func = (void *) mix_func;
                                 mix_func = (void *) mixer_change_func;
                                 channel_info->current.mix_func   = (void *) mix_func;
                                 channel_info->current.flags     ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
@@ -1152,14 +1182,13 @@ static void set_sample_mix_rate ( AVSequencerLQMixerData *mixer_data, AVSequence
 static void advance_ok ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info ) {
     void **mix_func;
     void (*init_mixer_func)( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, uint16_t volume, uint16_t panning );
-    uint16_t panning;
+    uint16_t panning = 0x80;
 
     if ((channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || (channel_info->current.volume == 0)) {
         mix_func = (void *) &mixer_skip;
     } else if (!mixer_data->stereo_mode) {
         mix_func = (void *) &mixer_mono;
     } else if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
-        panning  = 0x80;
         mix_func = (void *) &mixer_stereo;
 
         if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
@@ -1200,50 +1229,50 @@ static void advance_ok ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerC
     switch (channel_info->current.bits_per_sample) {
     case 8 :
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-            channel_info->current.mix_func           = (void **) mix_func[7];
-            channel_info->current.mix_backwards_func = (void **) mix_func[3];
+            channel_info->current.mix_func           = (void *) mix_func[7];
+            channel_info->current.mix_backwards_func = (void *) mix_func[3];
         } else {
-            channel_info->current.mix_func           = (void **) mix_func[3];
-            channel_info->current.mix_backwards_func = (void **) mix_func[7];
+            channel_info->current.mix_func           = (void *) mix_func[3];
+            channel_info->current.mix_backwards_func = (void *) mix_func[7];
         }
 
-        init_mixer_func = (void **) mix_func[0];
+        init_mixer_func = (void *) mix_func[0];
 
         break;
     case 16 :
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-            channel_info->current.mix_func           = (void **) mix_func[8];
-            channel_info->current.mix_backwards_func = (void **) mix_func[4];
+            channel_info->current.mix_func           = (void *) mix_func[8];
+            channel_info->current.mix_backwards_func = (void *) mix_func[4];
         } else {
-            channel_info->current.mix_func           = (void **) mix_func[4];
-            channel_info->current.mix_backwards_func = (void **) mix_func[8];
+            channel_info->current.mix_func           = (void *) mix_func[4];
+            channel_info->current.mix_backwards_func = (void *) mix_func[8];
         }
 
-        init_mixer_func = (void **) mix_func[1];
+        init_mixer_func = (void *) mix_func[1];
 
         break;
     case 32 :
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-            channel_info->current.mix_func           = (void **) mix_func[9];
-            channel_info->current.mix_backwards_func = (void **) mix_func[5];
+            channel_info->current.mix_func           = (void *) mix_func[9];
+            channel_info->current.mix_backwards_func = (void *) mix_func[5];
         } else {
-            channel_info->current.mix_func           = (void **) mix_func[5];
-            channel_info->current.mix_backwards_func = (void **) mix_func[9];
+            channel_info->current.mix_func           = (void *) mix_func[5];
+            channel_info->current.mix_backwards_func = (void *) mix_func[9];
         }
 
-        init_mixer_func = (void **) mix_func[2];
+        init_mixer_func = (void *) mix_func[2];
 
         break;
     default :
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-            channel_info->current.mix_func           = (void **) mix_func[10];
-            channel_info->current.mix_backwards_func = (void **) mix_func[6];
+            channel_info->current.mix_func           = (void *) mix_func[10];
+            channel_info->current.mix_backwards_func = (void *) mix_func[6];
         } else {
-            channel_info->current.mix_func           = (void **) mix_func[6];
-            channel_info->current.mix_backwards_func = (void **) mix_func[10];
+            channel_info->current.mix_func           = (void *) mix_func[6];
+            channel_info->current.mix_backwards_func = (void *) mix_func[10];
         }
 
-        init_mixer_func = (void **) mix_func[2];
+        init_mixer_func = (void *) mix_func[2];
 
         break;
     }
@@ -23124,3 +23153,4 @@ get_second_sample:
         }
     }
 }
+#endif /* CONFIG_LOW_QUALITY_MIXER */
