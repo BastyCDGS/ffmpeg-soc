@@ -25,5 +25,6 @@ OBJS = allmixers.o      \
        track.o          \
 
 OBJS-$(CONFIG_LOW_QUALITY_MIXER)    += lq_mixer.o
+OBJS-$(CONFIG_NULL_MIXER)           += null_mixer.o
 
 include $(SUBDIR)../subdir.mak

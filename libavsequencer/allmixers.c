@@ -39,7 +39,7 @@ void avsequencer_register_all(void)
     initialized = 1;
 
     /* Mixers */
-//    rEGISTER_mIXER (NULL, null);
+    REGISTER_MIXER (NULL, null);
     REGISTER_MIXER (LOW_QUALITY, low_quality);
 //    rEGISTER_mIXER (HIGH_QUALITY, high_quality);
 }

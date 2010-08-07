@@ -138,7 +138,7 @@ void avsequencer_destroy(AVSequencerContext *avctx) {
 AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
     AVSequencerMixerData *mixer_data = NULL;
 
-    if(mixctx->init)
+    if (mixctx->init)
         mixer_data = mixctx->init(mixctx, args, opaque);
 
     return mixer_data;
