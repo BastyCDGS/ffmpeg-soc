@@ -97,7 +97,12 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
 }
 
 int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
-    AVSequencerSynthCode *code = synth->code;
+    AVSequencerSynthCode *code;
+
+    if (!synth)
+        return AVERROR_INVALIDDATA;
+
+    code = synth->code;
 
     if (!lines)
         lines = 1;
@@ -136,11 +141,17 @@ AVSequencerSynthWave *avseq_synth_waveform_create(void) {
 
 int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
     AVSequencerSynthWave *waveform;
-    AVSequencerSynthWave **waveform_list = synth->waveform_list;
-    uint16_t waveforms                   = synth->waveforms;
+    AVSequencerSynthWave **waveform_list;
+    uint16_t waveforms;
     int res;
 
-    if (!synth || !++waveforms) {
+    if (!synth)
+        return AVERROR_INVALIDDATA;
+
+    waveform_list = synth->waveform_list;
+    waveforms     = synth->waveforms;
+
+    if (!++waveforms) {
         return AVERROR_INVALIDDATA;
     } else if (!(waveform_list = av_realloc(waveform_list, waveforms * sizeof(AVSequencerSynthWave *)))) {
         av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound waveform storage container.\n");
@@ -171,14 +182,15 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
     uint32_t size;
     int16_t *data;
 
+    if (!waveform)
+        return AVERROR_INVALIDDATA;
+
     if (!samples)
         samples = 64;
 
     size = waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT ? samples : samples << 1;
 
-    if (!waveform) {
-        return AVERROR_INVALIDDATA;
-    } else if (!(data = av_mallocz(size))) {
+    if (!(data = av_mallocz(size))) {
         av_log(waveform, AV_LOG_ERROR, "cannot allocate synth sound waveform data.\n");
         return AVERROR(ENOMEM);
     }

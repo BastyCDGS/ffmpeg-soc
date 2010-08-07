@@ -1045,7 +1045,8 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
     channel = 0;
 
     do {
-        mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
+        if (mixer->mixctx->get_channel)
+            mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
 
         player_channel++;
     } while (++channel < module->channels);
@@ -1332,7 +1333,7 @@ rescan_row:
                     player_channel->slide_env_freq += old_frequency;
                 }
             } else {
-                uint32_t *frequency_lut;
+                const uint32_t *frequency_lut;
                 uint32_t frequency, next_frequency, slide_envelope_frequency, old_frequency;
                 int16_t octave, note;
                 int16_t slide_note = (int16_t) slide_envelope_value >> 8;
@@ -1550,10 +1551,12 @@ turn_note_off:
 
             player_channel->mixer.panning = panning;
 
-            mixer->mixctx->set_channel_volume_panning_pitch ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
+            if (mixer->mixctx->set_channel_volume_panning_pitch)
+                mixer->mixctx->set_channel_volume_panning_pitch ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
         }
 not_calculate_no_playing:
-        mixer->mixctx->set_channel_position_repeat_flags ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
+        if (mixer->mixctx->set_channel_position_repeat_flags)
+            mixer->mixctx->set_channel_position_repeat_flags ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
 
         player_channel++;
     } while (++channel < module->channels);
@@ -2092,7 +2095,7 @@ do_not_play_keyboard:
 
 static uint32_t get_tone_pitch ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, int16_t note ) {
     AVSequencerSample *sample = player_host_channel->sample;
-    uint32_t *frequency_lut;
+    const uint32_t *frequency_lut;
     uint32_t frequency, next_frequency;
     uint16_t octave;
     int8_t finetune;
@@ -2636,7 +2639,9 @@ static void init_new_sample ( AVSequencerContext *avctx, AVSequencerPlayerHostCh
 
     player_channel->finetune = player_host_channel->finetune;
     mixer                    = avctx->player_mixer_data;
-    mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), player_host_channel->virtual_channel );
+
+    if (mixer->mixctx->set_channel)
+        mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), player_host_channel->virtual_channel );
 }
 
 static AVSequencerPlayerChannel *trigger_nna ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint32_t channel, uint16_t *virtual_channel ) {
@@ -4189,7 +4194,8 @@ static void speed_val_ok ( AVSequencerContext *avctx, uint16_t *speed_adr, uint1
         tempo                *= player_globals->relative_speed;
         tempo               >>= 16;
 
-        mixer->mixctx->set_tempo ( mixer, tempo );
+        if (mixer->mixctx->set_tempo)
+            mixer->mixctx->set_tempo ( mixer, tempo );
     }
 }
 
@@ -7544,7 +7550,7 @@ static void se_vibrato_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel 
 }
 
 static void se_arpegio_do ( AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int16_t arpeggio_transpose, uint16_t arpeggio_finetune ) {
-    uint32_t *frequency_lut;
+    const uint32_t *frequency_lut;
     uint32_t frequency, next_frequency, slide_frequency, old_frequency;
     uint16_t octave;
     int16_t note;
@@ -9391,8 +9397,11 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwave) {
         player_channel->mixer.flags = flags;
         mixer                       = avctx->player_mixer_data;
 
-        mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
-        mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
+        if (mixer->mixctx->set_channel)
+            mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
+
+        if (mixer->mixctx->get_channel)
+            mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
     }
 
     return synth_code_line;
@@ -9439,7 +9448,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav) {
         player_channel->mixer.flags = flags;
         mixer                       = avctx->player_mixer_data;
 
-        mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
+        if (mixer->mixctx->set_channel)
+            mixer->mixctx->set_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), virtual_channel );
     }
 
     return synth_code_line;
@@ -9454,7 +9464,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwavp) {
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(setrans) {
-    uint32_t *frequency_lut;
+    const uint32_t *frequency_lut;
     uint32_t frequency, next_frequency;
     uint16_t octave;
     int16_t note;
@@ -9496,7 +9506,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setrans) {
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(setnote) {
-    uint32_t *frequency_lut;
+    const uint32_t *frequency_lut;
     uint32_t frequency, next_frequency;
     uint16_t octave;
     int16_t note;

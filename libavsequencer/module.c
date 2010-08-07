@@ -43,10 +43,16 @@ static const AVClass avseq_module_class = {
 };
 
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
-    AVSequencerModule **module_list = avctx->module_list;
-    uint16_t modules                = avctx->modules;
+    AVSequencerModule **module_list;
+    uint16_t modules;
 
-    if (!module || !++modules) {
+    if (!avctx)
+        return AVERROR_INVALIDDATA;
+
+    module_list = avctx->module_list;
+    modules     = avctx->modules;
+
+    if (!(module && ++modules)) {
         return AVERROR_INVALIDDATA;
     } else if (!(module_list = av_realloc(module_list, modules * sizeof(AVSequencerModule *)))) {
         av_log(avctx, AV_LOG_ERROR, "cannot allocate module storage container.\n");

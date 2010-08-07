@@ -48,11 +48,17 @@ AVSequencerSample *avseq_sample_create(void) {
 
 int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *sample,
                       int16_t *data, uint32_t length) {
-    AVSequencerSample **sample_list = instrument->sample_list;
-    uint8_t samples                 = instrument->samples;
+    AVSequencerSample **sample_list;
+    uint8_t samples;
     int res;
 
-    if (!sample || !++samples) {
+    if (!instrument)
+        return AVERROR_INVALIDDATA;
+
+    sample_list = instrument->sample_list;
+    samples     = instrument->samples;
+
+    if (!(sample && ++samples)) {
         return AVERROR_INVALIDDATA;
     } else if (!(sample_list = av_realloc(sample_list, samples * sizeof(AVSequencerSample *)))) {
         av_log(instrument, AV_LOG_ERROR, "cannot allocate sample storage container.\n");
@@ -80,11 +86,14 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
 }
 
 int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples) {
-    uint32_t size = FFALIGN(samples * sample->bits_per_sample, 8) >> 3;
+    uint32_t size;
 
-    if (!sample) {
+    if (!sample)
         return AVERROR_INVALIDDATA;
-    } else if (data) {
+
+    size = FFALIGN(samples * sample->bits_per_sample, 8) >> 3;
+
+    if (data) {
         sample->flags = AVSEQ_SAMPLE_FLAG_REDIRECT;
     } else if (!(data = av_mallocz(size))) {
         av_log(sample, AV_LOG_ERROR, "cannot allocate sample data.\n");

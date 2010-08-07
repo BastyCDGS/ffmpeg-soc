@@ -44,9 +44,14 @@ static const AVClass avseq_order_list_class = {
 
 int avseq_order_open(AVSequencerSong *song) {
     AVSequencerOrderList *order_list;
-    uint16_t channels = song->channels;
+    uint16_t channels;
 
-    if (!song || (channels == 0) || (channels > 256)) {
+    if (!song)
+        return AVERROR_INVALIDDATA;
+
+    channels = song->channels;
+
+    if ((channels == 0) || (channels > 256)) {
         return AVERROR_INVALIDDATA;
     } else if (!(order_list = av_mallocz(channels * sizeof(AVSequencerOrderData)))) {
         av_log(song, AV_LOG_ERROR, "cannot allocate order list storage container.\n");

@@ -43,11 +43,17 @@ static const AVClass avseq_song_class = {
 };
 
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
-    AVSequencerSong **song_list = module->song_list;
-    uint16_t songs              = module->songs;
+    AVSequencerSong **song_list;
+    uint16_t songs;
     int res;
 
-    if (!song || !++songs) {
+    if (!module)
+        return AVERROR_INVALIDDATA;
+
+    song_list = module->song_list;
+    songs     = module->songs;
+
+    if (!(song && ++songs)) {
         return AVERROR_INVALIDDATA;
     } else if (!(song_list = av_realloc(song_list, songs * sizeof(AVSequencerSong *)))) {
         av_log(module, AV_LOG_ERROR, "cannot allocate sub-song storage container.\n");

@@ -43,11 +43,17 @@ static const AVClass avseq_track_class = {
 };
 
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
-    AVSequencerTrack **track_list = song->track_list;
-    uint16_t tracks               = song->tracks;
+    AVSequencerTrack **track_list;
+    uint16_t tracks;
     int res;
 
-    if (!track || !++tracks) {
+    if (!song)
+        return AVERROR_INVALIDDATA;
+
+    track_list = song->track_list;
+    tracks     = song->tracks;
+
+    if (!(track && ++tracks)) {
         return AVERROR_INVALIDDATA;
     } else if (!(track_list = av_realloc(track_list, tracks * sizeof(AVSequencerTrack *)))) {
         av_log(song, AV_LOG_ERROR, "cannot allocate track storage container.\n");
@@ -76,12 +82,16 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
 }
 
 int avseq_track_data_open(AVSequencerTrack *track) {
-    AVSequencerTrackData *data = track->data;
-    const unsigned last_row = track->last_row + 1;
+    AVSequencerTrackData *data;
+    unsigned last_row;
 
-    if (!track) {
+    if (!track)
         return AVERROR_INVALIDDATA;
-    } else if (!(data = av_realloc(data, last_row * sizeof(AVSequencerTrackData *)))) {
+
+    data     = track->data;
+    last_row = track->last_row + 1;
+
+    if (!(data = av_realloc(data, last_row * sizeof(AVSequencerTrackData *)))) {
         av_log(track, AV_LOG_ERROR, "cannot allocate storage container.\n");
         return AVERROR(ENOMEM);
     }
