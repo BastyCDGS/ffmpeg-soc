@@ -24,7 +24,27 @@
  * Implement AVSequencer synth sound, code, symbol and waveform management.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *synth_name(void *p)
+{
+    AVSequencerSynth *synth = p;
+    AVMetadataTag *tag      = av_metadata_get(synth->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_synth_class = {
+    "AVSequencer Synth",
+    synth_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
+
+AVSequencerSample *avseq_sample_create(void) {
+    return av_mallocz(sizeof(AVSequencerSample));
+}
 
 AVSequencerSynth *avseq_synth_create(void) {
     return av_mallocz(sizeof(AVSequencerSynth));
@@ -51,6 +71,8 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
         av_log(sample, AV_LOG_ERROR, "cannot allocate synth sound container.\n");
         return AVERROR(ENOMEM);
     }
+
+    synth->av_class = &avseq_synth_class;
 
     if ((res = avseq_synth_code_open(synth, lines)) < 0) {
         av_free(synth);
@@ -93,6 +115,21 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
     return 0;
 }
 
+static const char *waveform_name(void *p)
+{
+    AVSequencerSynthWave *waveform = p;
+    AVMetadataTag *tag             = av_metadata_get(waveform->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_waveform_class = {
+    "AVSequencer Synth Waveform",
+    waveform_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
+
 AVSequencerSynthWave *avseq_synth_waveform_create(void) {
     return av_mallocz(sizeof(AVSequencerSynthWave));
 }
@@ -114,6 +151,7 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
         return AVERROR(ENOMEM);
     }
 
+    waveform->av_class   = &avseq_waveform_class;
     waveform->repeat_len = samples;
 
     if ((res = avseq_synth_waveform_data_open(waveform, samples)) < 0) {

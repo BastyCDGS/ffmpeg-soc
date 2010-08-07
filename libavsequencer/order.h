@@ -47,6 +47,10 @@ typedef struct AVSequencerOrderData {
      */
     const AVClass *av_class;
 
+    /** Metadata information: Original order entry file name, order
+     *  entry name, artist and comment.  */
+    AVMetadata *metadata;
+
     /** AVSequencerTrack pointer to track which should be played.  */
     AVSequencerTrack *track;
 
@@ -135,6 +139,10 @@ typedef struct AVSequencerOrderList {
      * - set by avseq_alloc_context
      */
     const AVClass *av_class;
+
+    /** Metadata information: Original order list file name, order
+     *  list name, artist and comment.  */
+    AVMetadata *metadata;
 
     /** Array (of size orders) of pointers containing all order list
        data used by this channel.  */

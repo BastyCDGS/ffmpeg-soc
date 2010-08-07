@@ -71,129 +71,6 @@ enum AVSequencerMixerID {
     MIXER_ID_HQ, ///< High quality mixer optimized for quality playback and disk writers
 };
 
-/** AVSequencerMixerContext->flags bitfield.  */
-enum AVSequencerMixerContextFlags {
-    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
-    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
-    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
-};
-
-/**
- * Mixer context structure which is used to describe certain features
- * of registered mixers to the sequencer context.
- * New fields can be added to the end with minor version bumps.
- * Removal, reordering and changes to existing fields require a major
- * version bump.
- */
-typedef struct AVSequencerMixerContext {
-    /**
-     * information on struct for av_log
-     * - set by avseq_alloc_context
-     */
-    const AVClass *av_class;
-
-    /** Certain metadata describing this mixer, i.e. who developed
-       it (artist) and a brief description of the features
-       (comment).  */
-    AVMetadata *metadata;
-
-    /** Default mixing rate in Hz used by this mixer. This will
-       usually set to the value which this mixer can handle the best
-       way.  */
-    uint32_t frequency;
-
-    /** Minimum mixing rate in Hz supported by this mixer.  */
-    uint32_t frequency_min;
-
-    /** Maximum mixing rate in Hz supported by this mixer.  */
-    uint32_t frequency_max;
-
-    /** Default mixing buffer size preferred. This will usually set
-       to the value which this mixer can handle the at best without
-       causing jittering and too much lag.  */
-    uint32_t buf_size;
-
-    /** Minimum mixing buffer size supported by this mixer.  */
-    uint32_t buf_size_min;
-
-    /** Maximum mixing buffer size supported by this mixer.  */
-    uint32_t buf_size_max;
-
-    /** Default volume boost level. 65536 equals to 100% which
-       means no boost.  */
-    uint32_t volume_boost;
-
-    /** Maximum number of channels supported by this mixer, some
-       engines might support less channels than maximum allowed by
-       the sequencer.  */
-    uint16_t channels_max;
-
-    /** Special flags indicating supported features by this mixer.  */
-    uint8_t flags;
-} AVSequencerMixerContext;
-
-/** AVSequencerMixerData->flags bitfield.  */
-enum AVSequencerMixerDataFlags {
-    AVSEQ_MIXER_DATA_FLAG_ALLOCATED = 0x01, ///< The mixer is currently allocated and ready to use
-    AVSEQ_MIXER_DATA_FLAG_MIXING    = 0x02, ///< The mixer is currently in actual mixing to output
-    AVSEQ_MIXER_DATA_FLAG_STEREO    = 0x04, ///< The mixer is currently mixing in stereo mode instead of mono
-    AVSEQ_MIXER_DATA_FLAG_FROZEN    = 0x08, ///< The mixer has been delayed by some external process like disk I/O writing
-};
-
-/**
- * Mixer data allocation structure which is used to allocate a mixer
- * for be used by the playback handler. This structure is also used
- * for setting global parameters like the output mixing rate, the
- * size of the mixing buffer, volume boost and the tempo which
- * decides when to call the actual playback handler.
- * New fields can be added to the end with minor version bumps.
- * Removal, reordering and changes to existing fields require a major
- * version bump.
- */
-typedef struct AVSequencerMixerData {
-    /** Pointer to basic mixer context structure which describes
-       the mixer features.  */
-    AVSequencerMixerContext *mixctx;
-
-    /** Current mixing rate in Hz which is used to output the
-       calculated sample data from the channels.  */
-    uint32_t rate;
-
-    /** Pointer to the mixing output buffer for the calculated sample
-       data from the channels. This is always SAMPLE_FMT_S32 in native
-       endianess.  */
-    int32_t *mix_buf;
-
-    /** The current actual size of the output buffer for the
-       calculated sample data from the channels.  */
-    uint32_t mix_buf_size;
-
-    /** The current volume boost level. 65536 equals to 100% which
-       means no boost.  */
-    uint32_t volume_boost;
-
-    /** Left channel volume level. 65536 is full volume.  */
-    uint32_t volume_left;
-
-    /** Right channel volume level. 65536 is full volume.  */
-    uint32_t volume_right;
-
-    /** Speed of playback handler in AV_TIME_BASE fractional
-       seconds.  */
-    uint32_t tempo;
-
-    /** Current maximum number of allocated channels. The more
-       channels are used the more CPU power is required to
-       calculate the output audio buffer.  */
-    uint16_t channels_max;
-
-    /** Current status flags for this mixer which contain information
-       like if the mixer has been allocated, is currently mixing,
-       output mode (stereo or mono) or if it frozen because of some
-       delaying (like caused by disk I/O when using disk writers.  */
-    uint8_t flags;
-} AVSequencerMixerData;
-
 /** AVSequencerMixerChannel->flags bitfield.  */
 enum AVSequencerMixerChannelFlags {
     AVSEQ_MIXER_CHANNEL_FLAG_MUTED      = 0x01, ///< Channel is muted (i.e. processed but not outputted)
@@ -275,6 +152,161 @@ typedef struct AVSequencerMixerChannel {
     int8_t panning;
 } AVSequencerMixerChannel;
 
+/** AVSequencerMixerData->flags bitfield.  */
+enum AVSequencerMixerDataFlags {
+    AVSEQ_MIXER_DATA_FLAG_ALLOCATED = 0x01, ///< The mixer is currently allocated and ready to use
+    AVSEQ_MIXER_DATA_FLAG_MIXING    = 0x02, ///< The mixer is currently in actual mixing to output
+    AVSEQ_MIXER_DATA_FLAG_STEREO    = 0x04, ///< The mixer is currently mixing in stereo mode instead of mono
+    AVSEQ_MIXER_DATA_FLAG_FROZEN    = 0x08, ///< The mixer has been delayed by some external process like disk I/O writing
+};
+
+/**
+ * Mixer data allocation structure which is used to allocate a mixer
+ * for be used by the playback handler. This structure is also used
+ * for setting global parameters like the output mixing rate, the
+ * size of the mixing buffer, volume boost and the tempo which
+ * decides when to call the actual playback handler.
+ * New fields can be added to the end with minor version bumps.
+ * Removal, reordering and changes to existing fields require a major
+ * version bump.
+ */
+typedef struct AVSequencerMixerData {
+    /** Pointer to basic mixer context structure which describes
+       the mixer features.  */
+    struct AVSequencerMixerContext *mixctx;
+
+    /** Current mixing rate in Hz which is used to output the
+       calculated sample data from the channels.  */
+    uint32_t rate;
+
+    /** Pointer to the mixing output buffer for the calculated sample
+       data from the channels. This is always SAMPLE_FMT_S32 in native
+       endianess.  */
+    int32_t *mix_buf;
+
+    /** The current actual size of the output buffer for the
+       calculated sample data from the channels.  */
+    uint32_t mix_buf_size;
+
+    /** The current volume boost level. 65536 equals to 100% which
+       means no boost.  */
+    uint32_t volume_boost;
+
+    /** Left channel volume level. 65536 is full volume.  */
+    uint32_t volume_left;
+
+    /** Right channel volume level. 65536 is full volume.  */
+    uint32_t volume_right;
+
+    /** Speed of playback handler in AV_TIME_BASE fractional
+       seconds.  */
+    uint32_t tempo;
+
+    /** Current maximum number of allocated channels. The more
+       channels are used the more CPU power is required to
+       calculate the output audio buffer.  */
+    uint16_t channels_max;
+
+    /** Current status flags for this mixer which contain information
+       like if the mixer has been allocated, is currently mixing,
+       output mode (stereo or mono) or if it frozen because of some
+       delaying (like caused by disk I/O when using disk writers.  */
+    uint8_t flags;
+} AVSequencerMixerData;
+
+/** AVSequencerMixerContext->flags bitfield.  */
+enum AVSequencerMixerContextFlags {
+    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
+    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
+    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
+};
+
+/**
+ * Mixer context structure which is used to describe certain features
+ * of registered mixers to the sequencer context.
+ * New fields can be added to the end with minor version bumps.
+ * Removal, reordering and changes to existing fields require a major
+ * version bump.
+ */
+typedef struct AVSequencerMixerContext {
+    /**
+     * information on struct for av_log
+     * - set by avseq_alloc_context
+     */
+    const AVClass *av_class;
+
+    /** Certain metadata describing this mixer, i.e. who developed
+       it (artist) and a brief description of the features
+       (comment).  */
+    AVMetadata *metadata;
+
+    /** Default mixing rate in Hz used by this mixer. This will
+       usually set to the value which this mixer can handle the best
+       way.  */
+    uint32_t frequency;
+
+    /** Minimum mixing rate in Hz supported by this mixer.  */
+    uint32_t frequency_min;
+
+    /** Maximum mixing rate in Hz supported by this mixer.  */
+    uint32_t frequency_max;
+
+    /** Default mixing buffer size preferred. This will usually set
+       to the value which this mixer can handle the at best without
+       causing jittering and too much lag.  */
+    uint32_t buf_size;
+
+    /** Minimum mixing buffer size supported by this mixer.  */
+    uint32_t buf_size_min;
+
+    /** Maximum mixing buffer size supported by this mixer.  */
+    uint32_t buf_size_max;
+
+    /** Default volume boost level. 65536 equals to 100% which
+       means no boost.  */
+    uint32_t volume_boost;
+
+    /** Maximum number of channels supported by this mixer, some
+       engines might support less channels than maximum allowed by
+       the sequencer.  */
+    uint16_t channels_max;
+
+    /** Special flags indicating supported features by this mixer.  */
+    uint8_t flags;
+
+    /** The initialization function to call for the mixer.  */
+    int (*init)( struct AVSequencerMixerContext *mixctx, const char *args, void *opaque );
+
+    /** Transfers the new time interval for calling the playback
+       handler to the interal mixer, in AV_TIME_BASE fractional
+       seconds.  */
+    uint32_t (*set_tempo)( AVSequencerMixerData *mixer_data, uint32_t new_tempo );
+
+    /** Transfers the new volume boost, the new left position volume,
+       the new right position volume and new number of maximum
+       channels from the AVSequencer to the internal mixer channel
+       data.  */
+    uint32_t (*set_volume)( AVSequencerMixerData *mixer_data, uint32_t amplify,
+                            uint32_t left_volume, uint32_t right_volume,
+                            uint32_t channels );
+
+    /** Transfers the internal mixer channel data to the
+       AVSequencer.  */
+    void (*get_channel)( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+
+    /** Transfers the AVSequencer channel data to the internal
+       internal mixer channel data.  */
+    void (*set_channel)( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+
+    /** Signals a volume, panning or pitch change from AVSequencer to
+       the internal mixer.  */
+    void (*set_channel_volume_panning_pitch)( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+
+    /** Signals a set sample position, set repeat and flags change
+       from AVSequencer to the internal mixer.  */
+    void (*set_channel_position_repeat_flags)( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
+} AVSequencerMixerContext;
+
 #include "libavsequencer/module.h"
 #include "libavsequencer/song.h"
 
@@ -350,7 +382,7 @@ typedef struct AVSequencerContext {
     AVSequencerSynthTable *synth_code_lut;
 
     /** Pointer to synth sound code execution table or NULL to use the
-       interal one.  */
+       internal one.  */
     void *synth_code_exec_lut;
 
     /** Array of pointers containing every module which is registered
@@ -372,6 +404,94 @@ typedef struct AVSequencerContext {
        featuring randomized data instead of waveforms.  */
     uint32_t seed;
 } AVSequencerContext;
+
+/** Registers all mixers to the AVSequencer.
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avsequencer_register_all(void);
+
+/** Registers a mixer to the AVSequencer.
+ *
+ * @param mixctx the AVSequencerMixerContext to register
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_mixer_register(AVSequencerMixerContext *mixctx);
+
+/** Gets a mixer by it's title metadata (name).
+ *
+ * @param name the title of the mixer to get
+ * @return pointer to mixer context on success, NULL otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name);
+
+/** Gets the pointer to the next mixer context array.
+ *
+ * @param mixctx the AVSequencerMixerContext array of the next mixer to get
+ * @return pointer to next mixer context array on success, NULL otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerMixerContext **avseq_mixer_next(AVSequencerMixerContext **mixctx);
+
+/** Uninitializes all the mixers registered to the AVSequencer.
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avsequencer_uninit(void);
+
+/**
+ * Opens and registers a new AVSequencer context.
+ *
+ * @param mixctx the AVSequencerMixerContext to use as an initial mixer
+ * @param inst_name the name of AVSequencerContext instance
+ * @return pointer to registered AVSequencerContext, NULL otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char *inst_name);
+
+/** Recursively destroys the AVSequencerContext and frees all memory.
+ *
+ * @param avctx the AVSequencerContext to be destroyed recursively
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avsequencer_destroy(AVSequencerContext *avctx);
+
+/**
+ * Opens and initializes a new AVSequencer mixer context.
+ *
+ * @param mixctx the AVSequencerMixerContext to initialize
+ * @param args   The string of parameters to use when initializing the mixer.
+ *               The format and meaning of this string varies by mixer.
+ * @param opaque The xtra non-string data needed by the mixer. The meaning
+ *               of this parameter varies by mixer.
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque);
 
 /**
  * Opens and registers module to the AVSequencer.

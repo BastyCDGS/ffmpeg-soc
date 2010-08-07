@@ -24,7 +24,23 @@
  * Implement AVSequencer order list and data stuff.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *order_list_name(void *p)
+{
+    AVSequencerOrderList *order_list = p;
+    AVMetadataTag *tag               = av_metadata_get(order_list->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_order_list_class = {
+    "AVSequencer Order List",
+    order_list_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 int avseq_order_open(AVSequencerSong *song) {
     AVSequencerOrderList *order_list;
@@ -40,6 +56,7 @@ int avseq_order_open(AVSequencerSong *song) {
     song->order_list = order_list;
 
     do {
+        order_list->av_class        = &avseq_order_list_class;
         order_list->volume          = 255;
         order_list->track_panning   = -128;
         order_list->channel_panning = -128;

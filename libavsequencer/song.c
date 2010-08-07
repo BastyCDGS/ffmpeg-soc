@@ -24,7 +24,23 @@
  * Implement AVSequencer sub-song stuff.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *song_name(void *p)
+{
+    AVSequencerSong *song = p;
+    AVMetadataTag *tag    = av_metadata_get(song->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_song_class = {
+    "AVSequencer Song",
+    song_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     AVSequencerSong **song_list = module->song_list;
@@ -34,10 +50,11 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     if (!song || !++songs) {
         return AVERROR_INVALIDDATA;
     } else if (!(song_list = av_realloc(song_list, songs * sizeof(AVSequencerSong *)))) {
-        av_log(song, AV_LOG_ERROR, "cannot allocate sub-song storage container.\n");
+        av_log(module, AV_LOG_ERROR, "cannot allocate sub-song storage container.\n");
         return AVERROR(ENOMEM);
     }
 
+    song->av_class         = &avseq_song_class;
     song->channels         = 16;
     song->gosub_stack_size = 4;
     song->loop_stack_size  = 1;

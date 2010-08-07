@@ -24,7 +24,23 @@
  * Implement AVSequencer pattern and track stuff.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *track_name(void *p)
+{
+    AVSequencerTrack *track = p;
+    AVMetadataTag *tag      = av_metadata_get(track->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_track_class = {
+    "AVSequencer Track",
+    track_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     AVSequencerTrack **track_list = song->track_list;
@@ -34,10 +50,11 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     if (!track || !++tracks) {
         return AVERROR_INVALIDDATA;
     } else if (!(track_list = av_realloc(track_list, tracks * sizeof(AVSequencerTrack *)))) {
-        av_log(track, AV_LOG_ERROR, "cannot allocate storage container.\n");
+        av_log(song, AV_LOG_ERROR, "cannot allocate track storage container.\n");
         return AVERROR(ENOMEM);
     }
 
+    track->av_class  = &avseq_track_class;
     track->last_row  = 63;
     track->volume    = 255;
     track->panning   = -128;

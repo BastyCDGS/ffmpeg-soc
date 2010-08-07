@@ -47,6 +47,10 @@ typedef struct AVSequencerEnvelope {
      */
     const AVClass *av_class;
 
+    /** Metadata information: Original envelope file name, envelope
+     *  name, artist and comment.  */
+    AVMetadata *metadata;
+
     /** The actual node data of this envelope as signed 16-bit integer.
        For a volume envelope, we have a default scale range of -32767
        to +32767, for panning envelopes the scale range is between -8191
@@ -123,6 +127,10 @@ typedef struct AVSequencerKeyboard {
      */
     const AVClass *av_class;
 
+    /** Metadata information: Original keyboard file name, keyboard
+     *  name, artist and comment.  */
+    AVMetadata *metadata;
+
     struct AVSequencerKeyboardEntry {
         /** Sample number for this keyboard note.  */
         uint16_t sample;
@@ -180,6 +188,10 @@ typedef struct AVSequencerArpeggio {
      * - set by avseq_alloc_context
      */
     const AVClass *av_class;
+
+    /** Metadata information: Original arpeggio file name, arpeggio
+     *  name, artist and comment.  */
+    AVMetadata *metadata;
 
     /** AVSequencerArpeggioData pointer to arpeggio data structure.  */
     AVSequencerArpeggioData *data;

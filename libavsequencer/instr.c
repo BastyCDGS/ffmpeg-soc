@@ -24,7 +24,23 @@
  * Implement AVSequencer instrument management.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *instrument_name(void *p)
+{
+    AVSequencerInstrument *instrument = p;
+    AVMetadataTag *tag                = av_metadata_get(instrument->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_instrument_class = {
+    "AVSequencer Instrument",
+    instrument_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument) {
     AVSequencerSample *sample;
@@ -35,9 +51,13 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     if (!instrument || !++instruments) {
         return AVERROR_INVALIDDATA;
     } else if (!(instrument_list = av_realloc(instrument_list, instruments * sizeof(AVSequencerInstrument *)))) {
-        av_log(instrument, AV_LOG_ERROR, "cannot allocate instrument storage container.\n");
+        av_log(module, AV_LOG_ERROR, "cannot allocate instrument storage container.\n");
         return AVERROR(ENOMEM);
-    } else if (!(sample = avseq_sample_create())) {
+    }
+
+    instrument->av_class = &avseq_instrument_class;
+
+    if (!(sample = avseq_sample_create())) {
         av_free(instrument_list);
         av_log(instrument, AV_LOG_ERROR, "cannot allocate first sample.\n");
         return AVERROR(ENOMEM);
@@ -61,6 +81,21 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
 
     return 0;
 }
+
+static const char *envelope_name(void *p)
+{
+    AVSequencerEnvelope *envelope = p;
+    AVMetadataTag *tag            = av_metadata_get(envelope->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_envelope_class = {
+    "AVSequencer Envelope",
+    envelope_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 #define CREATE_ENVELOPE(env_type) \
     static void create_##env_type##_envelope ( AVSequencerContext *avctx, \
@@ -99,10 +134,11 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
     if (!envelope || !++envelopes) {
         return AVERROR_INVALIDDATA;
     } else if (!(envelope_list = av_realloc(envelope_list, envelopes * sizeof(AVSequencerEnvelope *)))) {
-        av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope storage container.\n");
+        av_log(module, AV_LOG_ERROR, "cannot allocate envelope storage container.\n");
         return AVERROR(ENOMEM);
     }
 
+    envelope->av_class  = &avseq_envelope_class;
     envelope->value_min = -scale;
     envelope->value_max = scale;
     envelope->tempo     = 1;
@@ -435,6 +471,21 @@ CREATE_ENVELOPE(sawtooth) {
     }
 }
 
+static const char *keyboard_name(void *p)
+{
+    AVSequencerKeyboard *keyboard = p;
+    AVMetadataTag *tag            = av_metadata_get(keyboard->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_keyboard_class = {
+    "AVSequencer Keyboard",
+    keyboard_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
+
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard) {
     AVSequencerKeyboard **keyboard_list = module->keyboard_list;
     uint16_t keyboards                  = module->keyboards;
@@ -443,9 +494,11 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     if (!keyboard || !++keyboards) {
         return AVERROR_INVALIDDATA;
     } else if (!(keyboard_list = av_realloc(keyboard_list, keyboards * sizeof(AVSequencerKeyboard *)))) {
-        av_log(keyboard, AV_LOG_ERROR, "cannot allocate keyboard definition list storage container.\n");
+        av_log(module, AV_LOG_ERROR, "cannot allocate keyboard definition list storage container.\n");
         return AVERROR(ENOMEM);
     }
+
+    keyboard->av_class = &avseq_keyboard_class;
 
     for (i = 0; i < 120; ++i) {
         keyboard->key[i].sample = 0;
@@ -460,6 +513,21 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     return 0;
 }
 
+static const char *arpeggio_name(void *p)
+{
+    AVSequencerArpeggio *arpeggio = p;
+    AVMetadataTag *tag            = av_metadata_get(arpeggio->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_arpeggio_class = {
+    "AVSequencer Arpeggio",
+    arpeggio_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
+
 int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
                         uint32_t entries) {
     AVSequencerArpeggio **arpeggio_list = module->arpeggio_list;
@@ -469,9 +537,11 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
     if (!arpeggio || !++arpeggios) {
         return AVERROR_INVALIDDATA;
     } else if (!(arpeggio_list = av_realloc(arpeggio_list, arpeggios * sizeof(AVSequencerArpeggio *)))) {
-        av_log(arpeggio, AV_LOG_ERROR, "cannot allocate arpeggio structure storage container.\n");
+        av_log(module, AV_LOG_ERROR, "cannot allocate arpeggio structure storage container.\n");
         return AVERROR(ENOMEM);
     }
+
+    arpeggio->av_class = &avseq_arpeggio_class;
 
     if ((res = avseq_arpeggio_data_open(arpeggio, entries)) < 0) {
         av_free(arpeggio_list);

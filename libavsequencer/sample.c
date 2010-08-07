@@ -24,7 +24,23 @@
  * Implement AVSequencer samples management.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *sample_name(void *p)
+{
+    AVSequencerSample *sample = p;
+    AVMetadataTag *tag        = av_metadata_get(sample->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_sample_class = {
+    "AVSequencer Sample",
+    sample_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 AVSequencerSample *avseq_sample_create(void) {
     return av_mallocz(sizeof(AVSequencerSample));
@@ -39,10 +55,11 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
     if (!sample || !++samples) {
         return AVERROR_INVALIDDATA;
     } else if (!(sample_list = av_realloc(sample_list, samples * sizeof(AVSequencerSample *)))) {
-        av_log(sample, AV_LOG_ERROR, "cannot allocate sample storage container.\n");
+        av_log(instrument, AV_LOG_ERROR, "cannot allocate sample storage container.\n");
         return AVERROR(ENOMEM);
     }
 
+    sample->av_class        = &avseq_sample_class;
     sample->bits_per_sample = 16;
     sample->rate            = 8363; // NTSC frequency (60 Hz sequencers), for PAL use 8287
     sample->rate_max        = 0xFFFFFFFF;

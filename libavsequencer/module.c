@@ -24,7 +24,23 @@
  * Implement AVSequencer module stuff.
  */
 
+#include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+
+static const char *module_name(void *p)
+{
+    AVSequencerModule *module = p;
+    AVMetadataTag *tag        = av_metadata_get(module->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+
+    return tag->value;
+}
+
+static const AVClass avseq_module_class = {
+    "AVSequencer Module",
+    module_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
 
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     AVSequencerModule **module_list = avctx->module_list;
@@ -33,9 +49,11 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     if (!module || !++modules) {
         return AVERROR_INVALIDDATA;
     } else if (!(module_list = av_realloc(module_list, modules * sizeof(AVSequencerModule *)))) {
-        av_log(module, AV_LOG_ERROR, "cannot allocate module storage container.\n");
+        av_log(avctx, AV_LOG_ERROR, "cannot allocate module storage container.\n");
         return AVERROR(ENOMEM);
     }
+
+    module->av_class = &avseq_module_class;
 
     if (!module->channels)
         module->channels = 64;

@@ -28,9 +28,9 @@
 
 #define REGISTER_MIXER(X,x) { \
           extern AVSequencerMixerContext x##_mixer; \
-          if(CONFIG_##X##_MIXER)  avseq_register(&x##_mixer); }
+          if(CONFIG_##X##_MIXER)  avseq_mixer_register(&x##_mixer); }
 
-void avseq_register_all(void)
+void avsequencer_register_all(void)
 {
     static int initialized;
 
@@ -39,7 +39,7 @@ void avseq_register_all(void)
     initialized = 1;
 
     /* Mixers */
-    REGISTER_MIXER (NULL, null);
-    REGISTER_MIXER (LOW_QUALITY, lq);
-    REGISTER_MIXER (HIGH_QUALITY, hq);
+//    rEGISTER_mIXER (NULL, null);
+//    rEGISTER_mIXER (LOW_QUALITY, lq);
+//    rEGISTER_mIXER (HIGH_QUALITY, hq);
 }
