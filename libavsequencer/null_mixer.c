@@ -111,14 +111,6 @@ static void mix_sample ( AVSequencerNULLMixerData *mixer_data, int32_t *buf, uin
 static void set_sample_mix_rate ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info, uint32_t rate );
 static void advance_ok ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info );
 
-#define CHANNEL_PREPARE(type)                                                            \
-    static void channel_prepare_##type ( AVSequencerNULLMixerData *mixer_data,           \
-                                         AVSequencerNULLMixerChannelInfo *channel_info,  \
-                                         uint16_t volume,                                \
-                                         uint16_t panning )
-
-CHANNEL_PREPARE(skip);
-
 #define MIX(type)                                                                   \
     static void mix_##type ( AVSequencerNULLMixerData *mixer_data,                  \
                              AVSequencerNULLMixerChannelInfo *channel_info,         \
@@ -129,12 +121,6 @@ MIX(skip);
 MIX(skip_backwards);
 
 // TODO: Implement null quality mixer identification and configuration.
-
-static const void *mixer_skip[] = {
-    channel_prepare_skip,
-    mix_skip,
-    mix_skip_backwards,
-};
 
 static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
     AVSequencerNULLMixerData *res = NULL;
@@ -545,11 +531,11 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     if (!mixer_data)
         return AVERROR_INVALIDDATA;
 
-   lq_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
-   buf_size      = lq_mixer_data->mixer_data.mix_buf_size;
-   channels      = lq_mixer_data->mixer_data.channels_max;
+    lq_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
+    buf_size      = lq_mixer_data->mixer_data.mix_buf_size;
+    channels      = lq_mixer_data->mixer_data.channels_max;
 
-   // TODO: Implement stereo and mono settings
+    // TODO: Implement stereo and mono settings
 
     if (!lq_mixer_data->channel_info || (channels != lq_mixer_data->channels)) {
         AVSequencerNULLMixerChannelInfo *old_channel_info;
@@ -833,26 +819,13 @@ static void set_sample_mix_rate ( AVSequencerNULLMixerData *mixer_data, AVSequen
 }
 
 static void advance_ok ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info ) {
-    void **mix_func;
-    void (*init_mixer_func)( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info, uint16_t volume, uint16_t panning );
-    uint16_t panning = 0x80;
-
-    mix_func = (void *) &mixer_skip;
-
     if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-        channel_info->current.mix_func           = (void *) mix_func[2];
-        channel_info->current.mix_backwards_func = (void *) mix_func[1];
+        channel_info->current.mix_func           = (void *) mix_skip_backwards;
+        channel_info->current.mix_backwards_func = (void *) mix_skip;
     } else {
-        channel_info->current.mix_func           = (void *) mix_func[1];
-        channel_info->current.mix_backwards_func = (void *) mix_func[2];
+        channel_info->current.mix_func           = (void *) mix_skip;
+        channel_info->current.mix_backwards_func = (void *) mix_skip_backwards;
     }
-
-    init_mixer_func = (void *) mix_func[0];
-
-    init_mixer_func ( mixer_data, channel_info, channel_info->current.volume, panning );
-}
-
-CHANNEL_PREPARE(skip) {
 }
 
 MIX(skip) {
