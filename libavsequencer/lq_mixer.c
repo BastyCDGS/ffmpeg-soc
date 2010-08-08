@@ -870,11 +870,11 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     if (!mixer_data)
         return AVERROR_INVALIDDATA;
 
-   lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
-   buf_size      = lq_mixer_data->mixer_data.mix_buf_size;
-   channels      = lq_mixer_data->mixer_data.channels_max;
+    lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
+    buf_size      = lq_mixer_data->mixer_data.mix_buf_size;
+    channels      = lq_mixer_data->mixer_data.channels_max;
 
-   // TODO: Implement stereo and mono settings
+    // TODO: Implement stereo and mono settings
 
     if ((channels != lq_mixer_data->channels) || (lq_mixer_data->mixer_data.volume_boost != lq_mixer_data->amplify) || (stereo != lq_mixer_data->stereo_mode)) {
         int32_t *volume_lut  = lq_mixer_data->volume_lut;
