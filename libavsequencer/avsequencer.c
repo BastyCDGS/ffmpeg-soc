@@ -50,9 +50,7 @@ AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name) {
     int i;
 
     for (i = 0; registered_mixers[i]; i++) {
-        AVMetadataTag *tag = av_metadata_get(registered_mixers[i]->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
-
-        if (!strcmp(tag->value, name))
+        if (!strcmp(registered_mixers[i]->name, name))
             return registered_mixers[i];
     }
 
@@ -77,10 +75,12 @@ void avsequencer_uninit(void) {
 }
 
 static const char *mixer_name(void *p) {
-    AVSequencerMixerContext *mixctx = p;
-    AVMetadataTag *tag              = av_metadata_get(mixctx->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
+    AVSequencerContext *avctx = p;
 
-    return tag->value;
+    if (avctx->player_mixer_data && avctx->player_mixer_data->mixctx)
+        return avctx->player_mixer_data->mixctx->name;
+    else
+        return NULL;
 }
 
 static const AVClass avsequencer_class = {
@@ -94,9 +94,6 @@ AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char
     AVSequencerContext *avctx;
     int i;
 
-    if (!mixctx)
-        return NULL;
-
     avctx                   = av_mallocz(sizeof(AVSequencerContext));
     avctx->av_class         = &avsequencer_class;
     avctx->playback_handler = avseq_playback_handler;
@@ -108,10 +105,9 @@ AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char
         avctx->mixer_list[i] = registered_mixers[i];
     }
 
-    avctx->mixers = next_registered_mixer_idx;
-    avctx->seed   = av_get_random_seed ();
-
-    // TODO: Initialize selected mixer
+    avctx->mixers            = next_registered_mixer_idx;
+    avctx->seed              = av_get_random_seed ();
+    avctx->player_mixer_data = avseq_mixer_init ( mixctx, NULL, NULL );
 
     return avctx;
 }
@@ -138,7 +134,7 @@ void avsequencer_destroy(AVSequencerContext *avctx) {
 AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
     AVSequencerMixerData *mixer_data = NULL;
 
-    if (mixctx->init)
+    if (mixctx && mixctx->init)
         mixer_data = mixctx->init(mixctx, args, opaque);
 
     return mixer_data;

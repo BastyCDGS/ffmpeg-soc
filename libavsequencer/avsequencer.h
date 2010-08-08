@@ -336,10 +336,14 @@ typedef struct AVSequencerMixerContext {
      */
     const AVClass *av_class;
 
-    /** Certain metadata describing this mixer, i.e. who developed
-       it (artist) and a brief description of the features
-       (comment).  */
-    AVMetadata *metadata;
+    /** Mixer name.  */
+    const char *name;
+
+    /**
+     * A description for the filter. You should use the
+     * NULL_IF_CONFIG_SMALL() macro to define it.
+     */
+    const char *description;
 
     /** Default mixing rate in Hz used by this mixer. This will
        usually set to the value which this mixer can handle the best
@@ -379,7 +383,7 @@ typedef struct AVSequencerMixerContext {
     AVSequencerMixerData * (*init)( struct AVSequencerMixerContext *mixctx, const char *args, void *opaque );
 
     /** The destruction function to call for the mixer.  */
-    int (*destroy)( AVSequencerMixerData *mixer_data );
+    int (*uninit)( AVSequencerMixerData *mixer_data );
 
     /** Transfers the new mixing rate in Hz from the AVSequencer to
        the internal mixer data.  */

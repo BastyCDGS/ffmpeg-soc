@@ -81,7 +81,7 @@ typedef struct AVSequencerLQMixerChannelInfo {
 
 #if CONFIG_LOW_QUALITY_MIXER
 static av_cold AVSequencerMixerData *init ( AVSequencerMixerContext *mixctx, const char *args, void *opaque );
-static av_cold int destroy ( AVSequencerMixerData *mixer_data );
+static av_cold int uninit ( AVSequencerMixerData *mixer_data );
 static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate );
 static av_cold uint32_t set_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo );
 static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels );
@@ -91,7 +91,25 @@ static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mix
 static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
 static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf );
 
+static const char *low_quality_mixer_name(void *p)
+{
+    AVSequencerMixerContext *mixctx = p;
+
+    return mixctx->name;
+}
+
+static const AVClass avseq_low_quality_mixer_class = {
+    "AVSequencer Low Quality Mixer",
+    low_quality_mixer_name,
+    NULL,
+    LIBAVUTIL_VERSION_INT,
+};
+
 AVSequencerMixerContext low_quality_mixer = {
+    .av_class                          = &avseq_low_quality_mixer_class,
+    .name                              = "Low quality mixer",
+    .description                       = NULL_IF_CONFIG_SMALL("Optimized for speed and supports linear interpolation."),
+
     .flags                             = AVSEQ_MIXER_CONTEXT_FLAG_STEREO|AVSEQ_MIXER_CONTEXT_FLAG_SURROUND|AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER,
     .frequency                         = 44100,
     .frequency_min                     = 1000,
@@ -103,7 +121,7 @@ AVSequencerMixerContext low_quality_mixer = {
     .channels_max                      = 65535,
 
     .init                              = init,
-    .destroy                           = destroy,
+    .uninit                            = uninit,
     .set_rate                          = set_rate,
     .set_tempo                         = set_tempo,
     .set_volume                        = set_volume,
@@ -462,7 +480,7 @@ static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const
     return (AVSequencerMixerData *) res;
 }
 
-static av_cold int destroy(AVSequencerMixerData *mixer_data) {
+static av_cold int uninit(AVSequencerMixerData *mixer_data) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
 
     if (!lq_mixer_data)

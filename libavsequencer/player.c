@@ -1624,14 +1624,14 @@ static void process_row ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
 
     if (!(player_host_channel->tempo_counter = current_tick)) {
         AVSequencerTrack *track;
-        AVSequencerOrderList *order_list;
+        AVSequencerOrderList *order_list = song->order_list + channel;
         AVSequencerOrderData *order_data;
         AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
         uint16_t pattern_delay, row, last_row, track_length;
-        uint32_t ord;
+        uint32_t ord = -1;
 
         if (player_channel->host_channel == channel) {
-            uint32_t slide_value               = player_host_channel->arpeggio_freq;
+            uint32_t slide_value = player_host_channel->arpeggio_freq;
 
             player_host_channel->arpeggio_freq = 0;
             player_channel->frequency         += slide_value;
@@ -1680,11 +1680,10 @@ static void process_row ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             goto get_new_pattern;
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_BACKWARDS) {
-            if (!(row--))
+            if (!row--)
                 goto get_new_pattern;
         } else if (++row >= player_host_channel->max_row) {
 get_new_pattern:
-            order_list = (AVSequencerOrderList *) song->order_list + channel;
             order_data = player_host_channel->order;
  
             if (avctx->player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN) {
@@ -1693,7 +1692,7 @@ get_new_pattern:
                 goto loop_to_row;
             }
 
-            ord        = -1;
+            ord = -1;
 
             while (++ord < order_list->orders) {
                 if (order_data == order_list->order_data[ord])
@@ -1707,7 +1706,6 @@ check_next_empty_order:
                 if ((ord >= order_list->orders) || (!(order_data = order_list->order_data[ord]))) {
 song_end_found:
                     player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END;
-                    order_list                  = (AVSequencerOrderList *) song->order_list + channel;
 
                     if ((order_list->rep_start >= order_list->orders) || (!(order_data = order_list->order_data[order_list->rep_start]))) {
 disable_channel:
@@ -1843,14 +1841,14 @@ static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             fx         = -1;
 
             while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
-                AVSequencerPlayerEffects *fx_lut;
+                const AVSequencerPlayerEffects *effects_lut;
                 void (*pre_fx_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t data_word );
                 uint16_t fx_byte;
 
                 fx_byte = track_fx->command;
-                fx_lut  = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+                effects_lut  = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
 
-                if ((pre_fx_func = fx_lut->pre_pattern_func))
+                if ((pre_fx_func = effects_lut->pre_pattern_func))
                     pre_fx_func ( avctx, player_host_channel, player_channel, channel, track_fx->data );
             }
         }
@@ -3280,7 +3278,7 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
         uint32_t fx                      = -1;
 
         while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
-            AVSequencerPlayerEffects *fx_lut;
+            const AVSequencerPlayerEffects *effects_lut;
             void (*check_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
             uint16_t fx_byte, data_word, flags;
             uint8_t channel_ctrl_type;
@@ -3288,15 +3286,15 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             if (player_host_channel->effect == track_fx)
                 break;
 
-            fx_byte   = track_fx->command;
-            fx_lut    = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
-            data_word = track_fx->data;
-            flags     = fx_lut->flags;
+            fx_byte     = track_fx->command;
+            effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            data_word   = track_fx->data;
+            flags       = effects_lut->flags;
 
-            if ((check_func = fx_lut->check_fx_func)) {
+            if ((check_func = effects_lut->check_fx_func)) {
                 check_func ( avctx, player_host_channel, player_channel, channel, &fx_byte, &data_word, &flags );
 
-                fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+                effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
             }
 
             if (flags & AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW)
@@ -3305,7 +3303,7 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             flags = player_host_channel->exec_fx;
 
             if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_EXEC_FX))
-                flags = fx_lut->std_exec_tick;
+                flags = effects_lut->std_exec_tick;
 
             if (flags != player_host_channel->tempo_counter)
                 continue;
@@ -3313,10 +3311,10 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             if (player_host_channel->effects_used[(fx_byte >> 3)] & (1 << (7 - (fx_byte & 7))))
                 continue;
 
-            fx_lut->effect_func ( avctx, player_host_channel, player_channel, channel, fx_byte, data_word );
+            effects_lut->effect_func ( avctx, player_host_channel, player_channel, channel, fx_byte, data_word );
 
             if ((channel_ctrl_type = player_host_channel->ch_control_type)) {
-                if (player_host_channel->ch_control_affect & fx_lut->and_mask_ctrl) {
+                if (player_host_channel->ch_control_affect & effects_lut->and_mask_ctrl) {
                     AVSequencerPlayerHostChannel *new_player_host_channel;
                     AVSequencerPlayerChannel *new_player_channel;
                     uint16_t ctrl_fx_byte, ctrl_data_word, ctrl_flags, ctrl_channel;
@@ -3330,13 +3328,13 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
                             ctrl_data_word          = data_word;
                             ctrl_flags              = flags;
 
-                            if ((check_func = fx_lut->check_fx_func)) {
+                            if ((check_func = effects_lut->check_fx_func)) {
                                 check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
 
-                                fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
                             }
 
-                            fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                            effects_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
                         }
 
                         break;
@@ -3352,13 +3350,13 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
                                 ctrl_data_word = data_word;
                                 ctrl_flags     = flags;
 
-                                if ((check_func = fx_lut->check_fx_func)) {
+                                if ((check_func = effects_lut->check_fx_func)) {
                                     check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
 
-                                    fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                    effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
                                 }
 
-                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                                effects_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
                             }
                         } while (++ctrl_channel < song->channels);
 
@@ -3374,13 +3372,13 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
                                 ctrl_data_word          = data_word;
                                 ctrl_flags              = flags;
 
-                                if ((check_func = fx_lut->check_fx_func)) {
+                                if ((check_func = effects_lut->check_fx_func)) {
                                     check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
 
-                                    fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                    effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
                                 }
 
-                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                                effects_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
                             }
                         } while (++ctrl_channel < song->channels);
 
@@ -3393,7 +3391,7 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
         fx = -1;
 
         while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
-            AVSequencerPlayerEffects *fx_lut;
+            const AVSequencerPlayerEffects *effects_lut;
             void (*check_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
             uint16_t fx_byte, data_word, flags;
             uint8_t channel_ctrl_type;
@@ -3401,15 +3399,15 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             if (player_host_channel->effect == track_fx)
                 break;
 
-            fx_byte   = track_fx->command;
-            fx_lut    = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
-            data_word = track_fx->data;
-            flags     = fx_lut->flags;
+            fx_byte     = track_fx->command;
+            effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            data_word   = track_fx->data;
+            flags       = effects_lut->flags;
 
-            if ((check_func = fx_lut->check_fx_func)) {
+            if ((check_func = effects_lut->check_fx_func)) {
                 check_func ( avctx, player_host_channel, player_channel, channel, &fx_byte, &data_word, &flags );
 
-                fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+                effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
             }
 
             if (!(flags & AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW))
@@ -3418,7 +3416,7 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             flags = player_host_channel->exec_fx;
 
             if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_EXEC_FX))
-                flags = fx_lut->std_exec_tick;
+                flags = effects_lut->std_exec_tick;
 
             if (player_host_channel->tempo_counter < flags)
                 continue;
@@ -3426,10 +3424,10 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             if (player_host_channel->effects_used[(fx_byte >> 3)] & (1 << (7 - (fx_byte & 7))))
                 continue;
 
-            fx_lut->effect_func ( avctx, player_host_channel, player_channel, channel, fx_byte, data_word );
+            effects_lut->effect_func ( avctx, player_host_channel, player_channel, channel, fx_byte, data_word );
 
             if ((channel_ctrl_type = player_host_channel->ch_control_type)) {
-                if (player_host_channel->ch_control_affect & fx_lut->and_mask_ctrl) {
+                if (player_host_channel->ch_control_affect & effects_lut->and_mask_ctrl) {
                     AVSequencerPlayerHostChannel *new_player_host_channel;
                     AVSequencerPlayerChannel *new_player_channel;
                     uint16_t ctrl_fx_byte, ctrl_data_word, ctrl_flags, ctrl_channel;
@@ -3443,16 +3441,16 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
                             ctrl_data_word          = data_word;
                             ctrl_flags              = flags;
 
-                            if ((check_func = fx_lut->check_fx_func)) {
+                            if ((check_func = effects_lut->check_fx_func)) {
                                 check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
 
-                                fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
                             }
 
                             if (new_player_host_channel->effects_used[(ctrl_fx_byte >> 3)] & (1 << (7 - (ctrl_fx_byte & 7))))
                                 continue;
 
-                            fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                            effects_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
                         }
 
                         break;
@@ -3467,16 +3465,16 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
                                 ctrl_data_word          = data_word;
                                 ctrl_flags              = flags;
 
-                                if ((check_func = fx_lut->check_fx_func)) {
+                                if ((check_func = effects_lut->check_fx_func)) {
                                     check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
 
-                                    fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                    effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
                                 }
 
                                 if (new_player_host_channel->effects_used[(ctrl_fx_byte >> 3)] & (1 << (7 - (ctrl_fx_byte & 7))))
                                     continue;
 
-                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                                effects_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
                             }
                         } while (++ctrl_channel < song->channels);
 
@@ -3492,16 +3490,16 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
                                 ctrl_data_word          = data_word;
                                 ctrl_flags              = flags;
 
-                                if ((check_func = fx_lut->check_fx_func)) {
+                                if ((check_func = effects_lut->check_fx_func)) {
                                     check_func ( avctx, player_host_channel, player_channel, channel, &ctrl_fx_byte, &ctrl_data_word, &ctrl_flags );
 
-                                    fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
+                                    effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + ctrl_fx_byte;
                                 }
 
                                 if (new_player_host_channel->effects_used[(ctrl_fx_byte >> 3)] & (1 << (7 - (ctrl_fx_byte & 7))))
                                     continue;
 
-                                fx_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
+                                effects_lut->effect_func ( avctx, new_player_host_channel, new_player_channel, ctrl_channel, ctrl_fx_byte, ctrl_data_word );
                             }
                         } while (++ctrl_channel < song->channels);
 
@@ -4100,35 +4098,37 @@ static uint32_t check_surround_track_panning ( AVSequencerPlayerHostChannel *pla
 static uint16_t *get_speed_address ( AVSequencerContext *avctx, uint16_t speed_type, uint16_t *speed_min_value, uint16_t *speed_max_value ) {
     AVSequencerSong *song                    = avctx->player_song;
     AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
-    uint16_t *speed_adr = NULL;
+    uint16_t *speed_adr;
 
     switch (speed_type & 0x07) {
     case 0x00 :
         *speed_min_value = song->bpm_speed_min;
         *speed_max_value = song->bpm_speed_max;
-
-        speed_adr = (uint16_t *) &(player_globals->bpm_speed);
+        speed_adr        = (uint16_t *) &(player_globals->bpm_speed);
 
         break;
     case 0x01 :
         *speed_min_value = song->bpm_tempo_min;
         *speed_max_value = song->bpm_tempo_max;
-
-        speed_adr = (uint16_t *) &(player_globals->bpm_tempo);
+        speed_adr        = (uint16_t *) &(player_globals->bpm_tempo);
 
         break;
     case 0x02 :
         *speed_min_value = song->spd_min;
         *speed_max_value = song->spd_max;
-
-        speed_adr = (uint16_t *) &(player_globals->spd_speed);
+        speed_adr        = (uint16_t *) &(player_globals->spd_speed);
 
         break;
     case 0x07 :
         *speed_min_value = 1;
         *speed_max_value = 0xFFFF;
+        speed_adr        = (uint16_t *) &(player_globals->speed_mul);
 
-        speed_adr = (uint16_t *) &(player_globals->speed_mul);
+        break;
+    default :
+        *speed_min_value = 0;
+        *speed_max_value = 0;
+        speed_adr        = NULL;
 
         break;
     }
@@ -6337,15 +6337,13 @@ EXECUTE_EFFECT(pattern_break) {
 
 EXECUTE_EFFECT(position_jump) {
     if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_LOOP)) {
-        AVSequencerOrderData *order_data;
+        AVSequencerOrderData *order_data = NULL;
 
         if (data_word--) {
             AVSequencerOrderList *order_list = avctx->player_song->order_list + channel;
 
             if ((data_word < order_list->orders) && order_list->order_data[data_word])
                 order_data = order_list->order_data[data_word];
-        } else {
-            order_data = NULL;
         }
 
         player_host_channel->order = order_data;
@@ -6778,7 +6776,7 @@ EXECUTE_EFFECT(set_speed) {
     AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint16_t *speed_ptr;
     uint16_t speed_value, speed_min_value, speed_max_value;
-    uint8_t speed_type                       = (data_word >> 12);
+    uint8_t speed_type                       = data_word >> 12;
 
     if ((speed_ptr = get_speed_address ( avctx, speed_type, &speed_min_value, &speed_max_value ))) {
         if (!(speed_value = (data_word & 0xFFF))) {
@@ -7490,26 +7488,26 @@ exec_synth_done:
         synth_code_line++;
 
         if (instruction < 0) {
-            AVSequencerPlayerEffects *fx_lut;
+            const AVSequencerPlayerEffects *effects_lut;
             void (*check_func)( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
             uint16_t fx_byte, data_word, flags;
 
-            fx_byte   = ~instruction;
-            fx_lut    = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
-            data_word = instruction_data + player_channel->variable[src_var];
-            flags     = fx_lut->flags;
+            fx_byte     = ~instruction;
+            effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+            data_word   = instruction_data + player_channel->variable[src_var];
+            flags       = effects_lut->flags;
 
-            if ((check_func = fx_lut->check_fx_func)) {
+            if ((check_func = effects_lut->check_fx_func)) {
                 check_func ( avctx, player_host_channel, player_channel, player_channel->host_channel, &fx_byte, &data_word, &flags );
 
-                fx_lut = (AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
+                effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
             }
 
-            if (!fx_lut->pre_pattern_func) {
+            if (!effects_lut->pre_pattern_func) {
                 instruction_data                     = player_host_channel->virtual_channel;
                 player_host_channel->virtual_channel = channel;
 
-                fx_lut->effect_func ( avctx, player_host_channel, player_channel, player_channel->host_channel, fx_byte, data_word );
+                effects_lut->effect_func ( avctx, player_host_channel, player_channel, player_channel->host_channel, fx_byte, data_word );
 
                 player_host_channel->virtual_channel = instruction_data;
             }
