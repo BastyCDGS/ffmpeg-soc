@@ -32,14 +32,14 @@ static void avfilter_default_free_buffer(AVFilterBuffer *ptr)
 /* TODO: set the buffer's priv member to a context structure for the whole
  * filter chain.  This will allow for a buffer pool instead of the constant
  * alloc & free cycle currently implemented. */
-AVFilterPicRef *avfilter_default_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
+AVFilterBufferRef *avfilter_default_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
 {
     AVFilterBuffer *pic = av_mallocz(sizeof(AVFilterBuffer));
-    AVFilterPicRef *ref = av_mallocz(sizeof(AVFilterPicRef));
+    AVFilterBufferRef *ref = av_mallocz(sizeof(AVFilterBufferRef));
     int i, tempsize;
     char *buf;
 
-    ref->pic   = pic;
+    ref->buf   = pic;
     ref->w     = w;
     ref->h     = h;
 
@@ -47,25 +47,25 @@ AVFilterPicRef *avfilter_default_get_video_buffer(AVFilterLink *link, int perms,
     ref->perms = perms | AV_PERM_READ;
 
     pic->refcount = 1;
-    pic->format   = link->format;
+    ref->format   = link->format;
     pic->free     = avfilter_default_free_buffer;
-    av_fill_image_linesizes(pic->linesize, pic->format, ref->w);
+    av_fill_image_linesizes(pic->linesize, ref->format, ref->w);
 
     for (i=0; i<4;i++)
         pic->linesize[i] = FFALIGN(pic->linesize[i], 16);
 
-    tempsize = av_fill_image_pointers(pic->data, pic->format, ref->h, NULL, pic->linesize);
+    tempsize = av_fill_image_pointers(pic->data, ref->format, ref->h, NULL, pic->linesize);
     buf = av_malloc(tempsize + 16); // +2 is needed for swscaler, +16 to be
                                     // SIMD-friendly
-    av_fill_image_pointers(pic->data, pic->format, ref->h, buf, pic->linesize);
+    av_fill_image_pointers(pic->data, ref->format, ref->h, buf, pic->linesize);
 
-    memcpy(ref->data,     pic->data,     sizeof(pic->data));
-    memcpy(ref->linesize, pic->linesize, sizeof(pic->linesize));
+    memcpy(ref->data,     pic->data,     4*sizeof(pic->data[0]));
+    memcpy(ref->linesize, pic->linesize, 4*sizeof(pic->linesize[0]));
 
     return ref;
 }
 
-void avfilter_default_start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+void avfilter_default_start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     AVFilterLink *out = NULL;
 
@@ -73,9 +73,9 @@ void avfilter_default_start_frame(AVFilterLink *link, AVFilterPicRef *picref)
         out = link->dst->outputs[0];
 
     if(out) {
-        out->outpic      = avfilter_get_video_buffer(out, AV_PERM_WRITE, out->w, out->h);
-        avfilter_copy_picref_props(out->outpic, picref);
-        avfilter_start_frame(out, avfilter_ref_pic(out->outpic, ~0));
+        out->out_buf      = avfilter_get_video_buffer(out, AV_PERM_WRITE, out->w, out->h);
+        avfilter_copy_buffer_ref_props(out->out_buf, picref);
+        avfilter_start_frame(out, avfilter_ref_buffer(out->out_buf, ~0));
     }
 }
 
@@ -97,13 +97,13 @@ void avfilter_default_end_frame(AVFilterLink *link)
     if(link->dst->output_count)
         out = link->dst->outputs[0];
 
-    avfilter_unref_pic(link->cur_pic);
-    link->cur_pic = NULL;
+    avfilter_unref_buffer(link->cur_buf);
+    link->cur_buf = NULL;
 
     if(out) {
-        if(out->outpic) {
-            avfilter_unref_pic(out->outpic);
-            out->outpic = NULL;
+        if(out->out_buf) {
+            avfilter_unref_buffer(out->out_buf);
+            out->out_buf = NULL;
         }
         avfilter_end_frame(out);
     }
@@ -168,7 +168,7 @@ int avfilter_default_query_formats(AVFilterContext *ctx)
     return 0;
 }
 
-void avfilter_null_start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+void avfilter_null_start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     avfilter_start_frame(link->dst->outputs[0], picref);
 }
@@ -183,7 +183,7 @@ void avfilter_null_end_frame(AVFilterLink *link)
     avfilter_end_frame(link->dst->outputs[0]);
 }
 
-AVFilterPicRef *avfilter_null_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
+AVFilterBufferRef *avfilter_null_get_video_buffer(AVFilterLink *link, int perms, int w, int h)
 {
     return avfilter_get_video_buffer(link->dst->outputs[0], perms, w, h);
 }

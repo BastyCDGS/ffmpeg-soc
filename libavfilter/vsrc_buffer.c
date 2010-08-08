@@ -105,7 +105,7 @@ static int config_props(AVFilterLink *link)
 static int request_frame(AVFilterLink *link)
 {
     BufferSourceContext *c = link->src->priv;
-    AVFilterPicRef *picref;
+    AVFilterBufferRef *picref;
 
     if (!c->has_frame) {
         av_log(link->src, AV_LOG_ERROR,
@@ -120,16 +120,16 @@ static int request_frame(AVFilterLink *link)
                                        link->w, link->h);
 
     av_picture_copy((AVPicture *)&picref->data, (AVPicture *)&c->frame,
-                    picref->pic->format, link->w, link->h);
+                    picref->format, link->w, link->h);
 
     picref->pts             = c->pts;
     picref->pixel_aspect    = c->pixel_aspect;
     picref->interlaced      = c->frame.interlaced_frame;
     picref->top_field_first = c->frame.top_field_first;
-    avfilter_start_frame(link, avfilter_ref_pic(picref, ~0));
+    avfilter_start_frame(link, avfilter_ref_buffer(picref, ~0));
     avfilter_draw_slice(link, 0, link->h, 1);
     avfilter_end_frame(link);
-    avfilter_unref_pic(picref);
+    avfilter_unref_buffer(picref);
 
     c->has_frame = 0;
 

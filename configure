@@ -105,6 +105,7 @@ Configuration options:
   --disable-dct            disable DCT code
   --disable-fft            disable FFT code
   --disable-golomb         disable Golomb code
+  --disable-huffman        disable Huffman code
   --disable-lpc            disable LPC code
   --disable-mdct           disable MDCT code
   --disable-rdft           disable RDFT code
@@ -873,7 +874,9 @@ CONFIG_LIST="
     gpl
     gray
     h264dsp
+    h264pred
     hardcoded_tables
+    huffman
     libdc1394
     libdirac
     libfaac
@@ -1198,13 +1201,14 @@ flashsv_decoder_select="zlib"
 flashsv_encoder_select="zlib"
 flv_decoder_select="h263_decoder"
 flv_encoder_select="h263_encoder"
+fraps_decoder_select="huffman"
 h261_encoder_select="aandct"
 h263_decoder_select="h263_parser"
 h263_encoder_select="aandct"
 h263_vaapi_hwaccel_select="vaapi h263_decoder"
 h263i_decoder_select="h263_decoder"
 h263p_encoder_select="h263_encoder"
-h264_decoder_select="golomb h264dsp"
+h264_decoder_select="golomb h264dsp h264pred"
 h264_dxva2_hwaccel_deps="dxva2api_h"
 h264_dxva2_hwaccel_select="dxva2 h264_decoder"
 h264_vaapi_hwaccel_select="vaapi"
@@ -1251,8 +1255,8 @@ rv10_decoder_select="h263_decoder"
 rv10_encoder_select="h263_encoder"
 rv20_decoder_select="h263_decoder"
 rv20_encoder_select="h263_encoder"
-rv30_decoder_select="golomb h264dsp"
-rv40_decoder_select="golomb h264dsp"
+rv30_decoder_select="golomb h264pred"
+rv40_decoder_select="golomb h264pred"
 shorten_decoder_select="golomb"
 sipr_decoder_select="lsp"
 snow_decoder_select="dwt"
@@ -1261,7 +1265,7 @@ sonic_decoder_select="golomb"
 sonic_encoder_select="golomb"
 sonic_ls_encoder_select="golomb"
 svq1_encoder_select="aandct"
-svq3_decoder_select="golomb h264dsp"
+svq3_decoder_select="golomb h264dsp h264pred"
 svq3_decoder_suggest="zlib"
 theora_decoder_select="vp3_decoder"
 tiff_decoder_suggest="zlib"
@@ -1276,9 +1280,10 @@ vc1_vaapi_hwaccel_select="vaapi vc1_decoder"
 vc1_vdpau_decoder_select="vdpau vc1_decoder"
 vorbis_decoder_select="mdct"
 vorbis_encoder_select="mdct"
+vp6_decoder_select="huffman"
 vp6a_decoder_select="vp6_decoder"
 vp6f_decoder_select="vp6_decoder"
-vp8_decoder_select="h264dsp"
+vp8_decoder_select="h264pred"
 wmapro_decoder_select="mdct"
 wmav1_decoder_select="mdct"
 wmav1_encoder_select="mdct"
@@ -1302,7 +1307,7 @@ vaapi_deps="va_va_h"
 vdpau_deps="vdpau_vdpau_h vdpau_vdpau_x11_h"
 
 # parsers
-h264_parser_select="golomb h264dsp"
+h264_parser_select="golomb h264dsp h264pred"
 
 # external libraries
 libdirac_decoder_deps="libdirac !libschroedinger"
@@ -2701,9 +2706,11 @@ enabled libschroedinger && add_cflags $(pkg-config --cflags schroedinger-1.0) &&
 enabled libspeex   && require  libspeex speex/speex.h speex_decoder_init -lspeex
 enabled libtheora  && require  libtheora theora/theoraenc.h th_info_init -ltheoraenc -ltheoradec -logg
 enabled libvorbis  && require  libvorbis vorbis/vorbisenc.h vorbis_info_init -lvorbisenc -lvorbis -logg
-enabled libvpx     && { check_lib2 "vpx/vpx_decoder.h vpx/vp8dx.h" vpx_codec_dec_init_ver -lvpx &&
-                        check_lib2 "vpx/vpx_encoder.h vpx/vp8cx.h" vpx_codec_enc_init_ver -lvpx ||
-                      die "ERROR: libvpx version must be >=0.9.1"; }
+enabled libvpx     && {
+    enabled libvpx_decoder && { check_lib2 "vpx/vpx_decoder.h vpx/vp8dx.h" vpx_codec_dec_init_ver -lvpx ||
+                                die "ERROR: libvpx decoder version must be >=0.9.1"; }
+    enabled libvpx_encoder && { check_lib2 "vpx/vpx_encoder.h vpx/vp8cx.h" vpx_codec_enc_init_ver -lvpx ||
+                                die "ERROR: libvpx encoder version must be >=0.9.1"; } }
 enabled libx264    && require  libx264 x264.h x264_encoder_encode -lx264 &&
                       { check_cpp_condition x264.h "X264_BUILD >= 98" ||
                         die "ERROR: libx264 version must be >= 0.98."; }

@@ -60,11 +60,13 @@ int main(int argc, char **argv)
 
     /* create a link for each of the input pads */
     for (i = 0; i < filter_ctx->input_count; i++) {
-        AVFilterLink *link = av_malloc(sizeof(AVFilterLink));
+        AVFilterLink *link = av_mallocz(sizeof(AVFilterLink));
+        link->type = filter_ctx->filter->inputs[i].type;
         filter_ctx->inputs[i] = link;
     }
     for (i = 0; i < filter_ctx->output_count; i++) {
-        AVFilterLink *link = av_malloc(sizeof(AVFilterLink));
+        AVFilterLink *link = av_mallocz(sizeof(AVFilterLink));
+        link->type = filter_ctx->filter->inputs[i].type;
         filter_ctx->outputs[i] = link;
     }
 
@@ -91,6 +93,7 @@ int main(int argc, char **argv)
                    av_pix_fmt_descriptors[fmts->formats[j]].name);
     }
 
+    avfilter_destroy(filter_ctx);
     fflush(stdout);
     return 0;
 }
