@@ -816,10 +816,7 @@ static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer
         current_left_frac = lq_mixer_data->current_left_frac;
         buf_size          = lq_mixer_data->buf_size;
 
-        if (lq_mixer_data->stereo_mode)
-            memset ( buf, 0, buf_size << 3 );
-        else
-            memset ( buf, 0, buf_size << 2 );
+        memset ( buf, 0, buf_size << (lq_mixer_data->stereo_mode ? 3 : 2) );
 
         while (buf_size) {
             if (current_left) {
