@@ -390,7 +390,7 @@ static const void *mixer_stereo_left_16_to_8[] = {
     mix_stereo_x_to_8_left,
     mix_stereo_backwards_8_left,
     mix_stereo_backwards_16_to_8_left,
-    mix_stereo_backwards_32_to_8,
+    mix_stereo_backwards_32_to_8_left,
     mix_stereo_backwards_x_to_8_left
 };
 
@@ -1178,47 +1178,85 @@ static void advance_ok ( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerC
     void (*init_mixer_func)( AVSequencerLQMixerData *mixer_data, AVSequencerLQMixerChannelInfo *channel_info, uint16_t volume, uint16_t panning );
     uint16_t panning = 0x80;
 
-    if ((channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || (channel_info->current.volume == 0)) {
-        mix_func = (void *) &mixer_skip;
-    } else if (!mixer_data->stereo_mode) {
-        mix_func = (void *) &mixer_mono;
-    } else if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
-        mix_func = (void *) &mixer_stereo;
+    if ((channel_info->current.bits_per_sample <= 8) || (mixer_data->real_16_bit_mode == 0)) {
+        if ((channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || (channel_info->current.volume == 0)) {
+            mix_func = (void *) &mixer_skip_16_to_8;
+        } else if (!mixer_data->stereo_mode) {
+            mix_func = (void *) &mixer_mono_16_to_8;
+        } else if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
+            mix_func = (void *) &mixer_stereo_16_to_8;
 
-        if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
-            mix_func = (void *) &mixer_stereo_surround;
+            if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
+                mix_func = (void *) &mixer_stereo_surround_16_to_8;
+        } else {
+            switch ((panning = channel_info->current.panning)) {
+            case 0 :
+                mix_func = (void *) &mixer_skip_16_to_8;
+
+                if (mixer_data->mixer_data.volume_left)
+                    mix_func = (void *) &mixer_stereo_left_16_to_8;
+
+                break;
+            case 0xFF :
+                mix_func = (void *) &mixer_skip_16_to_8;
+
+                if (mixer_data->mixer_data.volume_right)
+                    mix_func = (void *) &mixer_stereo_right_16_to_8;
+
+                break;
+            case 0x80 :
+                mix_func = (void *) &mixer_stereo_16_to_8;
+
+                if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
+                    mix_func = (void *) &mixer_stereo_center_16_to_8;
+
+                break;
+            default :
+                mix_func = (void *) &mixer_stereo_16_to_8;
+
+                break;
+            }
+        }
     } else {
-        switch ((panning = channel_info->current.panning)) {
-        case 0 :
+        if ((channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || (channel_info->current.volume == 0)) {
             mix_func = (void *) &mixer_skip;
-
-            if (mixer_data->mixer_data.volume_left)
-                mix_func = (void *) &mixer_stereo_left;
-
-            break;
-        case 0xFF :
-            mix_func = (void *) &mixer_skip;
-
-            if (mixer_data->mixer_data.volume_right)
-                mix_func = (void *) &mixer_stereo_right;
-
-            break;
-        case 0x80 :
+        } else if (!mixer_data->stereo_mode) {
+            mix_func = (void *) &mixer_mono;
+        } else if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
             mix_func = (void *) &mixer_stereo;
 
             if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
-                mix_func = (void *) &mixer_stereo_center;
+                mix_func = (void *) &mixer_stereo_surround;
+        } else {
+            switch ((panning = channel_info->current.panning)) {
+            case 0 :
+                mix_func = (void *) &mixer_skip;
 
-            break;
-        default :
-            mix_func = (void *) &mixer_stereo;
+                if (mixer_data->mixer_data.volume_left)
+                    mix_func = (void *) &mixer_stereo_left;
 
-            break;
+                break;
+            case 0xFF :
+                mix_func = (void *) &mixer_skip;
+
+                if (mixer_data->mixer_data.volume_right)
+                    mix_func = (void *) &mixer_stereo_right;
+
+                break;
+            case 0x80 :
+                mix_func = (void *) &mixer_stereo;
+
+                if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
+                    mix_func = (void *) &mixer_stereo_center;
+
+                break;
+            default :
+                mix_func = (void *) &mixer_stereo;
+
+                break;
+            }
         }
     }
-
-    if ((channel_info->current.bits_per_sample <= 8) || (mixer_data->real_16_bit_mode == 0))
-        mix_func += ((int8_t *) &mixer_skip_16_to_8 - (int8_t *) &mixer_skip);
 
     switch (channel_info->current.bits_per_sample) {
     case 8 :
