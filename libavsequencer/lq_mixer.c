@@ -903,7 +903,7 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
             uint16_t copy_channels = channels;
             uint16_t old_channels  = lq_mixer_data->channels;
 
-            if ( copy_channels > old_channels )
+            if (copy_channels > old_channels)
                 copy_channels = old_channels;
 
             memcpy ( channel_info, old_channel_info, copy_channels * sizeof (AVSequencerLQMixerChannelInfo));
@@ -916,8 +916,7 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     }
 
     lq_mixer_data->mixer_data.channels_max = lq_mixer_data->channels;
-
-    mix_buf_mem_size = buf_size << 2;
+    mix_buf_mem_size                       = buf_size << 2;
 
     if (stereo)
         mix_buf_mem_size += mix_buf_mem_size;
@@ -941,11 +940,10 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     }
 
     lq_mixer_data->mixer_data.mix_buf_size = lq_mixer_data->buf_size;
-
-    lq_mixer_data->mixer_data.mix_buf = lq_mixer_data->buf;
-    channel_rate                      = lq_mixer_data->mixer_data.rate;
-    lq_mixer_data->mix_rate           = channel_rate;
-    lq_mixer_data->mixer_data.flags  &= ~AVSEQ_MIXER_DATA_FLAG_STEREO;
+    lq_mixer_data->mixer_data.mix_buf      = lq_mixer_data->buf;
+    channel_rate                           = lq_mixer_data->mixer_data.rate;
+    lq_mixer_data->mix_rate                = channel_rate;
+    lq_mixer_data->mixer_data.flags       &= ~AVSEQ_MIXER_DATA_FLAG_STEREO;
 
     if (stereo)
         lq_mixer_data->mixer_data.flags |= AVSEQ_MIXER_DATA_FLAG_STEREO;
@@ -989,8 +987,7 @@ static void mix_sample ( AVSequencerLQMixerData *mixer_data, int32_t *buf, uint3
 
             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
 mix_sample_backwards:
-                for (;;)
-                {
+                for (;;) {
                     calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
 
                     if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
