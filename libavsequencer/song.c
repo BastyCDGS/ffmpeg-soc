@@ -42,6 +42,10 @@ static const AVClass avseq_song_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
+AVSequencerSong *avseq_song_create(void) {
+    return av_mallocz(sizeof(AVSequencerSong));
+}
+
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     AVSequencerSong **song_list;
     uint16_t songs;
@@ -86,6 +90,28 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     song_list[songs]       = song;
     module->song_list      = song_list;
     module->songs          = songs;
+
+    return 0;
+}
+
+int avseq_song_set_channels ( AVSequencerSong *song, uint32_t channels ) {
+    int res;
+
+    if (!song)
+        return AVERROR_INVALIDDATA;
+
+    if (!channels)
+        channels = 16;
+
+    if (channels > 256)
+        channels = 256;
+
+    if (channels != song->channels) {
+        song->channels = channels;
+
+        if ((res = avseq_order_open(song)) < 0)
+            return res;
+    }
 
     return 0;
 }

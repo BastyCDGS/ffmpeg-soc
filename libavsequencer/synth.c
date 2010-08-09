@@ -42,10 +42,6 @@ static const AVClass avseq_synth_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerSample *avseq_sample_create(void) {
-    return av_mallocz(sizeof(AVSequencerSample));
-}
-
 AVSequencerSynth *avseq_synth_create(void) {
     return av_mallocz(sizeof(AVSequencerSynth));
 }
@@ -120,6 +116,75 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
     return 0;
 }
 
+AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void) {
+    return av_mallocz(sizeof(AVSequencerSynthSymbolTable));
+}
+
+int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
+                            const uint8_t *name) {
+    AVSequencerSynthSymbolTable **symbol_list;
+    const uint8_t *check_name;
+    uint8_t *target_name;
+    uint8_t *tmp_target_name;
+    uint16_t symbols;
+    uint8_t tmp_char;
+
+    if (!synth)
+        return AVERROR_INVALIDDATA;
+
+    symbol_list = synth->symbol_list;
+    symbols     = synth->symbols;
+
+    if (!(name && ++symbols))
+        return AVERROR_INVALIDDATA;
+
+    target_name = symbol->symbol_name;
+
+    if (!(target_name = av_realloc(target_name, strlen(name) + 1))) {
+        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound symbol name.\n");
+        return AVERROR(ENOMEM);
+    }
+
+    check_name      = name;
+    tmp_char        = *check_name++;
+
+    if ((tmp_char == 0) || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char != '.') && (tmp_char < '@'))) {
+        av_free(target_name);
+        av_log(synth, AV_LOG_ERROR, "invalid symbol name: '%s'\n", name);
+        return AVERROR_INVALIDDATA;
+    }
+
+    tmp_target_name    = target_name;
+    *tmp_target_name++ = tmp_char;
+
+    while ((tmp_char = *check_name++) != 0) {
+        if (((tmp_char < '0') && (tmp_char != '.')) || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char > '9') && (tmp_char < '@'))) {
+            av_free(target_name);
+            av_log(synth, AV_LOG_ERROR, "invalid symbol name: '%s'\n", name);
+            return AVERROR_INVALIDDATA;
+        }
+
+        *tmp_target_name++ = tmp_char;
+    }
+
+    *tmp_target_name = 0;
+
+    if (!(symbol_list = av_realloc(symbol_list, symbols * sizeof(AVSequencerSynthSymbolTable *)))) {
+        av_free(target_name);
+        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound symbol storage container.\n");
+        return AVERROR(ENOMEM);
+    }
+
+    symbol->symbol_name = target_name;
+    symbol->line_max    = 0xFFFF;
+
+    symbol_list[symbols] = symbol;
+    synth->symbol_list   = symbol_list;
+    synth->symbols       = symbols;
+
+    return 0;
+}
+
 static const char *waveform_name(void *p)
 {
     AVSequencerSynthWave *waveform = p;
@@ -190,7 +255,7 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
 
     size = waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT ? samples : samples << 1;
 
-    if (!(data = av_mallocz(size))) {
+    if (!(data = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(waveform, AV_LOG_ERROR, "cannot allocate synth sound waveform data.\n");
         return AVERROR(ENOMEM);
     }

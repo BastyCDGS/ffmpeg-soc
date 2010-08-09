@@ -42,6 +42,10 @@ static const AVClass avseq_module_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
+AVSequencerModule *avseq_module_create(void) {
+    return av_mallocz(sizeof(AVSequencerModule));
+}
+
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     AVSequencerModule **module_list;
     uint16_t modules;

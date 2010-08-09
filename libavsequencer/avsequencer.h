@@ -511,6 +511,17 @@ void avsequencer_destroy(AVSequencerContext *avctx);
 AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque);
 
 /**
+ * Creates a new uninitialized empty module.
+ *
+ * @return pointer to freshly allocated AVSequencerModule, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerModule *avseq_module_create(void);
+
+/**
  * Opens and registers module to the AVSequencer.
  *
  * @param avctx the AVSequencerContext to store the opened module into
@@ -522,6 +533,17 @@ AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const ch
  *       ABI compatibility yet!
  */
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
+
+/**
+ * Creates a new uninitialized empty sub-song.
+ *
+ * @return pointer to freshly allocated AVSequencerSong, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSong *avseq_song_create(void);
 
 /**
  * Opens and registers a new sub-song to a module.
@@ -537,6 +559,19 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
 
 /**
+ * Changes sub-song channels to new number of channels specified.
+ *
+ * @param song the AVSequencerSong to set the new number of channels to
+ * @param channels the new amount of channels to use
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_song_set_channels(AVSequencerSong *song, uint32_t channels);
+
+/**
  * Opens and registers a new order list to a sub-song.
  *
  * @param song the AVSequencerSong structure to store the initialized order list
@@ -547,6 +582,41 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
  *       ABI compatibility yet!
  */
 int avseq_order_open(AVSequencerSong *song);
+
+/**
+ * Creates a new uninitialized empty order list data entry.
+ *
+ * @return pointer to freshly allocated AVSequencerOrderData, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerOrderData *avseq_order_data_create(void);
+
+/**
+ * Opens and registers a new order list data entry to an order list.
+ *
+ * @param order_list the AVSequencerOrderList to register the order list data entry to
+ * @param order_data the AVSequencerOrderData structure to initialize
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data);
+
+/**
+ * Creates a new uninitialized empty track.
+ *
+ * @return pointer to freshly allocated AVSequencerTrack, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerTrack *avseq_track_create(void);
 
 /**
  * Opens and registers a new track to a sub-song.
@@ -574,6 +644,56 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track);
 int avseq_track_data_open(AVSequencerTrack *track);
 
 /**
+ * Creates a new uninitialized empty track effect.
+ *
+ * @return pointer to freshly allocated AVSequencerTrackEffect, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerTrackEffect *avseq_track_effect_create(void);
+
+/**
+ * Opens and registers a new track data effect to track data.
+ *
+ * @param track the AVSequencerTrack structure to add the new track data effect to
+ * @param data the AVSequencerTrackData structure to add the new track data effect to
+ * @param effect the AVSequencerTrackEffect to be added to the track data
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data, AVSequencerTrackEffect *effect);
+
+/**
+ * Unpacks a compressed AVSequencerTrack by using a track contents based algorithm.
+ *
+ * @param track the AVSequencerTrack where the track to be unpacked belongs to
+ * @param buf the byte buffer containing the packed track stream
+ * @param len the size of the byte buffer containing the packed track stream
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len);
+
+/**
+ * Creates a new uninitialized empty instrument.
+ *
+ * @return pointer to freshly allocated AVSequencerInstrument, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerInstrument *avseq_instrument_create(void);
+
+/**
  * Opens and registers a new instrument to a module.
  *
  * @param module the AVSequencerModule structure to add the new instrument to
@@ -585,6 +705,17 @@ int avseq_track_data_open(AVSequencerTrack *track);
  *       ABI compatibility yet!
  */
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument);
+
+/**
+ * Creates a new uninitialized empty envelope.
+ *
+ * @return pointer to freshly allocated AVSequencerEnvelope, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerEnvelope *avseq_envelope_create(void);
 
 /**
  * Opens and registers a new envelope to a module.
@@ -641,6 +772,17 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
                              uint32_t y_offset, uint32_t nodes);
 
 /**
+ * Creates a new uninitialized empty keyboard definition.
+ *
+ * @return pointer to freshly allocated AVSequencerKeyboard, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerKeyboard *avseq_keyboard_create(void);
+
+/**
  * Opens and registers a new keyboard definition to a module.
  *
  * @param module the AVSequencerModule structure to add the new keyboard definition to
@@ -652,6 +794,17 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
  *       ABI compatibility yet!
  */
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard);
+
+/**
+ * Creates a new uninitialized empty arpeggio structure.
+ *
+ * @return pointer to freshly allocated AVSequencerArpeggio, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerArpeggio *avseq_arpeggio_create(void);
 
 /**
  * Opens and registers a new arpeggio structure to a module.
@@ -723,6 +876,34 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
 int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples);
 
 /**
+ * Decrunches a AVSequencerSample by using delta compression algorithm.
+ *
+ * @param module the AVSequencerModule where the sample to be decrunched belongs to
+ * @param sample the AVSequencerSample containing the crunched sample data to decrunch
+ * @param delta_bits_per_sample the number of bits to be used in the delta compression
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_sample_decrunch(AVSequencerModule *module, AVSequencerSample *sample,
+                           uint8_t delta_bits_per_sample);
+
+/**
+ * Finds the origin AVSequencerSample by searching through module instrument and sample list.
+ *
+ * @param module the AVSequencerModule where the origin sample to be searched belongs to
+ * @param sample the redirected AVSequencerSample of which to find the origin
+ * @return pointer to origin AVSequencerSample, NULL if search failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSample *avseq_sample_find_origin(AVSequencerModule *module, AVSequencerSample *sample);
+
+/**
  * Creates a new uninitialized empty synth sound.
  *
  * @return pointer to freshly allocated AVSequencerSynth, NULL if allocation failed
@@ -748,6 +929,32 @@ AVSequencerSynth *avseq_synth_create(void);
  */
 int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
                      uint32_t waveforms, uint32_t samples);
+
+/**
+ * Creates a new uninitialized empty synth sound symbol.
+ *
+ * @return pointer to freshly allocated AVSequencerSynthSymbolTable, NULL if allocation failed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void);
+
+/**
+ * Opens and registers a synth sound symbol to a synth sound.
+ *
+ * @param synth the AVSequencerSynth structure to add the new synth sound symbol to
+ * @param symbol the AVSequencerSynthSymbolTable structure to add the new synth sound symbol to
+ * @param name the name of the symbol to assign to the new synth sound symbol
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
+                            const uint8_t *name);
 
 /**
  * Creates a new uninitialized empty synth sound waveform.

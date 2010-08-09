@@ -42,6 +42,10 @@ static const AVClass avseq_instrument_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
+AVSequencerInstrument *avseq_instrument_create(void) {
+    return av_mallocz(sizeof(AVSequencerInstrument));
+}
+
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument) {
     AVSequencerSample *sample;
     AVSequencerInstrument **instrument_list;
@@ -129,6 +133,10 @@ static const void *create_env_lut[] = {
     create_sawtooth_envelope
 };
 
+AVSequencerEnvelope *avseq_envelope_create(void) {
+    return av_mallocz(sizeof(AVSequencerEnvelope));
+}
+
 int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
                         AVSequencerEnvelope *envelope, uint32_t points,
                         uint32_t type, uint32_t scale,
@@ -179,7 +187,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
 
     data = envelope->data;
 
-    if (!(data = av_realloc(data, points * sizeof(int16_t)))) {
+    if (!(data = av_realloc(data, (points * sizeof(int16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope points.\n");
         return AVERROR(ENOMEM);
     }
@@ -212,7 +220,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
         if (nodes == 1)
             nodes++;
 
-        if (!(node = (uint16_t *) av_malloc(nodes * sizeof (uint16_t)))) {
+        if (!(node = (uint16_t *) av_malloc((nodes * sizeof (uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
             av_free(data);
             av_log(envelope, AV_LOG_ERROR, "cannot allocate envelope node data.\n");
             return AVERROR(ENOMEM);
@@ -501,6 +509,10 @@ static const AVClass avseq_keyboard_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
+AVSequencerKeyboard *avseq_keyboard_create(void) {
+    return av_mallocz(sizeof(AVSequencerKeyboard));
+}
+
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard) {
     AVSequencerKeyboard **keyboard_list;
     uint16_t keyboards;
@@ -549,6 +561,10 @@ static const AVClass avseq_arpeggio_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
+AVSequencerArpeggio *avseq_arpeggio_create(void) {
+    return av_mallocz(sizeof(AVSequencerArpeggio));
+}
+
 int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
                         uint32_t entries) {
     AVSequencerArpeggio **arpeggio_list;
@@ -595,7 +611,7 @@ int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries) {
 
     if (entries >= 0x10000) {
         return AVERROR_INVALIDDATA;
-    } else if (!(data = av_realloc(data, entries * sizeof(AVSequencerArpeggioData)))) {
+    } else if (!(data = av_realloc(data, (entries * sizeof(AVSequencerArpeggioData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(arpeggio, AV_LOG_ERROR, "cannot allocate arpeggio structure data.\n");
         return AVERROR(ENOMEM);
     }

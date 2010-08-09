@@ -42,6 +42,10 @@ static const AVClass avseq_track_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
+AVSequencerTrack *avseq_track_create(void) {
+    return av_mallocz(sizeof(AVSequencerTrack));
+}
+
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     AVSequencerTrack **track_list;
     uint16_t tracks;
@@ -97,6 +101,178 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     }
 
     track->data = data;
+
+    return 0;
+}
+
+AVSequencerTrackEffect *avseq_track_effect_create(void) {
+    return av_mallocz(sizeof(AVSequencerTrackEffect));
+}
+
+int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data, AVSequencerTrackEffect *effect) {
+    AVSequencerTrackEffect **fx_list;
+    uint16_t effects;
+
+    if (!data)
+        return AVERROR_INVALIDDATA;
+
+    fx_list = data->effects_data;
+    effects = data->effects;
+
+    if (!(effect && ++effects)) {
+        return AVERROR_INVALIDDATA;
+    } else if (!(fx_list = av_realloc(fx_list, effects * sizeof(AVSequencerTrackEffect *)))) {
+        av_log(track, AV_LOG_ERROR, "cannot allocate track data effect storage container.\n");
+        return AVERROR(ENOMEM);
+    }
+
+    fx_list[effects]   = effect;
+    data->effects_data = fx_list;
+    data->effects      = effects;
+
+    return 0;
+}
+
+int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len) {
+    AVSequencerTrackData *data;
+    uint16_t rows, last_pack_row = 0;
+    uint8_t pack_type;
+
+    if (!(track && buf && len))
+        return AVERROR_INVALIDDATA;
+
+    rows = track->last_row;
+    data = track->data;
+
+    while ((pack_type = *buf++)) {
+        AVSequencerTrackEffect *fx;
+        uint16_t tmp_pack_word = 0, tmp_pack_row;
+        uint8_t tmp_pack_byte;
+
+        if (last_pack_row > track->last_row) {
+            av_log(track, AV_LOG_ERROR, "cannot unpack track data, track has too few rows.\n");
+            return AVERROR_INVALIDDATA;
+        }
+
+        if (pack_type & 1) { // row high byte follows
+            if (len--) {
+                av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                return AVERROR_INVALIDDATA;
+            }
+
+            tmp_pack_word = (uint8_t) (*buf++ << 8);
+        }
+
+        if (pack_type & 2) { // row low byte follows
+            if (len--) {
+                av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                return AVERROR_INVALIDDATA;
+            }
+
+            tmp_pack_word |= (uint8_t) *buf++;
+        }
+
+        if ((tmp_pack_row = tmp_pack_word)) {
+            if (!(tmp_pack_row >>= 8)) {
+                tmp_pack_row  = (uint8_t) tmp_pack_word;
+                tmp_pack_word = (last_pack_row & 0xFF00) | tmp_pack_row;
+            }
+
+            tmp_pack_row  = last_pack_row;
+            last_pack_row = tmp_pack_word;
+            data         += tmp_pack_word - tmp_pack_row;
+        }
+
+        if (pack_type & 4) { // octave (high nibble) and note (low nibble) follows or 0xFx are special notes (keyoff, etc.)
+            if (len--) {
+                av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                return AVERROR_INVALIDDATA;
+            }
+
+            if ( (tmp_pack_byte = *buf++) >= 0xF0) {
+                data->note = tmp_pack_byte;
+            } else {
+                data->octave = tmp_pack_byte >> 4;
+                data->note   = tmp_pack_byte & 0xF;
+            }
+        }
+
+        tmp_pack_word = 0;
+
+        if (pack_type & 8) { // instrument high byte follows
+            if (len--) {
+                av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                return AVERROR_INVALIDDATA;
+            }
+
+            tmp_pack_word = *buf++ << 8;
+        }
+
+        if (pack_type & 16) { // instrument low byte follows
+            if (len--) {
+                av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                return AVERROR_INVALIDDATA;
+            }
+
+            tmp_pack_word |= *buf++;
+        }
+
+        data->instrument = tmp_pack_word;
+
+        if (pack_type & (32|64|128)) { // either track data effect byte, high or low byte of data word follow
+            do {
+                int res;
+
+                tmp_pack_byte = 0;
+
+                if (pack_type & 32) { // track data row effect command follows
+                    if (len--) {
+                        av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                        return AVERROR_INVALIDDATA;
+                    }
+
+                    tmp_pack_byte = *buf++;
+                }
+
+                tmp_pack_word = 0;
+
+                if (pack_type & 64) { // track data row effect data word high byte follows
+                    if (len--) {
+                        av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                        return AVERROR_INVALIDDATA;
+                    }
+
+                    tmp_pack_word = *buf++ << 8;
+                }
+
+                if (pack_type & 128) { // track data row effect data word low byte follows
+                    if (len--) {
+                        av_log(track, AV_LOG_ERROR, "cannot unpack track data, unexpected end of stream.\n");
+                        return AVERROR_INVALIDDATA;
+                    }
+
+                    tmp_pack_word |= *buf++;
+                }
+
+                if (!(fx = avseq_track_effect_create ()))
+                    return AVERROR(ENOMEM);
+
+                fx->command = tmp_pack_byte;
+                fx->data    = tmp_pack_word;
+
+                if ((res = avseq_track_effect_open ( track, data, fx )) < 0)
+                    return res;
+
+                pack_type = 0xFF;
+            } while ((int8_t) tmp_pack_byte < 0);
+
+            if (len--)
+                return AVERROR_INVALIDDATA;
+        }
+
+        last_pack_row++;
+        data++;
+    }
 
     return 0;
 }
