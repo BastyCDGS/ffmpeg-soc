@@ -43,6 +43,49 @@
 #define ID_BMHD       MKTAG('B','M','H','D')
 #define ID_CMAP       MKTAG('C','M','A','P')
 
+#define ID_AHDR       MKTAG('A','H','D','R')
+#define ID_ARPE       MKTAG('A','R','P','E')
+#define ID_ARPG       MKTAG('A','R','P','G')
+#define ID_ARPL       MKTAG('A','R','P','L')
+#define ID_CMNT       MKTAG('C','M','N','T')
+#define ID_CODE       MKTAG('C','O','D','E')
+#define ID_EHDR       MKTAG('E','H','D','R')
+#define ID_ENVD       MKTAG('E','N','V','D')
+#define ID_ENVL       MKTAG('E','N','V','L')
+#define ID_FILE       MKTAG('F','I','L','E')
+#define ID_IHDR       MKTAG('I','H','D','R')
+#define ID_INSL       MKTAG('I','N','S','L')
+#define ID_INST       MKTAG('I','N','S','T')
+#define ID_KBRD       MKTAG('K','B','R','D')
+#define ID_KEYB       MKTAG('K','E','Y','B')
+#define ID_MHDR       MKTAG('M','H','D','R')
+#define ID_MMSG       MKTAG('M','M','S','G')
+#define ID_NODE       MKTAG('N','O','D','E')
+#define ID_PATT       MKTAG('P','A','T','T')
+#define ID_PDAT       MKTAG('P','D','A','T')
+#define ID_PHDR       MKTAG('P','H','D','R')
+#define ID_POSI       MKTAG('P','O','S','I')
+#define ID_POSL       MKTAG('P','O','S','L')
+#define ID_SAMP       MKTAG('S','A','M','P')
+#define ID_SHDR       MKTAG('S','H','D','R')
+#define ID_SMBL       MKTAG('S','M','B','L')
+#define ID_SMPH       MKTAG('S','M','P','H')
+#define ID_SMPL       MKTAG('S','M','P','L')
+#define ID_SMPR       MKTAG('S','M','P','R')
+#define ID_SMSG       MKTAG('S','M','S','G')
+#define ID_SNTH       MKTAG('S','N','T','H')
+#define ID_SONG       MKTAG('S','O','N','G')
+#define ID_SREF       MKTAG('S','R','E','F')
+#define ID_STAB       MKTAG('S','T','A','B')
+#define ID_STIL       MKTAG('S','T','I','L')
+#define ID_TCM1       MKTAG('T','C','M','1')
+#define ID_THDR       MKTAG('T','H','D','R')
+#define ID_TRAK       MKTAG('T','R','A','K')
+#define ID_WAVE       MKTAG('W','A','V','E')
+#define ID_WFRM       MKTAG('W','F','R','M')
+#define ID_WHDR       MKTAG('W','H','D','R')
+#define ID_YHDR       MKTAG('Y','H','D','R')
+
 #define ID_FORM       MKTAG('F','O','R','M')
 #define ID_ANNO       MKTAG('A','N','N','O')
 #define ID_AUTH       MKTAG('A','U','T','H')
@@ -115,9 +158,17 @@ static int iff_probe(AVProbeData *p)
 {
     const uint8_t *d = p->buf;
 
-    if ( AV_RL32(d)   == ID_FORM &&
-         (AV_RL32(d+8) == ID_8SVX || AV_RL32(d+8) == ID_PBM || AV_RL32(d+8) == ID_ILBM) )
+    if (AV_RL32(d) != ID_FORM)
+        return 0;
+
+    if (AV_RL32(d+8) == ID_8SVX || AV_RL32(d+8) == ID_PBM || AV_RL32(d+8) == ID_ILBM)
         return AVPROBE_SCORE_MAX;
+
+#if CONFIG_AVSEQUENCER
+    if (AV_RL32(d+8) == ID_TCM1)
+        return AVPROBE_SCORE_MAX;
+#endif
+
     return 0;
 }
 
@@ -249,6 +300,15 @@ static int iff_read_header(AVFormatContext *s,
         }
 
         st->codec->bits_per_coded_sample = 8;
+
+        if (st->codec->codec_tag == ID_TCM1) {
+            st->codec->sample_rate           = 44100;
+            st->codec->bits_per_coded_sample = 32;
+            st->codec->channels              = 2;
+            st->codec->codec_id              = CODEC_ID_IFF_TCM1;
+            break;
+        }
+
         st->codec->bit_rate = st->codec->channels * st->codec->sample_rate * st->codec->bits_per_coded_sample;
         st->codec->block_align = st->codec->channels * st->codec->bits_per_coded_sample;
         break;
@@ -289,7 +349,7 @@ static int iff_read_packet(AVFormatContext *s,
 
         ret = get_buffer(pb, sample_buffer, PACKET_SIZE);
         if(av_new_packet(pkt, PACKET_SIZE) < 0) {
-            av_log(s, AV_LOG_ERROR, "cannot allocate packet\n");
+            av_log(s, AV_LOG_ERROR, "iff: cannot allocate packet \n");
             return AVERROR(ENOMEM);
         }
         interleave_stereo(sample_buffer, pkt->data, PACKET_SIZE);

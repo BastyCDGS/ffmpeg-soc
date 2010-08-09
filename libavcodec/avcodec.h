@@ -355,6 +355,11 @@ enum CodecID {
 
     CODEC_ID_PROBE= 0x19000, ///< codec_id is not known (like CODEC_ID_NONE) but lavf should attempt to identify it
 
+    /* sequencer codecs */
+    CODEC_ID_SEQUENCER= 0x1A000,
+    CODEC_ID_IFF_TCM1,
+    CODEC_ID_SEQ_TCM1,
+
     CODEC_ID_MPEG2TS= 0x20000, /**< _FAKE_ codec to indicate a raw MPEG-2 TS
                                 * stream (only used by libavformat) */
 };
