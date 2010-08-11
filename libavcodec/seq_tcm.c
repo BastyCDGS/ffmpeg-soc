@@ -88,7 +88,7 @@ static av_cold int iff_tcm1_decode_init(AVCodecContext *avctx)
     return 0;
 }
 
-AVCodec iff_tcm1_audio_decoder = {
+AVCodec iff_tcm1_decoder = {
   .name           = "iff_tcm1",
   .type           = AVMEDIA_TYPE_AUDIO,
   .id             = CODEC_ID_IFF_TCM1,
@@ -98,7 +98,7 @@ AVCodec iff_tcm1_audio_decoder = {
   .long_name      = NULL_IF_CONFIG_SMALL("IFF-TCM1 audio"),
 };
 
-AVCodec iff_tcm1_seq_decoder = {
+AVCodec seq_tcm1_decoder = {
   .name           = "seq_tcm1",
 //  .type           = AVMEDIA_TYPE_SEQUENCER,
   .type           = AVMEDIA_TYPE_AUDIO,
