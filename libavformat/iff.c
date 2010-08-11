@@ -99,6 +99,7 @@ static int open_arpg_arpe ( AVFormatContext *s, AVSequencerArpeggio *arpeggio, u
 #define ID_PHDR       MKTAG('P','H','D','R')
 #define ID_POSI       MKTAG('P','O','S','I')
 #define ID_POSL       MKTAG('P','O','S','L')
+#define ID_POST       MKTAG('P','O','S','T')
 #define ID_SAMP       MKTAG('S','A','M','P')
 #define ID_SHDR       MKTAG('S','H','D','R')
 #define ID_SMBL       MKTAG('S','M','B','L')
@@ -470,7 +471,7 @@ static int iff_read_header(AVFormatContext *s,
 
         if (metadata_tag) {
             if ((res = get_metadata(s, metadata_tag, data_size)) < 0) {
-                av_log(s, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(s, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
 #if CONFIG_AVSEQUENCER
@@ -513,27 +514,27 @@ static int iff_read_header(AVFormatContext *s,
             unsigned i;
 
             if (songs != module->songs) {
-                av_log(module, AV_LOG_ERROR, "Number of attached sub-songs does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached sub-songs does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
             if (instruments != module->instruments) {
-                av_log(module, AV_LOG_ERROR, "Number of attached instruments does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached instruments does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
             if (envelopes != module->envelopes) {
-                av_log(module, AV_LOG_ERROR, "Number of attached envelopes does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached envelopes does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
             if (keyboards != module->keyboards) {
-                av_log(module, AV_LOG_ERROR, "Number of attached keyboard definitions does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached keyboard definitions does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
             if (arpeggios != module->arpeggios) {
-                av_log(module, AV_LOG_ERROR, "Number of attached arpeggio structures does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached arpeggio structures does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -559,7 +560,7 @@ static int iff_read_header(AVFormatContext *s,
             }
 
             if (tracks) {
-                av_log(module, AV_LOG_ERROR, "Number of attached tracks does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached tracks does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -606,12 +607,12 @@ static int iff_read_header(AVFormatContext *s,
             }
 
             if (samples) {
-                av_log(module, AV_LOG_ERROR, "Number of attached samples does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached samples does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
             if (synths) {
-                av_log(module, AV_LOG_ERROR, "Number of attached synths does not match actual reads!");
+                av_log(module, AV_LOG_ERROR, "Number of attached synths does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -672,7 +673,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
     ByteIOContext *pb = s->pb;
     AVSequencerSong *song;
     uint32_t iff_size = 4;
-    uint16_t tracks = 0;
+    uint16_t tracks = 0, channels = 1;
     int res;
 
     if (data_size < 4)
@@ -752,7 +753,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             song->loop_stack_size    = get_be16(pb);
             song->compat_flags       = get_byte(pb);
             song->flags              = get_byte(pb);
-            song->channels           = get_be16(pb);
+            channels                 = get_be16(pb);
             song->frames             = get_be16(pb);
             song->speed_mul          = get_byte(pb);
             song->speed_div          = get_byte(pb);
@@ -771,6 +772,9 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             song->global_sub_volume  = get_byte(pb);
             song->global_panning     = get_byte(pb);
             song->global_sub_panning = get_byte(pb);
+
+            if ((res = avseq_song_set_channels ( song, channels)) < 0)
+                return res;
 
             break;
         case ID_FORM:
@@ -827,7 +831,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &song->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(song, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(song, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -838,7 +842,12 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
     }
 
     if (tracks != song->tracks) {
-        av_log(song, AV_LOG_ERROR, "Number of attached tracks does not match actual reads!");
+        av_log(song, AV_LOG_ERROR, "Number of attached tracks does not match actual reads!\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    if (channels != song->channels) {
+        av_log(song, AV_LOG_ERROR, "Number of attached channels does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -976,7 +985,7 @@ static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &track->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(track, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(track, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1021,18 +1030,17 @@ static int open_song_posi ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(song, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
-            case ID_POSI:
-                if ((res = open_posi_post ( s, song, channel, iff_size)) < 0)
-                    return res;
-
-                if (channel++ >= song->channels) {
-                    if ((res = avseq_song_set_channels ( song, channel )) < 0)
+            case ID_POST:
+                if (channel >= song->channels) {
+                    if ((res = avseq_song_set_channels ( song, channel + 1)) < 0)
                         return res;
                 }
+
+                if ((res = open_posi_post ( s, song, channel++, iff_size)) < 0)
+                    return res;
 
                 break;
             }
@@ -1067,7 +1075,6 @@ static int open_posi_post ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         chunk_id = get_le32(pb);
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
-        av_log(song, AV_LOG_WARNING, "Reading IFF-chunk for channel %d: %c%c%c%c with length: %d\n", channel, chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
 
         switch(chunk_id) {
         case ID_PHDR:
@@ -1129,7 +1136,7 @@ static int open_posi_post ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &order_list->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(order_list, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(order_list, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1161,7 +1168,6 @@ static int open_post_posl ( AVFormatContext *s, AVSequencerOrderList *order_list
         chunk_id = get_le32(pb);
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
-        av_log(order_list, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
 
         switch(chunk_id) {
         case ID_PDAT:
@@ -1217,7 +1223,7 @@ static int open_post_posl ( AVFormatContext *s, AVSequencerOrderList *order_list
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &order_list->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(order_list, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(order_list, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1298,6 +1304,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(module, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_IHDR:
             instrument->volume_env           = (AVSequencerEnvelope *) get_be16(pb);
@@ -1385,7 +1392,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &instrument->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(instrument, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(instrument, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1396,7 +1403,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
     }
 
     if (samples != instrument->samples) {
-        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads!");
+        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -1578,7 +1585,7 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &sample->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(sample, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(sample, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1593,7 +1600,7 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
             // TODO: Load sample from demuxer/decoder pair
         } else if (!buf && sample->samples) {
             av_freep(&buf);
-            av_log(sample, AV_LOG_ERROR, "no sample data found, but non-zero number of samples!");
+            av_log(sample, AV_LOG_ERROR, "no sample data found, but non-zero number of samples!\n");
             return AVERROR_INVALIDDATA;
         } else if (sample->bits_per_sample != 8) {
             if ((res = avseq_sample_data_open(sample, NULL, sample->samples)) < 0) {
@@ -1782,7 +1789,7 @@ static int open_smpl_snth ( AVFormatContext *s, AVSequencerSample *sample, const
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &synth->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(synth, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(synth, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1794,17 +1801,17 @@ static int open_smpl_snth ( AVFormatContext *s, AVSequencerSample *sample, const
 
     if (waveforms != synth->waveforms) {
         av_freep(&buf);
-        av_log(synth, AV_LOG_ERROR, "Number of attached waveforms does not match actual reads!");
+        av_log(synth, AV_LOG_ERROR, "Number of attached waveforms does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
     if (!buf) {
         av_freep(&buf);
-        av_log(synth, AV_LOG_ERROR, "No synth sound code read!");
+        av_log(synth, AV_LOG_ERROR, "No synth sound code read!\n");
         return AVERROR_INVALIDDATA;
     } else if (!synth->size != (len >> 2)) {
         av_freep(&buf);
-        av_log(synth, AV_LOG_ERROR, "Number of synth sound code lines does not match actual reads!");
+        av_log(synth, AV_LOG_ERROR, "Number of synth sound code lines does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -1943,7 +1950,7 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &waveform->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(waveform, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(waveform, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1955,7 +1962,7 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
 
     if (!buf && waveform->samples) {
         av_freep(&buf);
-        av_log(waveform, AV_LOG_ERROR, "no synth sound waveform data found, but non-zero number of samples!");
+        av_log(waveform, AV_LOG_ERROR, "no synth sound waveform data found, but non-zero number of samples!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -2251,7 +2258,7 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
             if ((res = seq_get_metadata(s, &envelope->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&node_buf);
                 av_freep(&buf);
-                av_log(envelope, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(envelope, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -2263,11 +2270,11 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
 
     if (!buf && envelope->points) {
         av_freep(&node_buf);
-        av_log(envelope, AV_LOG_ERROR, "no envelope data points found, but non-zero number of points!");
+        av_log(envelope, AV_LOG_ERROR, "no envelope data points found, but non-zero number of points!\n");
         return AVERROR_INVALIDDATA;
     } else if (!node_buf && envelope->nodes) {
         av_freep(&buf);
-        av_log(envelope, AV_LOG_ERROR, "no envelope data node points found, but non-zero number of nodes!");
+        av_log(envelope, AV_LOG_ERROR, "no envelope data node points found, but non-zero number of nodes!\n");
         return AVERROR_INVALIDDATA;
     } else if ((res = avseq_envelope_data_open(avctx, envelope, envelope->points, 0, 0, 0, envelope->nodes)) < 0) {
         av_freep(&node_buf);
@@ -2350,7 +2357,7 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
             keyboards = iff_size >> 2;
 
             if (keyboards > 120) {
-                av_log(keyboard, AV_LOG_ERROR, "keyboard too large (max 10 octave range supported)!");
+                av_log(keyboard, AV_LOG_ERROR, "keyboard too large (max 10 octave range supported)!\n");
                 return res;
             }
 
@@ -2390,7 +2397,7 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &keyboard->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(keyboard, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(keyboard, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -2401,7 +2408,7 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
     }
 
     if (!keyboards) {
-        av_log(keyboard, AV_LOG_ERROR, "Attached keyboard does not match actual reads!");
+        av_log(keyboard, AV_LOG_ERROR, "Attached keyboard does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -2531,7 +2538,7 @@ static int open_arpl_arpg ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &arpeggio->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(arpeggio, AV_LOG_ERROR, "cannot allocate metadata tag %s!", metadata_tag);
+                av_log(arpeggio, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -2542,7 +2549,7 @@ static int open_arpl_arpg ( AVFormatContext *s, AVSequencerModule *module, uint3
     }
 
     if (entries != arpeggio->entries) {
-        av_log(arpeggio, AV_LOG_ERROR, "Number of attached arpeggio entries does not match actual reads!");
+        av_log(arpeggio, AV_LOG_ERROR, "Number of attached arpeggio entries does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -2600,7 +2607,7 @@ static int open_arpg_arpe ( AVFormatContext *s, AVSequencerArpeggio *arpeggio, u
     }
 
     if (!ticks) {
-        av_log(arpeggio, AV_LOG_ERROR, "Attached arpeggio structure entries do not match actual reads!");
+        av_log(arpeggio, AV_LOG_ERROR, "Attached arpeggio structure entries do not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
