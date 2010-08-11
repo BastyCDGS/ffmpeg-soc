@@ -63,7 +63,7 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     if (!(track && ++tracks)) {
         return AVERROR_INVALIDDATA;
     } else if (!(track_list = av_realloc(track_list, (tracks * sizeof(AVSequencerTrack *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(song, AV_LOG_ERROR, "cannot allocate track storage container.\n");
+        av_log(song, AV_LOG_ERROR, "Cannot allocate track storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -99,7 +99,7 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     last_row = track->last_row + 1;
 
     if (!(data = av_realloc(data, (last_row * sizeof(AVSequencerTrackData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(track, AV_LOG_ERROR, "cannot allocate storage container.\n");
+        av_log(track, AV_LOG_ERROR, "Cannot allocate storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -128,7 +128,7 @@ int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data,
     if (!(effect && ++effects)) {
         return AVERROR_INVALIDDATA;
     } else if (!(fx_list = av_realloc(fx_list, (effects * sizeof(AVSequencerTrackEffect *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(track, AV_LOG_ERROR, "cannot allocate track data effect storage container.\n");
+        av_log(track, AV_LOG_ERROR, "Cannot allocate track data effect storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -166,13 +166,13 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
         uint8_t tmp_pack_byte;
 
         if (last_pack_row > track->last_row) {
-            av_log(track, AV_LOG_ERROR, "cannot unpack track data, track has too few rows.\n");
+            av_log(track, AV_LOG_ERROR, "Cannot unpack track data, track has too few rows.\n");
             return AVERROR_INVALIDDATA;
         }
 
         if (pack_type & 1) { // row high byte follows
             if (!--len) {
-                av_log(track, AV_LOG_ERROR, "cannot unpack track data row high byte, unexpected end of stream.\n");
+                av_log(track, AV_LOG_ERROR, "Cannot unpack track data row high byte, unexpected end of stream.\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -181,7 +181,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
         if (pack_type & 2) { // row low byte follows
             if (!--len) {
-                av_log(track, AV_LOG_ERROR, "cannot unpack track data row low byte, unexpected end of stream.\n");
+                av_log(track, AV_LOG_ERROR, "Cannot unpack track data row low byte, unexpected end of stream.\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -201,7 +201,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
         if (pack_type & 4) { // octave (high nibble) and note (low nibble) follows or 0xFx are special notes (keyoff, etc.)
             if (!--len) {
-                av_log(track, AV_LOG_ERROR, "cannot unpack track data octave and note byte, unexpected end of stream.\n");
+                av_log(track, AV_LOG_ERROR, "Cannot unpack track data octave and note byte, unexpected end of stream.\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -217,7 +217,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
         if (pack_type & 8) { // instrument high byte follows
             if (!--len) {
-                av_log(track, AV_LOG_ERROR, "cannot unpack track data instrument high byte, unexpected end of stream.\n");
+                av_log(track, AV_LOG_ERROR, "Cannot unpack track data instrument high byte, unexpected end of stream.\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -226,7 +226,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
         if (pack_type & 16) { // instrument low byte follows
             if (!--len) {
-                av_log(track, AV_LOG_ERROR, "cannot unpack track data instrument low byte, unexpected end of stream.\n");
+                av_log(track, AV_LOG_ERROR, "Cannot unpack track data instrument low byte, unexpected end of stream.\n");
                 return AVERROR_INVALIDDATA;
             }
 
@@ -243,7 +243,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
                 if (pack_type & 32) { // track data effect command follows
                     if (!--len) {
-                        av_log(track, AV_LOG_ERROR, "cannot unpack track data effect command, unexpected end of stream.\n");
+                        av_log(track, AV_LOG_ERROR, "Cannot unpack track data effect command, unexpected end of stream.\n");
                         return AVERROR_INVALIDDATA;
                     }
 
@@ -254,7 +254,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
                 if (pack_type & 64) { // track data effect data word high byte follows
                     if (!--len) {
-                        av_log(track, AV_LOG_ERROR, "cannot unpack track data effect data word high byte, unexpected end of stream.\n");
+                        av_log(track, AV_LOG_ERROR, "Cannot unpack track data effect data word high byte, unexpected end of stream.\n");
                         return AVERROR_INVALIDDATA;
                     }
 
@@ -263,7 +263,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
                 if (pack_type & 128) { // track data effect data word low byte follows
                     if (!--len) {
-                        av_log(track, AV_LOG_ERROR, "cannot unpack track data effect data word low byte, unexpected end of stream.\n");
+                        av_log(track, AV_LOG_ERROR, "Cannot unpack track data effect data word low byte, unexpected end of stream.\n");
                         return AVERROR_INVALIDDATA;
                     }
 
@@ -284,7 +284,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
         }
 
         if (!len--) {
-            av_log(track, AV_LOG_ERROR, "cannot unpack track, unexpected end of stream.\n");
+            av_log(track, AV_LOG_ERROR, "Cannot unpack track, unexpected end of stream.\n");
             return AVERROR_INVALIDDATA;
         }
 
@@ -293,7 +293,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
     }
 
     if (len || pack_type) {
-        av_log(track, AV_LOG_ERROR, "cannot unpack track, unexpected end of stream.\n");
+        av_log(track, AV_LOG_ERROR, "Cannot unpack track, unexpected end of stream.\n");
         return AVERROR_INVALIDDATA;
     }
 

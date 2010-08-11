@@ -144,7 +144,7 @@ static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const
     AVSequencerNULLMixerData *res = NULL;
 
     if (!(res = av_mallocz(sizeof (AVSequencerNULLMixerData)))) {
-        av_log(mixctx, AV_LOG_ERROR, "cannot allocate mixer data factory.\n");
+        av_log(mixctx, AV_LOG_ERROR, "Cannot allocate mixer data factory.\n");
 
         return NULL;
     }

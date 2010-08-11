@@ -67,7 +67,7 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
     if (!sample || !lines >= 0x10000 || waveforms >= 0x10000) {
         return AVERROR_INVALIDDATA;
     } else if (!(synth = avseq_synth_create())) {
-        av_log(sample, AV_LOG_ERROR, "cannot allocate synth sound container.\n");
+        av_log(sample, AV_LOG_ERROR, "Cannot allocate synth sound container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -109,7 +109,7 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
     if (!synth || lines >= 0x10000) {
         return AVERROR_INVALIDDATA;
     } else if (!(code = av_realloc(code, (lines * sizeof(AVSequencerSynthCode)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound code.\n");
+        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound code.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -144,7 +144,7 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
     target_name = symbol->symbol_name;
 
     if (!(target_name = av_realloc(target_name, strlen(name) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound symbol name.\n");
+        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound symbol name.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -153,7 +153,7 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
 
     if ((tmp_char == 0) || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char != '.') && (tmp_char < '@'))) {
         av_free(target_name);
-        av_log(synth, AV_LOG_ERROR, "invalid symbol name: '%s'\n", name);
+        av_log(synth, AV_LOG_ERROR, "Invalid symbol name: '%s'\n", name);
         return AVERROR_INVALIDDATA;
     }
 
@@ -163,7 +163,7 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
     while ((tmp_char = *check_name++) != 0) {
         if (((tmp_char < '0') && (tmp_char != '.')) || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char > '9') && (tmp_char < '@'))) {
             av_free(target_name);
-            av_log(synth, AV_LOG_ERROR, "invalid symbol name: '%s'\n", name);
+            av_log(synth, AV_LOG_ERROR, "Invalid symbol name: '%s'\n", name);
             return AVERROR_INVALIDDATA;
         }
 
@@ -174,7 +174,7 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
 
     if (!(symbol_list = av_realloc(symbol_list, (symbols * sizeof(AVSequencerSynthSymbolTable *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_free(target_name);
-        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound symbol storage container.\n");
+        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound symbol storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -225,11 +225,11 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
     if (!++waveforms) {
         return AVERROR_INVALIDDATA;
     } else if (!(waveform_list = av_realloc(waveform_list, (waveforms * sizeof(AVSequencerSynthWave *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound waveform storage container.\n");
+        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound waveform storage container.\n");
         return AVERROR(ENOMEM);
     } else if (!(waveform = avseq_synth_waveform_create())) {
         av_free(waveform_list);
-        av_log(synth, AV_LOG_ERROR, "cannot allocate synth sound waveform.\n");
+        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound waveform.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -262,7 +262,7 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
     size = waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT ? samples : samples << 1;
 
     if (!(data = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(waveform, AV_LOG_ERROR, "cannot allocate synth sound waveform data.\n");
+        av_log(waveform, AV_LOG_ERROR, "Cannot allocate synth sound waveform data.\n");
         return AVERROR(ENOMEM);
     }
 

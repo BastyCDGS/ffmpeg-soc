@@ -63,7 +63,7 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
     if (!(song && ++songs)) {
         return AVERROR_INVALIDDATA;
     } else if (!(song_list = av_realloc(song_list, (songs * sizeof(AVSequencerSong *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(module, AV_LOG_ERROR, "cannot allocate sub-song storage container.\n");
+        av_log(module, AV_LOG_ERROR, "Cannot allocate sub-song storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -113,7 +113,7 @@ int avseq_song_set_channels ( AVSequencerSong *song, uint32_t channels ) {
         if ((channels == 0) || (channels > 256)) {
             return AVERROR_INVALIDDATA;
         } else if (!(order_list = av_realloc(order_list, (channels * sizeof(AVSequencerOrderList)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-            av_log(song, AV_LOG_ERROR, "cannot allocate order list storage container.\n");
+            av_log(song, AV_LOG_ERROR, "Cannot allocate order list storage container.\n");
             return AVERROR(ENOMEM);
         }
 

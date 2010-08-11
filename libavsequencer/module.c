@@ -62,7 +62,7 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     if (!(module && ++modules)) {
         return AVERROR_INVALIDDATA;
     } else if (!(module_list = av_realloc(module_list, (modules * sizeof(AVSequencerModule *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(avctx, AV_LOG_ERROR, "cannot allocate module storage container.\n");
+        av_log(avctx, AV_LOG_ERROR, "Cannot allocate module storage container.\n");
         return AVERROR(ENOMEM);
     }
 

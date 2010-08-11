@@ -58,7 +58,7 @@ int avseq_order_open(AVSequencerSong *song) {
     if ((channels == 0) || (channels > 256)) {
         return AVERROR_INVALIDDATA;
     } else if (!(order_list = av_realloc(order_list, (channels * sizeof(AVSequencerOrderList)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(song, AV_LOG_ERROR, "cannot allocate order list storage container.\n");
+        av_log(song, AV_LOG_ERROR, "Cannot allocate order list storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -110,7 +110,7 @@ int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData
     if (!(order_data && ++orders)) {
         return AVERROR_INVALIDDATA;
     } else if (!(order_data_list = av_realloc(order_data_list, (orders * sizeof(AVSequencerOrderData *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(order_list, AV_LOG_ERROR, "cannot allocate order list data entry storage container.\n");
+        av_log(order_list, AV_LOG_ERROR, "Cannot allocate order list data entry storage container.\n");
         return AVERROR(ENOMEM);
     }
 

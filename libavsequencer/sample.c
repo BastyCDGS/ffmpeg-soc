@@ -64,7 +64,7 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
     if (!(sample && ++samples)) {
         return AVERROR_INVALIDDATA;
     } else if (!(sample_list = av_realloc(sample_list, (samples * sizeof(AVSequencerSample *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(instrument, AV_LOG_ERROR, "cannot allocate sample storage container.\n");
+        av_log(instrument, AV_LOG_ERROR, "Cannot allocate sample storage container.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -99,7 +99,7 @@ int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t sa
     if (data) {
         sample->flags = AVSEQ_SAMPLE_FLAG_REDIRECT;
     } else if (!(data = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(sample, AV_LOG_ERROR, "cannot allocate sample data.\n");
+        av_log(sample, AV_LOG_ERROR, "Cannot allocate sample data.\n");
         return AVERROR(ENOMEM);
     }
 
@@ -123,7 +123,7 @@ int avseq_sample_decrunch ( AVSequencerModule *module, AVSequencerSample *sample
         return AVERROR_INVALIDDATA;
 
     if (!((data = sample->data) && sample->samples && sample->size)) {
-        av_log(sample, AV_LOG_ERROR, "empty sample data encountered.\n");
+        av_log(sample, AV_LOG_ERROR, "Empty sample data encountered.\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -241,7 +241,7 @@ AVSequencerSample *avseq_sample_find_origin ( AVSequencerModule *module, AVSeque
             uint16_t i;
 
             if (!module) {
-                av_log(sample, AV_LOG_ERROR, "origin sample cannot be found because no module was specified.\n");
+                av_log(sample, AV_LOG_ERROR, "Origin sample cannot be found because no module was specified.\n");
                 return NULL;
             }
 
@@ -264,7 +264,7 @@ AVSequencerSample *avseq_sample_find_origin ( AVSequencerModule *module, AVSeque
                 }
             }
 
-            av_log(sample, AV_LOG_ERROR, "origin sample cannot be found in module.\n");
+            av_log(sample, AV_LOG_ERROR, "Origin sample cannot be found in module.\n");
             origin_sample = NULL;
         }
     }
