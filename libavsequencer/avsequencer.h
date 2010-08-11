@@ -738,13 +738,15 @@ AVSequencerInstrument *avseq_instrument_create(void);
  *
  * @param module the AVSequencerModule structure to add the new instrument to
  * @param instrument the AVSequencerInstrument to be added to the module
+ * @param samples the number of empty samples to be added to the instrument
  * @return >= 0 on success, a negative error code otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument);
+int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument,
+                          uint32_t samples);
 
 /**
  * Creates a new uninitialized empty envelope.

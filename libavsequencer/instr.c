@@ -49,9 +49,11 @@ AVSequencerInstrument *avseq_instrument_create(void) {
     return av_mallocz(sizeof(AVSequencerInstrument) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument) {
+int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument,
+                          uint32_t samples) {
     AVSequencerSample *sample;
     AVSequencerInstrument **instrument_list;
+    uint32_t i;
     uint16_t instruments;
     int res;
 
@@ -70,10 +72,23 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
 
     instrument->av_class = &avseq_instrument_class;
 
-    if (!(sample = avseq_sample_create())) {
-        av_free(instrument_list);
-        av_log(instrument, AV_LOG_ERROR, "Cannot allocate first sample.\n");
-        return AVERROR(ENOMEM);
+    for (i = 0; i < samples; ++i) {
+        if (!(sample = avseq_sample_create())) {
+            while (i--) {
+                av_free(instrument->sample_list[i]);
+            }
+
+            av_log(instrument, AV_LOG_ERROR, "Cannot allocate sample number %d.\n", i + 1);
+            return AVERROR(ENOMEM);
+        }
+
+        if ((res = avseq_sample_open(instrument, sample, NULL, 0)) < 0) {
+            while (i--) {
+                av_free(instrument->sample_list[i]);
+            }
+
+            return res;
+        }
     }
 
     instrument->fade_out         = 65535;
@@ -81,12 +96,6 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     instrument->global_volume    = 255;
     instrument->default_panning  = -128;
     instrument->env_usage_flags  = ~(AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV|AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV|AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV|-0x2000);
-
-    if ((res = avseq_sample_open(instrument, sample, NULL, 0)) < 0) {
-        av_free(sample);
-        av_free(instrument_list);
-        return res;
-    }
 
     instrument_list[instruments] = instrument;
     module->instrument_list      = instrument_list;
