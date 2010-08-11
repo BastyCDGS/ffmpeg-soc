@@ -132,15 +132,15 @@ int avseq_sample_decrunch ( AVSequencerModule *module, AVSequencerSample *sample
 
     switch (delta_bits_per_sample) {
     case 8 :
-        decrunch_sample_8  ( (int8_t *) data, sample->size >> 3 );
+        decrunch_sample_8  ( (int8_t *) data, FFALIGN(sample->size, 8) >> 3 );
 
         break;
     case 16 :
-        decrunch_sample_16 ( data, sample->size >> 3 );
+        decrunch_sample_16 ( data, FFALIGN(sample->size, 8) >> 3 );
 
         break;
     case 32 :
-        decrunch_sample_32 ( (int32_t *) data, sample->size >> 3 );
+        decrunch_sample_32 ( (int32_t *) data, FFALIGN(sample->size, 8) >> 3 );
 
         break;
     default :
