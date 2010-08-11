@@ -548,9 +548,9 @@ static int iff_read_header(AVFormatContext *s,
                     for (order = 0; order < order_list->orders; ++order) {
                         AVSequencerOrderData *order_data = order_list->order_data[order];
 
-                        order_data->track    = avseq_track_get_address ( song, *(uint32_t *) &(order_data->track) );
-                        order_data->next_pos = avseq_order_get_address ( song, channel, *(uint32_t *) &(order_data->next_pos) );
-                        order_data->prev_pos = avseq_order_get_address ( song, channel, *(uint32_t *) &(order_data->prev_pos) );
+                        order_data->track    = avseq_track_get_address ( song, (uint32_t) order_data->track );
+                        order_data->next_pos = avseq_order_get_address ( song, channel, (uint32_t) order_data->next_pos );
+                        order_data->prev_pos = avseq_order_get_address ( song, channel, (uint32_t) order_data->prev_pos );
                     }
 
                     order_list++;
@@ -566,31 +566,31 @@ static int iff_read_header(AVFormatContext *s,
                 AVSequencerInstrument *instrument = module->instrument_list[i];
                 unsigned smp;
 
-                instrument->volume_env    = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->volume_env) );
-                instrument->panning_env   = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->panning_env) );
-                instrument->slide_env     = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->slide_env) );
-                instrument->vibrato_env   = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->vibrato_env) );
-                instrument->tremolo_env   = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->tremolo_env) );
-                instrument->pannolo_env   = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->pannolo_env) );
-                instrument->channolo_env  = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->channolo_env) );
-                instrument->spenolo_env   = avseq_envelope_get_address ( module, *(uint32_t *) &(instrument->spenolo_env) );
-                instrument->arpeggio_ctrl = avseq_arpeggio_get_address ( module, *(uint32_t *) &(instrument->arpeggio_ctrl) );
-                instrument->keyboard_defs = avseq_keyboard_get_address ( module, *(uint32_t *) &(instrument->keyboard_defs) );
+                instrument->volume_env    = avseq_envelope_get_address ( module, (uint32_t) instrument->volume_env );
+                instrument->panning_env   = avseq_envelope_get_address ( module, (uint32_t) instrument->panning_env );
+                instrument->slide_env     = avseq_envelope_get_address ( module, (uint32_t) instrument->slide_env );
+                instrument->vibrato_env   = avseq_envelope_get_address ( module, (uint32_t) instrument->vibrato_env );
+                instrument->tremolo_env   = avseq_envelope_get_address ( module, (uint32_t) instrument->tremolo_env );
+                instrument->pannolo_env   = avseq_envelope_get_address ( module, (uint32_t) instrument->pannolo_env );
+                instrument->channolo_env  = avseq_envelope_get_address ( module, (uint32_t) instrument->channolo_env );
+                instrument->spenolo_env   = avseq_envelope_get_address ( module, (uint32_t) instrument->spenolo_env );
+                instrument->arpeggio_ctrl = avseq_arpeggio_get_address ( module, (uint32_t) instrument->arpeggio_ctrl );
+                instrument->keyboard_defs = avseq_keyboard_get_address ( module, (uint32_t) instrument->keyboard_defs );
                 samples                  -= instrument->samples;
 
                 for (smp = 0; smp < instrument->samples; ++smp) {
                     AVSequencerSample *sample = instrument->sample_list[smp];
 
-                    sample->auto_vibrato_env = avseq_envelope_get_address ( module, *(uint32_t *) &(sample->auto_vibrato_env) );
-                    sample->auto_tremolo_env = avseq_envelope_get_address ( module, *(uint32_t *) &(sample->auto_tremolo_env) );
-                    sample->auto_pannolo_env = avseq_envelope_get_address ( module, *(uint32_t *) &(sample->auto_pannolo_env) );
+                    sample->auto_vibrato_env = avseq_envelope_get_address ( module, (uint32_t) sample->auto_vibrato_env );
+                    sample->auto_tremolo_env = avseq_envelope_get_address ( module, (uint32_t) sample->auto_tremolo_env );
+                    sample->auto_pannolo_env = avseq_envelope_get_address ( module, (uint32_t) sample->auto_pannolo_env );
 
                     if (sample->synth)
                         synths--;
 
                     if (sample->flags & AVSEQ_SAMPLE_FLAG_REDIRECT) {
                         unsigned j;
-                        uint32_t origin = *(uint32_t *) &(sample->data);
+                        uint32_t origin = (uint32_t) sample->data;
 
                         for (j = 0; j < module->instruments; ++j) {
                             AVSequencerInstrument *origin_instrument = module->instrument_list[i];
