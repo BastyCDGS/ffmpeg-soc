@@ -49,6 +49,10 @@ AVFilterBufferRef *avfilter_ref_buffer(AVFilterBufferRef *ref, int pmask)
 {
     AVFilterBufferRef *ret = av_malloc(sizeof(AVFilterBufferRef));
     *ret = *ref;
+    if (ref->type == AVMEDIA_TYPE_VIDEO) {
+        ret->video = av_malloc(sizeof(AVFilterBufferRefVideoProps));
+        *ret->video = *ref->video;
+    }
     ret->perms &= pmask;
     ret->buf->refcount ++;
     return ret;
@@ -58,6 +62,7 @@ void avfilter_unref_buffer(AVFilterBufferRef *ref)
 {
     if(!(--ref->buf->refcount))
         ref->buf->free(ref->buf);
+    av_free(ref->video);
     av_free(ref);
 }
 
@@ -179,7 +184,7 @@ void ff_dprintf_picref(void *ctx, AVFilterBufferRef *picref, int end)
             picref->data    [0], picref->data    [1], picref->data    [2], picref->data    [3],
             picref->linesize[0], picref->linesize[1], picref->linesize[2], picref->linesize[3],
             picref->pts, picref->pos,
-            picref->pixel_aspect.num, picref->pixel_aspect.den, picref->w, picref->h,
+            picref->video->pixel_aspect.num, picref->video->pixel_aspect.den, picref->video->w, picref->video->h,
             end ? "\n" : "");
 }
 
@@ -314,7 +319,7 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 
         for(i = 0; i < 4; i ++) {
             int planew =
-                ff_get_plane_bytewidth(link->format, link->cur_buf->w, i);
+                ff_get_plane_bytewidth(link->format, link->cur_buf->video->w, i);
 
             if(!src[i]) continue;
 
@@ -389,12 +394,13 @@ static const AVClass avfilter_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVFilterContext *avfilter_open(AVFilter *filter, const char *inst_name)
+int avfilter_open(AVFilterContext **filter_ctx, AVFilter *filter, const char *inst_name)
 {
     AVFilterContext *ret;
+    *filter_ctx = NULL;
 
     if (!filter)
-        return 0;
+        return AVERROR(EINVAL);
 
     ret = av_mallocz(sizeof(AVFilterContext));
 
@@ -417,7 +423,8 @@ AVFilterContext *avfilter_open(AVFilter *filter, const char *inst_name)
         ret->outputs      = av_mallocz(sizeof(AVFilterLink*) * ret->output_count);
     }
 
-    return ret;
+    *filter_ctx = ret;
+    return 0;
 }
 
 void avfilter_destroy(AVFilterContext *filter)
