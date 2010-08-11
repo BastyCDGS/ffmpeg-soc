@@ -90,9 +90,9 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
         return res;
     }
 
-    song_list[songs]       = song;
-    module->song_list      = song_list;
-    module->songs          = songs;
+    song_list[songs - 1] = song;
+    module->song_list    = song_list;
+    module->songs        = songs;
 
     return 0;
 }

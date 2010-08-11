@@ -71,9 +71,9 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     if (!module->channels)
         module->channels = 64;
 
-    module_list[modules]          = module;
-    avctx->module_list            = module_list;
-    avctx->modules                = modules;
+    module_list[modules - 1] = module;
+    avctx->module_list       = module_list;
+    avctx->modules           = modules;
 
     return 0;
 }

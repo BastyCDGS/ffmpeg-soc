@@ -181,9 +181,9 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
     symbol->symbol_name = target_name;
     symbol->line_max    = 0xFFFF;
 
-    symbol_list[symbols] = symbol;
-    synth->symbol_list   = symbol_list;
-    synth->symbols       = symbols;
+    symbol_list[symbols - 1] = symbol;
+    synth->symbol_list       = symbol_list;
+    synth->symbols           = symbols;
 
     return 0;
 }
@@ -242,9 +242,9 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
         return res;
     }
 
-    waveform_list[waveforms] = waveform;
-    synth->waveform_list     = waveform_list;
-    synth->waveforms         = waveforms;
+    waveform_list[waveforms - 1] = waveform;
+    synth->waveform_list         = waveform_list;
+    synth->waveforms             = waveforms;
 
     return 0;
 }

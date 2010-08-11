@@ -118,9 +118,9 @@ int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData
     order_data->volume     = 255;
     order_data->last_row   = 65535;
 
-    order_data_list[orders] = order_data;
-    order_list->order_data  = order_data_list;
-    order_list->orders      = orders;
+    order_data_list[orders - 1] = order_data;
+    order_list->order_data      = order_data_list;
+    order_list->orders          = orders;
 
     return 0;
 }

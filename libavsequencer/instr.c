@@ -97,9 +97,9 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     instrument->default_panning  = -128;
     instrument->env_usage_flags  = ~(AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV|AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV|AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV|-0x2000);
 
-    instrument_list[instruments] = instrument;
-    module->instrument_list      = instrument_list;
-    module->instruments          = instruments;
+    instrument_list[instruments - 1] = instrument;
+    module->instrument_list          = instrument_list;
+    module->instruments              = instruments;
 
     return 0;
 }
@@ -183,9 +183,9 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
         return res;
     }
 
-    envelope_list[envelopes] = envelope;
-    module->envelope_list    = envelope_list;
-    module->envelopes        = envelopes;
+    envelope_list[envelopes - 1] = envelope;
+    module->envelope_list        = envelope_list;
+    module->envelopes            = envelopes;
 
     return 0;
 }
@@ -524,24 +524,6 @@ CREATE_ENVELOPE(sawtooth) {
     }
 }
 
-static const char *keyboard_name(void *p)
-{
-    AVSequencerKeyboard *keyboard = p;
-    AVMetadataTag *tag            = av_metadata_get(keyboard->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
-
-    if (tag)
-        return tag->value;
-
-    return "AVSequencer Keyboard";
-}
-
-static const AVClass avseq_keyboard_class = {
-    "AVSequencer Keyboard",
-    keyboard_name,
-    NULL,
-    LIBAVUTIL_VERSION_INT,
-};
-
 AVSequencerKeyboard *avseq_keyboard_create(void) {
     return av_mallocz(sizeof(AVSequencerKeyboard) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
@@ -564,17 +546,15 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
         return AVERROR(ENOMEM);
     }
 
-    keyboard->av_class = &avseq_keyboard_class;
-
     for (i = 0; i < 120; ++i) {
         keyboard->key[i].sample = 0;
         keyboard->key[i].octave = i / 12;
         keyboard->key[i].note   = (i % 12) + 1;
     }
 
-    keyboard_list[keyboards] = keyboard;
-    module->keyboard_list    = keyboard_list;
-    module->keyboards        = keyboards;
+    keyboard_list[keyboards - 1] = keyboard;
+    module->keyboard_list        = keyboard_list;
+    module->keyboards            = keyboards;
 
     return 0;
 }
@@ -637,9 +617,9 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
         return res;
     }
 
-    arpeggio_list[arpeggios] = arpeggio;
-    module->arpeggio_list    = arpeggio_list;
-    module->arpeggios        = arpeggios;
+    arpeggio_list[arpeggios - 1] = arpeggio;
+    module->arpeggio_list        = arpeggio_list;
+    module->arpeggios            = arpeggios;
 
     return 0;
 }

@@ -121,16 +121,6 @@ typedef struct AVSequencerEnvelope {
  * version bump.
  */
 typedef struct AVSequencerKeyboard {
-    /**
-     * information on struct for av_log
-     * - set by avseq_alloc_context
-     */
-    const AVClass *av_class;
-
-    /** Metadata information: Original keyboard file name, keyboard
-     *  name, artist and comment.  */
-    AVMetadata *metadata;
-
     struct AVSequencerKeyboardEntry {
         /** Sample number for this keyboard note.  */
         uint16_t sample;

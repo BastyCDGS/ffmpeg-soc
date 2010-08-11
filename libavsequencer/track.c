@@ -81,9 +81,9 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
         return res;
     }
 
-    track_list[tracks] = track;
-    song->track_list   = track_list;
-    song->tracks       = tracks;
+    track_list[tracks - 1] = track;
+    song->track_list       = track_list;
+    song->tracks           = tracks;
 
     return 0;
 }
@@ -132,9 +132,9 @@ int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data,
         return AVERROR(ENOMEM);
     }
 
-    fx_list[effects]   = effect;
-    data->effects_data = fx_list;
-    data->effects      = effects;
+    fx_list[effects - 1] = effect;
+    data->effects_data   = fx_list;
+    data->effects        = effects;
 
     return 0;
 }

@@ -81,9 +81,9 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
         return res;
     }
 
-    sample_list[samples]    = sample;
-    instrument->sample_list = sample_list;
-    instrument->samples     = samples;
+    sample_list[samples - 1] = sample;
+    instrument->sample_list  = sample_list;
+    instrument->samples      = samples;
 
     return 0;
 }
