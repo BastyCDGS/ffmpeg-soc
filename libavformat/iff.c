@@ -274,8 +274,6 @@ static int iff_read_header(AVFormatContext *s,
         data_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(module, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, data_size );
-
         switch(chunk_id) {
 #if CONFIG_AVSEQUENCER
         case ID_MHDR:
@@ -1610,8 +1608,9 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
             memcpy ( sample->data, buf, len );
 #else
             if (sample->bits_per_sample == 16) {
-                int16_t *data = sample->data;
-                unsigned i    = FFALIGN(sample->samples, 4) >> 2;
+                int16_t *data    = sample->data;
+                uint8_t *tmp_buf = buf;
+                unsigned i       = FFALIGN(sample->samples, 4) >> 2;
 
                 do {
                     int16_t v = AV_RB16(buf);
@@ -1622,17 +1621,19 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
                     *data++   = v;
                     v         = AV_RB16(buf + 6);
                     *data++   = v;
+                    tmp_buf   += 8;
                 } while (--i);
             } else {
-                int32_t *data = (int32_t *) sample->data;
-                unsigned i    = FFALIGN(sample->samples, 2) >> 1;
+                int32_t *data    = (int32_t *) sample->data;
+                uint8_t *tmp_buf = buf;
+                unsigned i       = FFALIGN(sample->samples, 2) >> 1;
 
                 do {
                     int32_t v = AV_RB32(buf);
                     *data++   = v;
                     v         = AV_RB32(buf + 4);
                     *data++   = v;
-                    buf      += 8;
+                    tmp_buf  += 8;
                 } while (--i);
             }
 #endif
@@ -1685,6 +1686,7 @@ static int open_smpl_snth ( AVFormatContext *s, AVSequencerSample *sample, const
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_YHDR:
             waveforms             = get_be16(pb);
@@ -1848,6 +1850,7 @@ static int open_snth_wfrm ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -1898,6 +1901,7 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_WHDR:
             waveform->repeat     = get_be32(pb);
@@ -1975,8 +1979,9 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
     if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) {
         memcpy ( waveform->data, buf, len );
     } else {
-        int16_t *data = waveform->data;
-        unsigned i    = FFALIGN(waveform->samples, 8) >> 3;
+        int16_t *data    = waveform->data;
+        uint8_t *tmp_buf = buf;
+        unsigned i       = FFALIGN(waveform->samples, 4) >> 2;
 
         do {
             uint32_t v = AV_RB16(buf);
@@ -1987,7 +1992,7 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
             *data++    = v;
             v          = AV_RB16(buf + 6);
             *data++    = v;
-            buf       += 8;
+            tmp_buf   += 8;
         } while (--i);
     }
 #endif
@@ -2015,6 +2020,7 @@ static int open_snth_stab ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -2064,6 +2070,7 @@ static int open_stab_smbl ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_SREF:
             symbol->symbol_value = get_be16(pb);
@@ -2128,7 +2135,6 @@ static int open_tcm1_envl ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(module, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -2180,7 +2186,6 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(envelope, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_EHDR:
             envelope->flags         = get_be16(pb);
@@ -2285,8 +2290,9 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         memcpy ( envelope->data, buf, len );
         memcpy ( envelope->node_points, node_buf, node_len );
 #else
-        int16_t *data = envelope->data;
-        unsigned i    = FFALIGN(envelope->points, 4) >> 2;
+        int16_t *data    = envelope->data;
+        uint8_t *tmp_buf = buf;
+        unsigned i       = FFALIGN(envelope->points, 4) >> 2;
 
         do {
             int16_t v = AV_RB16(buf);
@@ -2297,11 +2303,12 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
             *data++   = v;
             v         = AV_RB16(buf + 6);
             *data++   = v;
-            buf      += 8;
+            tmp_buf  += 8;
         } while (--i);
 
-        data = envelope->node_points;
-        i    = FFALIGN(envelope->nodes, 4) >> 2;
+        data    = envelope->node_points;
+        tmp_buf = node_buf;
+        i       = FFALIGN(envelope->nodes, 4) >> 2;
 
         do {
             int16_t v = AV_RB16(buf);
@@ -2312,7 +2319,7 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
             *data++   = v;
             v         = AV_RB16(buf + 6);
             *data++   = v;
-            buf      += 8;
+            tmp_buf  += 8;
         } while (--i);
 #endif
     }
@@ -2326,8 +2333,7 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
 static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint32_t data_size ) {
     ByteIOContext *pb = s->pb;
     AVSequencerKeyboard *keyboard;
-    uint32_t keyboards = 0, iff_size = 4;
-    unsigned i;
+    uint32_t iff_size = 4;
     int res;
 
     if (data_size < 4)
@@ -2335,18 +2341,10 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
 
     data_size += data_size & 1;
 
-    if (!(keyboard = avseq_keyboard_create ()))
-        return AVERROR(ENOMEM);
-
-    if ((res = avseq_keyboard_open ( module, keyboard )) < 0) {
-        av_free(keyboard);
-        return res;
-    }
-
     while (!url_feof(pb) && (data_size -= iff_size)) {
         uint64_t orig_pos;
-        uint32_t chunk_id;
-        const char *metadata_tag = NULL;
+        uint32_t chunk_id, keyboards;
+        unsigned i;
 
         chunk_id = get_le32(pb);
         iff_size = get_be32(pb);
@@ -2354,10 +2352,18 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         switch(chunk_id) {
         case ID_KBRD:
+            if (!(keyboard = avseq_keyboard_create ()))
+                return AVERROR(ENOMEM);
+
+            if ((res = avseq_keyboard_open ( module, keyboard )) < 0) {
+                av_free(keyboard);
+                return res;
+            }
+
             keyboards = iff_size >> 2;
 
             if (keyboards > 120) {
-                av_log(keyboard, AV_LOG_ERROR, "Keyboard too large (max 10 octave range supported)!\n");
+                av_log(module, AV_LOG_ERROR, "Keyboard too large (maximum range of 10 octaves supported)!\n");
                 return res;
             }
 
@@ -2368,48 +2374,15 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
             }
 
             break;
-        case ID_ANNO:
-        case ID_TEXT:
-            metadata_tag = "comment";
-            break;
-
-        case ID_AUTH:
-            metadata_tag = "artist";
-            break;
-
-        case ID_COPYRIGHT:
-            metadata_tag = "copyright";
-            break;
-
-        case ID_FILE:
-            metadata_tag = "file";
-            break;
-
-        case ID_NAME:
-            metadata_tag = "title";
-            break;
-
         default:
             // TODO: Add unknown chunk
 
             break;
         }
 
-        if (metadata_tag) {
-            if ((res = seq_get_metadata(s, &keyboard->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(keyboard, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
-                return res;
-            }
-        }
-
         iff_size += iff_size & 1;
         url_fskip(pb, iff_size - (url_ftell(pb) - orig_pos));
         iff_size += 8;
-    }
-
-    if (!keyboards) {
-        av_log(keyboard, AV_LOG_ERROR, "Attached keyboard does not match actual reads!\n");
-        return AVERROR_INVALIDDATA;
     }
 
     return 0;
