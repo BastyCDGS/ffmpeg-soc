@@ -831,7 +831,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &song->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(song, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(song, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -985,7 +985,7 @@ static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &track->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(track, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(track, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1136,7 +1136,7 @@ static int open_posi_post ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &order_list->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(order_list, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(order_list, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1223,7 +1223,7 @@ static int open_post_posl ( AVFormatContext *s, AVSequencerOrderList *order_list
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &order_list->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(order_list, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(order_list, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1392,7 +1392,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &instrument->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(instrument, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(instrument, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1428,6 +1428,7 @@ static int open_inst_samp ( AVFormatContext *s, AVSequencerModule *module, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(instrument, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -1478,6 +1479,7 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(instrument, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_SMPH:
             sample->samples             = get_be32(pb);
@@ -1585,7 +1587,7 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &sample->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(sample, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(sample, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1600,7 +1602,7 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
             // TODO: Load sample from demuxer/decoder pair
         } else if (!buf && sample->samples) {
             av_freep(&buf);
-            av_log(sample, AV_LOG_ERROR, "no sample data found, but non-zero number of samples!\n");
+            av_log(sample, AV_LOG_ERROR, "No sample data found, but non-zero number of samples!\n");
             return AVERROR_INVALIDDATA;
         } else if (sample->bits_per_sample != 8) {
             if ((res = avseq_sample_data_open(sample, NULL, sample->samples)) < 0) {
@@ -1648,10 +1650,11 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
             memcpy ( sample->data, buf, len );
         }
 
-        if (sample->flags & 1)
-            avseq_sample_decrunch ( module, sample, 0 );
+        if (sample->flags & 1) {
+            sample->flags &= ~AVSEQ_SAMPLE_FLAG_REDIRECT;
 
-        sample->flags &= ~AVSEQ_SAMPLE_FLAG_REDIRECT;
+            avseq_sample_decrunch ( module, sample, 0 );
+        }
     }
 
     av_freep(&buf);
@@ -1789,7 +1792,7 @@ static int open_smpl_snth ( AVFormatContext *s, AVSequencerSample *sample, const
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &synth->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(synth, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(synth, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1950,7 +1953,7 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &waveform->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&buf);
-                av_log(waveform, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(waveform, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -1962,7 +1965,7 @@ static int open_wfrm_wave ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
 
     if (!buf && waveform->samples) {
         av_freep(&buf);
-        av_log(waveform, AV_LOG_ERROR, "no synth sound waveform data found, but non-zero number of samples!\n");
+        av_log(waveform, AV_LOG_ERROR, "No synth sound waveform data found, but non-zero number of samples!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -2258,7 +2261,7 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
             if ((res = seq_get_metadata(s, &envelope->metadata, metadata_tag, iff_size)) < 0) {
                 av_freep(&node_buf);
                 av_freep(&buf);
-                av_log(envelope, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(envelope, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -2270,11 +2273,11 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
 
     if (!buf && envelope->points) {
         av_freep(&node_buf);
-        av_log(envelope, AV_LOG_ERROR, "no envelope data points found, but non-zero number of points!\n");
+        av_log(envelope, AV_LOG_ERROR, "No envelope data points found, but non-zero number of points!\n");
         return AVERROR_INVALIDDATA;
     } else if (!node_buf && envelope->nodes) {
         av_freep(&buf);
-        av_log(envelope, AV_LOG_ERROR, "no envelope data node points found, but non-zero number of nodes!\n");
+        av_log(envelope, AV_LOG_ERROR, "No envelope data node points found, but non-zero number of nodes!\n");
         return AVERROR_INVALIDDATA;
     } else if ((res = avseq_envelope_data_open(avctx, envelope, envelope->points, 0, 0, 0, envelope->nodes)) < 0) {
         av_freep(&node_buf);
@@ -2357,7 +2360,7 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
             keyboards = iff_size >> 2;
 
             if (keyboards > 120) {
-                av_log(keyboard, AV_LOG_ERROR, "keyboard too large (max 10 octave range supported)!\n");
+                av_log(keyboard, AV_LOG_ERROR, "Keyboard too large (max 10 octave range supported)!\n");
                 return res;
             }
 
@@ -2397,7 +2400,7 @@ static int open_tcm1_keyb ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &keyboard->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(keyboard, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(keyboard, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
@@ -2538,7 +2541,7 @@ static int open_arpl_arpg ( AVFormatContext *s, AVSequencerModule *module, uint3
 
         if (metadata_tag) {
             if ((res = seq_get_metadata(s, &arpeggio->metadata, metadata_tag, iff_size)) < 0) {
-                av_log(arpeggio, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
+                av_log(arpeggio, AV_LOG_ERROR, "Cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
         }
