@@ -913,7 +913,6 @@ static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(track, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_THDR:
             track->last_row     = get_be16(pb);
@@ -934,7 +933,7 @@ static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
             break;
         case ID_BODY:
             len = iff_size;
-            buf = av_malloc(iff_size);
+            buf = av_malloc(iff_size + 1);
 
             if (!buf)
                 return AVERROR(ENOMEM);
@@ -943,6 +942,8 @@ static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
                 av_freep(&buf);
                 return AVERROR(EIO);
             }
+
+            buf[iff_size] = 0;
 
             break;
         case ID_ANNO:
@@ -1020,6 +1021,7 @@ static int open_song_posi ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(song, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -1065,6 +1067,7 @@ static int open_posi_post ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
         chunk_id = get_le32(pb);
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
+        av_log(song, AV_LOG_WARNING, "Reading IFF-chunk for channel %d: %c%c%c%c with length: %d\n", channel, chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
 
         switch(chunk_id) {
         case ID_PHDR:
@@ -1158,6 +1161,7 @@ static int open_post_posl ( AVFormatContext *s, AVSequencerOrderList *order_list
         chunk_id = get_le32(pb);
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
+        av_log(order_list, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
 
         switch(chunk_id) {
         case ID_PDAT:
