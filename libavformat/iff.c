@@ -1290,7 +1290,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
     if (!(instrument = avseq_instrument_create ()))
         return AVERROR(ENOMEM);
 
-    if ((res = avseq_instrument_open ( module, instrument )) < 0) {
+    if ((res = avseq_instrument_open ( module, instrument, 0 )) < 0) {
         av_free(instrument);
         return res;
     }
@@ -1403,7 +1403,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
     }
 
     if (samples != instrument->samples) {
-        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads!\n");
+        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads (%d != %d)!\n", samples, instrument->samples);
         return AVERROR_INVALIDDATA;
     }
 
@@ -1598,9 +1598,8 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
     }
 
     if (!sample->data) {
-        if (sample->samples && !sample->size) {
-            // TODO: Load sample from demuxer/decoder pair
-        } else if (!buf && sample->samples) {
+        // TODO: Load sample from demuxer/decoder pair
+        if (!buf && sample->samples) {
             av_freep(&buf);
             av_log(sample, AV_LOG_ERROR, "No sample data found, but non-zero number of samples!\n");
             return AVERROR_INVALIDDATA;
