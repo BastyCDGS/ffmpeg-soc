@@ -49,7 +49,7 @@ static int next_registered_mixer_idx = 0;
 AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name) {
     int i;
 
-    for (i = 0; registered_mixers[i]; i++) {
+    for (i = 0; i < next_registered_mixer_idx; i++) {
         if (!strcmp(registered_mixers[i]->name, name))
             return registered_mixers[i];
     }

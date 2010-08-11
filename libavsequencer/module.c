@@ -32,7 +32,10 @@ static const char *module_name(void *p)
     AVSequencerModule *module = p;
     AVMetadataTag *tag        = av_metadata_get(module->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Module";
 }
 
 static const AVClass avseq_module_class = {
@@ -71,6 +74,21 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
     module_list[modules]          = module;
     avctx->module_list            = module_list;
     avctx->modules                = modules;
+
+    return 0;
+}
+
+int avseq_module_set_channels ( AVSequencerModule *module, uint32_t channels ) {
+    if (!module)
+        return AVERROR_INVALIDDATA;
+
+    if (!channels)
+        channels = 64;
+
+    if (channels > 65535)
+        channels = 65535;
+
+    module->channels = channels;
 
     return 0;
 }

@@ -32,7 +32,10 @@ static const char *instrument_name(void *p)
     AVSequencerInstrument *instrument = p;
     AVMetadataTag *tag                = av_metadata_get(instrument->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Instrument";
 }
 
 static const AVClass avseq_instrument_class = {
@@ -97,7 +100,10 @@ static const char *envelope_name(void *p)
     AVSequencerEnvelope *envelope = p;
     AVMetadataTag *tag            = av_metadata_get(envelope->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Envelope";
 }
 
 static const AVClass avseq_envelope_class = {
@@ -254,6 +260,16 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
     envelope->points = points;
 
     return 0;
+}
+
+AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope) {
+    if (!(module && envelope))
+        return NULL;
+
+    if (envelope > module->envelopes)
+        return NULL;
+
+    return module->envelope_list[--envelope];
 }
 
 CREATE_ENVELOPE(empty) {
@@ -499,7 +515,10 @@ static const char *keyboard_name(void *p)
     AVSequencerKeyboard *keyboard = p;
     AVMetadataTag *tag            = av_metadata_get(keyboard->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Keyboard";
 }
 
 static const AVClass avseq_keyboard_class = {
@@ -546,12 +565,25 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     return 0;
 }
 
+AVSequencerKeyboard *avseq_keyboard_get_address(AVSequencerModule *module, uint32_t keyboard) {
+    if (!(module && keyboard))
+        return NULL;
+
+    if (keyboard > module->keyboards)
+        return NULL;
+
+    return module->keyboard_list[--keyboard];
+}
+
 static const char *arpeggio_name(void *p)
 {
     AVSequencerArpeggio *arpeggio = p;
     AVMetadataTag *tag            = av_metadata_get(arpeggio->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Arpeggio";
 }
 
 static const AVClass avseq_arpeggio_class = {
@@ -620,4 +652,14 @@ int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries) {
     arpeggio->entries = entries;
 
     return 0;
+}
+
+AVSequencerArpeggio *avseq_arpeggio_get_address(AVSequencerModule *module, uint32_t arpeggio) {
+    if (!(module && arpeggio))
+        return NULL;
+
+    if (arpeggio > module->arpeggios)
+        return NULL;
+
+    return module->arpeggio_list[--arpeggio];
 }

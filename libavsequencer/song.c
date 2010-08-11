@@ -32,7 +32,10 @@ static const char *song_name(void *p)
     AVSequencerSong *song = p;
     AVMetadataTag *tag    = av_metadata_get(song->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Song";
 }
 
 static const AVClass avseq_song_class = {

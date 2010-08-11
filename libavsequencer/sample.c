@@ -32,7 +32,10 @@ static const char *sample_name(void *p)
     AVSequencerSample *sample = p;
     AVMetadataTag *tag        = av_metadata_get(sample->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Sample";
 }
 
 static const AVClass avseq_sample_class = {

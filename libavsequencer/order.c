@@ -32,7 +32,10 @@ static const char *order_list_name(void *p)
     AVSequencerOrderList *order_list = p;
     AVMetadataTag *tag               = av_metadata_get(order_list->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Order List";
 }
 
 static const AVClass avseq_order_list_class = {
@@ -79,7 +82,10 @@ static const char *order_data_name(void *p) {
     AVSequencerOrderData *order_data = p;
     AVMetadataTag *tag               = av_metadata_get(order_data->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Order Data";
 }
 
 static const AVClass avseq_order_data_class = {
@@ -119,4 +125,22 @@ int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData
     order_list->orders      = orders;
 
     return 0;
+}
+
+AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t channel, uint32_t order) {
+    AVSequencerOrderList *order_list;
+    if (!(song && order))
+        return NULL;
+
+    order_list = song->order_list;
+
+    if (!order_list || (channel >= song->channels))
+        return NULL;
+
+    order_list += channel;
+
+    if (order > order_list->orders)
+        return NULL;
+
+    return order_list->order_data[--order];
 }

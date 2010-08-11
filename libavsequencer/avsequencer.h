@@ -214,13 +214,6 @@ typedef struct AVSequencerMixerData {
     uint8_t flags;
 } AVSequencerMixerData;
 
-/** AVSequencerMixerContext->flags bitfield.  */
-enum AVSequencerMixerContextFlags {
-    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
-    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
-    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
-};
-
 #include "libavsequencer/module.h"
 #include "libavsequencer/song.h"
 
@@ -321,6 +314,13 @@ typedef struct AVSequencerContext {
     /** Executes one tick of the playback handler.  */
     void (*playback_handler)( struct AVSequencerContext *avctx );
 } AVSequencerContext;
+
+/** AVSequencerMixerContext->flags bitfield.  */
+enum AVSequencerMixerContextFlags {
+    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
+    AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
+    AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
+};
 
 /**
  * Mixer context structure which is used to describe certain features
@@ -535,6 +535,19 @@ AVSequencerModule *avseq_module_create(void);
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
 
 /**
+ * Changes module virtual channels to new number of channels specified.
+ *
+ * @param module the AVSequencerModule to set the new number of virtual channels to
+ * @param channels the new amount of virtual channels to use
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_module_set_channels(AVSequencerModule *module, uint32_t channels);
+
+/**
  * Creates a new uninitialized empty sub-song.
  *
  * @return pointer to freshly allocated AVSequencerSong, NULL if allocation failed
@@ -608,6 +621,20 @@ AVSequencerOrderData *avseq_order_data_create(void);
 int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data);
 
 /**
+ * Gets the address of the order data entry represented by an integer value.
+ *
+ * @param song the AVSequencerSong to get the order data entry address from
+ * @param channel the order list channel number of which to get the order data entry
+ * @param order the order data entry number to get the AVSequencerOrderData structure of
+ * @return pointer to order data entry address, NULL if order data entry number not found
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t channel, uint32_t order);
+
+/**
  * Creates a new uninitialized empty track.
  *
  * @return pointer to freshly allocated AVSequencerTrack, NULL if allocation failed
@@ -667,6 +694,19 @@ AVSequencerTrackEffect *avseq_track_effect_create(void);
  *       ABI compatibility yet!
  */
 int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data, AVSequencerTrackEffect *effect);
+
+/**
+ * Gets the address of the track represented by an integer value.
+ *
+ * @param song the AVSequencerSong structure to get the track address from
+ * @param track the track number to get the AVSequencerTrack structure of
+ * @return pointer to track address, NULL if track number not found
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track);
 
 /**
  * Unpacks a compressed AVSequencerTrack by using a track contents based algorithm.
@@ -772,6 +812,19 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
                              uint32_t y_offset, uint32_t nodes);
 
 /**
+ * Gets the address of the envelope represented by an integer value.
+ *
+ * @param module the AVSequencerModule structure to get the envelope address from
+ * @param envelope the envelope number to get the AVSequencerEnvelope structure of
+ * @return pointer to envelope address, NULL if envelope number not found
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope);
+
+/**
  * Creates a new uninitialized empty keyboard definition.
  *
  * @return pointer to freshly allocated AVSequencerKeyboard, NULL if allocation failed
@@ -794,6 +847,19 @@ AVSequencerKeyboard *avseq_keyboard_create(void);
  *       ABI compatibility yet!
  */
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard);
+
+/**
+ * Gets the address of the keyboard definition represented by an integer value.
+ *
+ * @param module the AVSequencerModule structure to get the keyboard definition address from
+ * @param keyboard the keyboard definition number to get the AVSequencerKeyboard structure of
+ * @return pointer to keyboard definition address, NULL if keyboard definition number not found
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerKeyboard *avseq_keyboard_get_address(AVSequencerModule *module, uint32_t keyboard);
 
 /**
  * Creates a new uninitialized empty arpeggio structure.
@@ -833,6 +899,19 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
  *       ABI compatibility yet!
  */
 int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries);
+
+/**
+ * Gets the address of the arpeggio structure represented by an integer value.
+ *
+ * @param module the AVSequencerModule structure to get the arpeggio structure address from
+ * @param arpeggio the arpeggio structure number to get the AVSequencerArpeggio structure of
+ * @return pointer to arpeggio structure address, NULL if arpeggio structure number not found
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+AVSequencerArpeggio *avseq_arpeggio_get_address(AVSequencerModule *module, uint32_t arpeggio);
 
 /**
  * Creates a new uninitialized empty audio sample.

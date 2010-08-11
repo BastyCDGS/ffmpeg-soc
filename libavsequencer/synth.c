@@ -32,7 +32,10 @@ static const char *synth_name(void *p)
     AVSequencerSynth *synth = p;
     AVMetadataTag *tag      = av_metadata_get(synth->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Synth";
 }
 
 static const AVClass avseq_synth_class = {
@@ -190,7 +193,10 @@ static const char *waveform_name(void *p)
     AVSequencerSynthWave *waveform = p;
     AVMetadataTag *tag             = av_metadata_get(waveform->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
-    return tag->value;
+    if (tag)
+        return tag->value;
+
+    return "AVSequencer Synth Waveform";
 }
 
 static const AVClass avseq_waveform_class = {
