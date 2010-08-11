@@ -46,7 +46,7 @@ static const AVClass avseq_sample_class = {
 };
 
 AVSequencerSample *avseq_sample_create(void) {
-    return av_mallocz(sizeof(AVSequencerSample));
+    return av_mallocz(sizeof(AVSequencerSample) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *sample,
@@ -63,7 +63,7 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
 
     if (!(sample && ++samples)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(sample_list = av_realloc(sample_list, samples * sizeof(AVSequencerSample *)))) {
+    } else if (!(sample_list = av_realloc(sample_list, (samples * sizeof(AVSequencerSample *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(instrument, AV_LOG_ERROR, "cannot allocate sample storage container.\n");
         return AVERROR(ENOMEM);
     }

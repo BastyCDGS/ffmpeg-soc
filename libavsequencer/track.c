@@ -46,7 +46,7 @@ static const AVClass avseq_track_class = {
 };
 
 AVSequencerTrack *avseq_track_create(void) {
-    return av_mallocz(sizeof(AVSequencerTrack));
+    return av_mallocz(sizeof(AVSequencerTrack) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
@@ -63,7 +63,7 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     av_log(song, AV_LOG_ERROR, "av_realloc call %d.\n", tracks * sizeof(AVSequencerTrack *));
     if (!(track && ++tracks)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(track_list = av_realloc(track_list, tracks * sizeof(AVSequencerTrack *)))) {
+    } else if (!(track_list = av_realloc(track_list, (tracks * sizeof(AVSequencerTrack *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(song, AV_LOG_ERROR, "cannot allocate track storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -101,7 +101,7 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     last_row = track->last_row + 1;
 
     av_log(track, AV_LOG_ERROR, "av_realloc call.\n");
-    if (!(data = av_realloc(data, last_row * sizeof(AVSequencerTrackData)))) {
+    if (!(data = av_realloc(data, (last_row * sizeof(AVSequencerTrackData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(track, AV_LOG_ERROR, "cannot allocate storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -131,7 +131,7 @@ int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data,
 
     if (!(effect && ++effects)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(fx_list = av_realloc(fx_list, effects * sizeof(AVSequencerTrackEffect *)))) {
+    } else if (!(fx_list = av_realloc(fx_list, (effects * sizeof(AVSequencerTrackEffect *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(track, AV_LOG_ERROR, "cannot allocate track data effect storage container.\n");
         return AVERROR(ENOMEM);
     }

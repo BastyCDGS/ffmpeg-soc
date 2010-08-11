@@ -46,7 +46,7 @@ static const AVClass avseq_module_class = {
 };
 
 AVSequencerModule *avseq_module_create(void) {
-    return av_mallocz(sizeof(AVSequencerModule));
+    return av_mallocz(sizeof(AVSequencerModule) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
@@ -61,7 +61,7 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
 
     if (!(module && ++modules)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(module_list = av_realloc(module_list, modules * sizeof(AVSequencerModule *)))) {
+    } else if (!(module_list = av_realloc(module_list, (modules * sizeof(AVSequencerModule *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(avctx, AV_LOG_ERROR, "cannot allocate module storage container.\n");
         return AVERROR(ENOMEM);
     }

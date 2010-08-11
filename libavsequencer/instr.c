@@ -46,7 +46,7 @@ static const AVClass avseq_instrument_class = {
 };
 
 AVSequencerInstrument *avseq_instrument_create(void) {
-    return av_mallocz(sizeof(AVSequencerInstrument));
+    return av_mallocz(sizeof(AVSequencerInstrument) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument) {
@@ -63,7 +63,7 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
 
     if (!(instrument && ++instruments)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(instrument_list = av_realloc(instrument_list, instruments * sizeof(AVSequencerInstrument *)))) {
+    } else if (!(instrument_list = av_realloc(instrument_list, (instruments * sizeof(AVSequencerInstrument *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(module, AV_LOG_ERROR, "cannot allocate instrument storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -140,7 +140,7 @@ static const void *create_env_lut[] = {
 };
 
 AVSequencerEnvelope *avseq_envelope_create(void) {
-    return av_mallocz(sizeof(AVSequencerEnvelope));
+    return av_mallocz(sizeof(AVSequencerEnvelope) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
@@ -159,7 +159,7 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
 
     if (!(envelope && ++envelopes)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(envelope_list = av_realloc(envelope_list, envelopes * sizeof(AVSequencerEnvelope *)))) {
+    } else if (!(envelope_list = av_realloc(envelope_list, (envelopes * sizeof(AVSequencerEnvelope *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(module, AV_LOG_ERROR, "cannot allocate envelope storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -529,7 +529,7 @@ static const AVClass avseq_keyboard_class = {
 };
 
 AVSequencerKeyboard *avseq_keyboard_create(void) {
-    return av_mallocz(sizeof(AVSequencerKeyboard));
+    return av_mallocz(sizeof(AVSequencerKeyboard) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard) {
@@ -545,7 +545,7 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
 
     if (!(keyboard && ++keyboards)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(keyboard_list = av_realloc(keyboard_list, keyboards * sizeof(AVSequencerKeyboard *)))) {
+    } else if (!(keyboard_list = av_realloc(keyboard_list, (keyboards * sizeof(AVSequencerKeyboard *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(module, AV_LOG_ERROR, "cannot allocate keyboard definition list storage container.\n");
         return AVERROR(ENOMEM);
     }
@@ -594,7 +594,7 @@ static const AVClass avseq_arpeggio_class = {
 };
 
 AVSequencerArpeggio *avseq_arpeggio_create(void) {
-    return av_mallocz(sizeof(AVSequencerArpeggio));
+    return av_mallocz(sizeof(AVSequencerArpeggio) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
@@ -611,7 +611,7 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
 
     if (!(arpeggio && ++arpeggios)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(arpeggio_list = av_realloc(arpeggio_list, arpeggios * sizeof(AVSequencerArpeggio *)))) {
+    } else if (!(arpeggio_list = av_realloc(arpeggio_list, (arpeggios * sizeof(AVSequencerArpeggio *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(module, AV_LOG_ERROR, "cannot allocate arpeggio structure storage container.\n");
         return AVERROR(ENOMEM);
     }

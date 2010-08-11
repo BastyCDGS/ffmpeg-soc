@@ -46,7 +46,7 @@ static const AVClass avseq_song_class = {
 };
 
 AVSequencerSong *avseq_song_create(void) {
-    return av_mallocz(sizeof(AVSequencerSong));
+    return av_mallocz(sizeof(AVSequencerSong) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
@@ -62,7 +62,7 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
 
     if (!(song && ++songs)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(song_list = av_realloc(song_list, songs * sizeof(AVSequencerSong *)))) {
+    } else if (!(song_list = av_realloc(song_list, (songs * sizeof(AVSequencerSong *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(module, AV_LOG_ERROR, "cannot allocate sub-song storage container.\n");
         return AVERROR(ENOMEM);
     }
