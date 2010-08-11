@@ -1304,7 +1304,6 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(module, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_IHDR:
             instrument->volume_env           = (AVSequencerEnvelope *) get_be16(pb);
@@ -1403,7 +1402,7 @@ static int open_insl_inst ( AVFormatContext *s, AVSequencerModule *module, const
     }
 
     if (samples != instrument->samples) {
-        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads (%d != %d)!\n", samples, instrument->samples);
+        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads!\n");
         return AVERROR_INVALIDDATA;
     }
 
@@ -1428,7 +1427,6 @@ static int open_inst_samp ( AVFormatContext *s, AVSequencerModule *module, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(instrument, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -1479,7 +1477,6 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(instrument, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_SMPH:
             sample->samples             = get_be32(pb);
@@ -1614,29 +1611,28 @@ static int open_samp_smpl ( AVFormatContext *s, AVSequencerModule *module, AVSeq
 #else
             if (sample->bits_per_sample == 16) {
                 int16_t *data = sample->data;
-                unsigned i    = FFALIGN(sample->samples, 8) >> 3;
+                unsigned i    = FFALIGN(sample->samples, 4) >> 2;
 
                 do {
-                    uint32_t v = AV_RB16(buf);
-                    *data++    = v;
-                    v          = AV_RB16(buf + 2);
-                    *data++    = v;
-                    v          = AV_RB16(buf + 4);
-                    *data++    = v;
-                    v          = AV_RB16(buf + 6);
-                    *data++    = v;
-                    buf       += 8;
+                    int16_t v = AV_RB16(buf);
+                    *data++   = v;
+                    v         = AV_RB16(buf + 2);
+                    *data++   = v;
+                    v         = AV_RB16(buf + 4);
+                    *data++   = v;
+                    v         = AV_RB16(buf + 6);
+                    *data++   = v;
                 } while (--i);
             } else {
                 int32_t *data = (int32_t *) sample->data;
                 unsigned i    = FFALIGN(sample->samples, 2) >> 1;
 
                 do {
-                    uint32_t v = AV_RB32(buf);
-                    *data++    = v;
-                    v          = AV_RB32(buf + 4);
-                    *data++    = v;
-                    buf       += 8;
+                    int32_t v = AV_RB32(buf);
+                    *data++   = v;
+                    v         = AV_RB32(buf + 4);
+                    *data++   = v;
+                    buf      += 8;
                 } while (--i);
             }
 #endif
@@ -2132,6 +2128,7 @@ static int open_tcm1_envl ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(module, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -2183,6 +2180,7 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
+        av_log(envelope, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_EHDR:
             envelope->flags         = get_be16(pb);
@@ -2270,15 +2268,15 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         iff_size += 8;
     }
 
-    if (!buf && envelope->points) {
+    if (!buf && len) {
         av_freep(&node_buf);
         av_log(envelope, AV_LOG_ERROR, "No envelope data points found, but non-zero number of points!\n");
         return AVERROR_INVALIDDATA;
-    } else if (!node_buf && envelope->nodes) {
+    } else if (!node_buf && node_len) {
         av_freep(&buf);
         av_log(envelope, AV_LOG_ERROR, "No envelope data node points found, but non-zero number of nodes!\n");
         return AVERROR_INVALIDDATA;
-    } else if ((res = avseq_envelope_data_open(avctx, envelope, envelope->points, 0, 0, 0, envelope->nodes)) < 0) {
+    } else if ((res = avseq_envelope_data_open(avctx, envelope, FFALIGN(len, 2) >> 1, 0, 0, 0, FFALIGN(node_len, 2) >> 1)) < 0) {
         av_freep(&node_buf);
         av_freep(&buf);
         return res;
@@ -2288,33 +2286,33 @@ static int open_envl_envd ( AVFormatContext *s, AVSequencerContext *avctx, AVSeq
         memcpy ( envelope->node_points, node_buf, node_len );
 #else
         int16_t *data = envelope->data;
-        unsigned i    = FFALIGN(envelope->points, 8) >> 3;
+        unsigned i    = FFALIGN(envelope->points, 4) >> 2;
 
         do {
-            uint32_t v = AV_RB16(buf);
-            *data++    = v;
-            v          = AV_RB16(buf + 2);
-            *data++    = v;
-            v          = AV_RB16(buf + 4);
-            *data++    = v;
-            v          = AV_RB16(buf + 6);
-            *data++    = v;
-            buf       += 8;
+            int16_t v = AV_RB16(buf);
+            *data++   = v;
+            v         = AV_RB16(buf + 2);
+            *data++   = v;
+            v         = AV_RB16(buf + 4);
+            *data++   = v;
+            v         = AV_RB16(buf + 6);
+            *data++   = v;
+            buf      += 8;
         } while (--i);
 
         data = envelope->node_points;
-        i    = FFALIGN(envelope->nodes, 8) >> 3;
+        i    = FFALIGN(envelope->nodes, 4) >> 2;
 
         do {
-            uint32_t v = AV_RB16(buf);
-            *data++    = v;
-            v          = AV_RB16(buf + 2);
-            *data++    = v;
-            v          = AV_RB16(buf + 4);
-            *data++    = v;
-            v          = AV_RB16(buf + 6);
-            *data++    = v;
-            buf       += 8;
+            int16_t v = AV_RB16(buf);
+            *data++   = v;
+            v         = AV_RB16(buf + 2);
+            *data++   = v;
+            v         = AV_RB16(buf + 4);
+            *data++   = v;
+            v         = AV_RB16(buf + 6);
+            *data++   = v;
+            buf      += 8;
         } while (--i);
 #endif
     }
