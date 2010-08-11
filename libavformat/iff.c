@@ -302,7 +302,7 @@ static int iff_read_header(AVFormatContext *s,
                 } else if (!(buf = av_malloc(24))) {
                     return AVERROR(ENOMEM);
                 } else {
-                    av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
+                    snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                     av_metadata_set2(&s->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
                     av_metadata_set2(&module->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
                 }
@@ -322,7 +322,7 @@ static int iff_read_header(AVFormatContext *s,
                 } else if (!(buf = av_malloc(24))) {
                     return AVERROR(ENOMEM);
                 } else {
-                    av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
+                    snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                     av_metadata_set2(&s->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
                     av_metadata_set2(&module->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
                 }
@@ -741,7 +741,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
                 } else if (!(buf = av_malloc(24))) {
                     return AVERROR(ENOMEM);
                 } else {
-                    av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
+                    snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                     av_metadata_set2(&song->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
                 }
             }
@@ -760,7 +760,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
                 } else if (!(buf = av_malloc(24))) {
                     return AVERROR(ENOMEM);
                 } else {
-                    av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
+                    snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                     av_metadata_set2(&song->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
                 }
             }
