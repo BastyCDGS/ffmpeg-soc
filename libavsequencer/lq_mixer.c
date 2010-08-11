@@ -457,7 +457,7 @@ static const void *mixer_stereo_surround_16_to_8[] = {
 static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
     AVSequencerLQMixerData *res = NULL;
 
-    if (!(res = av_mallocz(sizeof (AVSequencerLQMixerData *)))) {
+    if (!(res = av_mallocz(sizeof (AVSequencerLQMixerData)))) {
         av_log(mixctx, AV_LOG_ERROR, "cannot allocate mixer data factory.\n");
 
         return NULL;
@@ -968,8 +968,12 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
 
     channel_rate                   *= 10;
     pass_value                      = ((uint64_t) channel_rate << 16) + ((uint64_t) lq_mixer_data->mix_rate_frac >> 16);
-    lq_mixer_data->pass_len         = (uint64_t) pass_value / lq_mixer_data->mixer_data.tempo;
-    lq_mixer_data->pass_len_frac    = (((uint64_t) pass_value % lq_mixer_data->mixer_data.tempo) << 32) / lq_mixer_data->mixer_data.tempo;
+
+    if (lq_mixer_data->mixer_data.tempo) {
+        lq_mixer_data->pass_len      = (uint64_t) pass_value / lq_mixer_data->mixer_data.tempo;
+        lq_mixer_data->pass_len_frac = (((uint64_t) pass_value % lq_mixer_data->mixer_data.tempo) << 32) / lq_mixer_data->mixer_data.tempo;
+    }
+
     // TODO: Implement configuration of real 16-bit and interpolation mode.
     lq_mixer_data->real_16_bit_mode = 0;
     lq_mixer_data->interpolation    = 0;

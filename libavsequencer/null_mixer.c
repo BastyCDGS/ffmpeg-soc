@@ -143,7 +143,7 @@ MIX(skip_backwards);
 static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
     AVSequencerNULLMixerData *res = NULL;
 
-    if (!(res = av_mallocz(sizeof (AVSequencerNULLMixerData *)))) {
+    if (!(res = av_mallocz(sizeof (AVSequencerNULLMixerData)))) {
         av_log(mixctx, AV_LOG_ERROR, "cannot allocate mixer data factory.\n");
 
         return NULL;
@@ -609,8 +609,12 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
 
     channel_rate                   *= 10;
     pass_value                      = ((uint64_t) channel_rate << 16) + ((uint64_t) null_mixer_data->mix_rate_frac >> 16);
-    null_mixer_data->pass_len       = (uint64_t) pass_value / null_mixer_data->mixer_data.tempo;
-    null_mixer_data->pass_len_frac  = (((uint64_t) pass_value % null_mixer_data->mixer_data.tempo) << 32) / null_mixer_data->mixer_data.tempo;
+
+    if (null_mixer_data->mixer_data.tempo) {
+        null_mixer_data->pass_len       = (uint64_t) pass_value / null_mixer_data->mixer_data.tempo;
+        null_mixer_data->pass_len_frac  = (((uint64_t) pass_value % null_mixer_data->mixer_data.tempo) << 32) / null_mixer_data->mixer_data.tempo;
+    }
+
     // TODO: Implement configuration of real 16-bit and interpolation mode.
     channel_info                    = null_mixer_data->channel_info;
 
