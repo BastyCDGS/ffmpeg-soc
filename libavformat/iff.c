@@ -222,7 +222,7 @@ static int iff_read_header(AVFormatContext *s,
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
-    unsigned year, month, day, hour, min, sec, ms;
+    unsigned year, month, day, hour, min, sec, cts;
 #endif
     uint32_t chunk_id, data_size;
     int compression = -1, res;
@@ -291,17 +291,17 @@ static int iff_read_header(AVFormatContext *s,
             hour        = get_byte(pb);
             min         = get_byte(pb);
             sec         = get_byte(pb);
-            ms          = get_byte(pb);
+            cts         = get_byte(pb);
 
             if (!(buf = av_malloc(24)))
                 return AVERROR(ENOMEM);
 
-            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || ms > 999) {
-                av_log(module, AV_LOG_WARNING, "Invalid begin composing date: %04d-%02d-%02d %02d:%02d:%02d.%03d\n", year, month, day, hour, min, sec, ms);
+            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
+                av_log(module, AV_LOG_WARNING, "Invalid begin composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
             } else if (!(buf = av_malloc(24))) {
                 return AVERROR(ENOMEM);
             } else {
-                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%03d", year, month, day, hour, min, sec, ms );
+                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                 av_metadata_set2(&s->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
                 av_metadata_set2(&module->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
             }
@@ -312,14 +312,14 @@ static int iff_read_header(AVFormatContext *s,
             hour  = get_byte(pb);
             min   = get_byte(pb);
             sec   = get_byte(pb);
-            ms    = get_byte(pb);
+            cts   = get_byte(pb);
 
-            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || ms > 999) {
-                av_log(module, AV_LOG_WARNING, "Invalid finish composing date: %04d-%02d-%02d %02d:%02d:%02d.%03d\n", year, month, day, hour, min, sec, ms);
+            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
+                av_log(module, AV_LOG_WARNING, "Invalid finish composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
             } else if (!(buf = av_malloc(24))) {
                 return AVERROR(ENOMEM);
             } else {
-                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%03d", year, month, day, hour, min, sec, ms );
+                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                 av_metadata_set2(&s->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
                 av_metadata_set2(&module->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
             }
@@ -327,13 +327,13 @@ static int iff_read_header(AVFormatContext *s,
             hour = get_byte(pb);
             min  = get_byte(pb);
             sec  = get_byte(pb);
-            ms   = get_byte(pb);
+            cts  = get_byte(pb);
 
-            if (min > 59 || sec > 59 || ms > 999) {
-                av_log(module, AV_LOG_WARNING, "Invalid duration: %02d:%02d:%02d.%03d\n", hour, min, sec, ms);
+            if (min > 59 || sec > 59 || cts > 99) {
+                av_log(module, AV_LOG_WARNING, "Invalid duration: %02d:%02d:%02d.%02d\n", hour, min, sec, cts);
             } else {
-                s->duration             = (((uint64_t) (hour*3600000+min*60000+sec*1000+ms))*AV_TIME_BASE) / 1000;
-                module->forced_duration = (((uint64_t) (hour*3600000+min*60000+sec*1000+ms))*AV_TIME_BASE) / 1000;
+                s->duration             = (((uint64_t) (hour*360000+min*6000+sec*100+cts))*AV_TIME_BASE) / 100;
+                module->forced_duration = (((uint64_t) (hour*360000+min*6000+sec*100+cts))*AV_TIME_BASE) / 100;
             }
 
             songs                   = get_be16(pb);
@@ -690,7 +690,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
     avseq_song_set_channels ( song, 1 );
 
     while (!url_feof(pb) && (data_size -= iff_size)) {
-        unsigned year, month, day, hour, min, sec, ms;
+        unsigned year, month, day, hour, min, sec, cts;
         uint8_t *buf = NULL;
         uint64_t orig_pos;
         uint32_t chunk_id;
@@ -708,14 +708,14 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             hour  = get_byte(pb);
             min   = get_byte(pb);
             sec   = get_byte(pb);
-            ms    = get_byte(pb);
+            cts   = get_byte(pb);
 
-            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || ms > 999) {
-                av_log(song, AV_LOG_WARNING, "Invalid begin composing date: %04d-%02d-%02d %02d:%02d:%02d.%03d\n", year, month, day, hour, min, sec, ms);
+            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
+                av_log(song, AV_LOG_WARNING, "Invalid begin composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
             } else if (!(buf = av_malloc(24))) {
                 return AVERROR(ENOMEM);
             } else {
-                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%03d", year, month, day, hour, min, sec, ms );
+                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                 av_metadata_set2(&song->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
             }
 
@@ -725,26 +725,26 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             hour  = get_byte(pb);
             min   = get_byte(pb);
             sec   = get_byte(pb);
-            ms    = get_byte(pb);
+            cts   = get_byte(pb);
 
-            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || ms > 999) {
-                av_log(song, AV_LOG_WARNING, "Invalid finish composing date: %04d-%02d-%02d %02d:%02d:%02d.%03d\n", year, month, day, hour, min, sec, ms);
+            if (month == 0 || month > 12 || day == 0 || day > 7 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
+                av_log(song, AV_LOG_WARNING, "Invalid finish composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
             } else if (!(buf = av_malloc(24))) {
                 return AVERROR(ENOMEM);
             } else {
-                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%03d", year, month, day, hour, min, sec, ms );
+                av_strlcatf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
                 av_metadata_set2(&song->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
             }
 
             hour = get_byte(pb);
             min  = get_byte(pb);
             sec  = get_byte(pb);
-            ms   = get_byte(pb);
+            cts  = get_byte(pb);
 
-            if (min > 59 || sec > 59 || ms > 999)
-                av_log(song, AV_LOG_WARNING, "Invalid duration: %02d:%02d:%02d.%03d\n", hour, min, sec, ms);
+            if (min > 59 || sec > 59 || cts > 99)
+                av_log(song, AV_LOG_WARNING, "Invalid duration: %02d:%02d:%02d.%02d\n", hour, min, sec, cts);
             else
-                song->duration           = (((uint64_t) (hour*3600000+min*60000+sec*1000+ms))*AV_TIME_BASE) / 1000;
+                song->duration           = (((uint64_t) (hour*360000+min*6000+sec*100+cts))*AV_TIME_BASE) / 100;
 
             tracks                   = get_be16(pb);
             song->gosub_stack_size   = get_be16(pb);
