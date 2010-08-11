@@ -60,14 +60,12 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
     track_list = song->track_list;
     tracks     = song->tracks;
 
-    av_log(song, AV_LOG_ERROR, "av_realloc call %d.\n", tracks * sizeof(AVSequencerTrack *));
     if (!(track && ++tracks)) {
         return AVERROR_INVALIDDATA;
     } else if (!(track_list = av_realloc(track_list, (tracks * sizeof(AVSequencerTrack *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(song, AV_LOG_ERROR, "cannot allocate track storage container.\n");
         return AVERROR(ENOMEM);
     }
-    av_log(song, AV_LOG_ERROR, "av_realloc done %d.\n", tracks * sizeof(AVSequencerTrack *));
 
     track->av_class  = &avseq_track_class;
     track->last_row  = 63;
@@ -100,12 +98,10 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     data     = track->data;
     last_row = track->last_row + 1;
 
-    av_log(track, AV_LOG_ERROR, "av_realloc call.\n");
     if (!(data = av_realloc(data, (last_row * sizeof(AVSequencerTrackData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(track, AV_LOG_ERROR, "cannot allocate storage container.\n");
         return AVERROR(ENOMEM);
     }
-    av_log(track, AV_LOG_ERROR, "av_realloc done.\n");
 
     memset ( data, 0, last_row * sizeof(AVSequencerTrackData) );
 
@@ -285,13 +281,20 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 
                 pack_type = 0xFF;
             } while ((int8_t) tmp_pack_byte < 0);
+        }
 
-            if (!--len)
-                return AVERROR_INVALIDDATA;
+        if (!len--) {
+            av_log(track, AV_LOG_ERROR, "cannot unpack track, unexpected end of stream.\n");
+            return AVERROR_INVALIDDATA;
         }
 
         last_pack_row++;
         data++;
+    }
+
+    if (len || pack_type) {
+        av_log(track, AV_LOG_ERROR, "cannot unpack track, unexpected end of stream.\n");
+        return AVERROR_INVALIDDATA;
     }
 
     return 0;
