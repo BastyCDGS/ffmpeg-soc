@@ -47,33 +47,31 @@ static const AVClass avseq_order_list_class = {
 
 int avseq_order_open(AVSequencerSong *song) {
     AVSequencerOrderList *order_list;
-    AVSequencerOrderList *old_order_list;
     uint16_t channels;
 
     if (!song)
         return AVERROR_INVALIDDATA;
 
-    old_order_list = order_list = song->order_list;
-    channels       = song->channels;
+    order_list = song->order_list;
+    channels   = song->channels;
 
     if ((channels == 0) || (channels > 256)) {
         return AVERROR_INVALIDDATA;
-    } else if (!(order_list = av_realloc(order_list, (channels * sizeof(AVSequencerOrderData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    } else if (!(order_list = av_realloc(order_list, (channels * sizeof(AVSequencerOrderList)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(song, AV_LOG_ERROR, "cannot allocate order list storage container.\n");
         return AVERROR(ENOMEM);
     }
 
-    song->order_list = order_list;
+    memset ( order_list, 0, channels * sizeof(AVSequencerOrderList) );
 
-    if (!old_order_list) {
-        do {
-            order_list->av_class        = &avseq_order_list_class;
-            order_list->volume          = 255;
-            order_list->track_panning   = -128;
-            order_list->channel_panning = -128;
-            order_list++;
-        } while (--channels);
+    while (channels--) {
+        order_list[channels].av_class        = &avseq_order_list_class;
+        order_list[channels].volume          = 255;
+        order_list[channels].track_panning   = -128;
+        order_list[channels].channel_panning = -128;
     }
+
+    song->order_list = order_list;
 
     return 0;
 }
@@ -96,7 +94,7 @@ static const AVClass avseq_order_data_class = {
 };
 
 AVSequencerOrderData *avseq_order_data_create(void) {
-    return av_mallocz(sizeof(AVSequencerOrderData));
+    return av_mallocz(sizeof(AVSequencerOrderData) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data) {
