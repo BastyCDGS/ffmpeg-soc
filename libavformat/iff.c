@@ -2113,7 +2113,6 @@ static int open_stab_smbl ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_SREF:
             symbol->symbol_value = get_be16(pb);
@@ -2138,6 +2137,11 @@ static int open_stab_smbl ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
 
             buf[iff_size] = 0;
 
+            if ((res = avseq_synth_symbol_assign ( synth, symbol, buf )) < 0) {
+                av_freep(&buf);
+                return res;
+            }
+
             break;
         default:
             // TODO: Add unknown chunk
@@ -2148,11 +2152,6 @@ static int open_stab_smbl ( AVFormatContext *s, AVSequencerSynth *synth, uint32_
         iff_size += iff_size & 1;
         url_fskip(pb, iff_size - (url_ftell(pb) - orig_pos));
         iff_size += 8;
-    }
-
-    if ((res = avseq_synth_symbol_open ( synth, symbol, (buf ? buf : (const uint8_t *) "UNNAMED"))) < 0) {
-        av_freep(&buf);
-        return res;
     }
 
     av_freep(&buf);
