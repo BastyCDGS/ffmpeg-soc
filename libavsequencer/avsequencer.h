@@ -1038,6 +1038,21 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
                             const uint8_t *name);
 
 /**
+ * Assigns a new symbol name to a synth sound symbol.
+ *
+ * @param synth the AVSequencerSynth structure to assign the new synth sound symbol name to
+ * @param symbol the AVSequencerSynthSymbolTable structure of which to change the name
+ * @param name the new name to assign to the new synth sound symbol
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
+                              const uint8_t *name);
+
+/**
  * Creates a new uninitialized empty synth sound waveform.
  *
  * @return pointer to freshly allocated AVSequencerSynthWave, NULL if allocation failed

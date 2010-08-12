@@ -126,11 +126,8 @@ AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void) {
 int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
                             const uint8_t *name) {
     AVSequencerSynthSymbolTable **symbol_list;
-    const uint8_t *check_name;
-    uint8_t *target_name;
-    uint8_t *tmp_target_name;
     uint16_t symbols;
-    uint8_t tmp_char;
+    int res;
 
     if (!synth)
         return AVERROR_INVALIDDATA;
@@ -138,7 +135,33 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
     symbol_list = synth->symbol_list;
     symbols     = synth->symbols;
 
-    if (!(name && ++symbols))
+    if (!++symbols)
+        return AVERROR_INVALIDDATA;
+
+    if (!(symbol_list = av_realloc(symbol_list, (symbols * sizeof(AVSequencerSynthSymbolTable *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound symbol storage container.\n");
+        return AVERROR(ENOMEM);
+    } else if ((res = avseq_synth_symbol_assign(synth, symbol, name)) < 0) {
+        return res;
+    }
+
+    symbol->line_max = 0xFFFF;
+
+    symbol_list[symbols - 1] = symbol;
+    synth->symbol_list       = symbol_list;
+    synth->symbols           = symbols;
+
+    return 0;
+}
+
+int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
+                              const uint8_t *name) {
+    const uint8_t *check_name;
+    uint8_t *target_name;
+    uint8_t *tmp_target_name;
+    uint8_t tmp_char;
+
+    if (!name)
         return AVERROR_INVALIDDATA;
 
     target_name = symbol->symbol_name;
@@ -172,18 +195,7 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
 
     *tmp_target_name = 0;
 
-    if (!(symbol_list = av_realloc(symbol_list, (symbols * sizeof(AVSequencerSynthSymbolTable *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_free(target_name);
-        av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound symbol storage container.\n");
-        return AVERROR(ENOMEM);
-    }
-
     symbol->symbol_name = target_name;
-    symbol->line_max    = 0xFFFF;
-
-    symbol_list[symbols - 1] = symbol;
-    synth->symbol_list       = symbol_list;
-    synth->symbols           = symbols;
 
     return 0;
 }
