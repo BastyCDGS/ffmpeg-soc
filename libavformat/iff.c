@@ -392,7 +392,9 @@ static int iff_read_header(AVFormatContext *s,
 
             break;
         case ID_CMNT:
-        case ID_SMSG:
+        case ID_MMSG:
+            metadata_tag = "comment";
+            break;
         case ID_FILE:
             metadata_tag = "file";
             break;
