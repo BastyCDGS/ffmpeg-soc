@@ -37,6 +37,15 @@
 #include "libavutil/avstring.h"
 #include "libavsequencer/avsequencer.h"
 
+static const char *const metadata_tag_list[] = {
+    "artist",
+    "comment",
+    "copyright",
+    "file",
+    "genre",
+    "title"
+};
+
 /* Metadata string read */
 static int seq_get_metadata (AVFormatContext *s, AVMetadata **const metadata, const char *const tag, const unsigned data_size);
 static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint32_t data_size );
@@ -217,7 +226,7 @@ static int iff_read_header(AVFormatContext *s,
     AVStream *st;
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
-    uint8_t *buf = NULL;
+    uint8_t buf[24];
     const char *args = "load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
@@ -293,18 +302,13 @@ static int iff_read_header(AVFormatContext *s,
             sec         = get_byte(pb);
             cts         = get_byte(pb);
 
-            if (!(buf = av_malloc(24)))
-                return AVERROR(ENOMEM);
-
             if (day || month || year || hour || min || sec || cts) {
                 if (month == 0 || month > 12 || day == 0 || day > 31 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
                     av_log(module, AV_LOG_WARNING, "Invalid begin composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
-                } else if (!(buf = av_malloc(24))) {
-                    return AVERROR(ENOMEM);
                 } else {
                     snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
-                    av_metadata_set2(&s->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
-                    av_metadata_set2(&module->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
+                    av_metadata_set2(&s->metadata, "begin_date", buf, 0);
+                    av_metadata_set2(&module->metadata, "begin_date", buf, 0);
                 }
             }
 
@@ -319,12 +323,10 @@ static int iff_read_header(AVFormatContext *s,
             if (day || month || year || hour || min || sec || cts) {
                 if (month == 0 || month > 12 || day == 0 || day > 31 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
                     av_log(module, AV_LOG_WARNING, "Invalid finish composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
-                } else if (!(buf = av_malloc(24))) {
-                    return AVERROR(ENOMEM);
                 } else {
                     snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
-                    av_metadata_set2(&s->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
-                    av_metadata_set2(&module->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
+                    av_metadata_set2(&s->metadata, "date", buf, 0);
+                    av_metadata_set2(&module->metadata, "date", buf, 0);
                 }
             }
 
@@ -503,7 +505,7 @@ static int iff_read_header(AVFormatContext *s,
                 AVMetadataTag *tag = av_metadata_get(s->metadata, metadata_tag, NULL, AV_METADATA_IGNORE_SUFFIX);
 
                 if (tag)
-                    av_metadata_set2(&module->metadata, metadata_tag, tag->value, AV_METADATA_DONT_STRDUP_VAL);
+                    av_metadata_set2(&module->metadata, metadata_tag, tag->value, 0);
             }
 #endif
         }
@@ -641,6 +643,20 @@ static int iff_read_header(AVFormatContext *s,
                 return AVERROR_INVALIDDATA;
             }
 
+            if (songs == 1) {
+                for (i = 0; i < sizeof (metadata_tag_list) / sizeof (char *); ++i) {
+                    const char *metadata_tag = metadata_tag_list[i];
+                    AVMetadataTag *tag = av_metadata_get(s->metadata, metadata_tag, NULL, AV_METADATA_IGNORE_SUFFIX);
+
+                    if (!tag) {
+                        tag = av_metadata_get(module->song_list[0]->metadata, metadata_tag, NULL, AV_METADATA_IGNORE_SUFFIX);
+
+                        if (tag)
+                            av_metadata_set2(&s->metadata, metadata_tag, tag->value, 0);
+                    }
+                }
+            }
+
             st->codec->bits_per_coded_sample = 32;
 #if AV_HAVE_BIGENDIAN
             st->codec->codec_id              = CODEC_ID_PCM_S32BE;
@@ -718,7 +734,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
 
     while (!url_feof(pb) && (data_size -= iff_size)) {
         unsigned year, month, day, hour, min, sec, cts;
-        uint8_t *buf = NULL;
+        uint8_t buf[24];
         uint64_t orig_pos;
         uint32_t chunk_id;
         const char *metadata_tag = NULL;
@@ -740,11 +756,9 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             if (day || month || year || hour || min || sec || cts) {
                 if (month == 0 || month > 12 || day == 0 || day > 31 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
                     av_log(song, AV_LOG_WARNING, "Invalid begin composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
-                } else if (!(buf = av_malloc(24))) {
-                    return AVERROR(ENOMEM);
                 } else {
                     snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
-                    av_metadata_set2(&song->metadata, "begin_date", buf, AV_METADATA_DONT_STRDUP_VAL);
+                    av_metadata_set2(&song->metadata, "begin_date", buf, 0);
                 }
             }
 
@@ -759,11 +773,9 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             if (day || month || year || hour || min || sec || cts) {
                 if (month == 0 || month > 12 || day == 0 || day > 31 || hour > 23 || min > 59 || sec > 59 || cts > 99) {
                     av_log(song, AV_LOG_WARNING, "Invalid finish composing date: %04d-%02d-%02d %02d:%02d:%02d.%02d\n", year, month, day, hour, min, sec, cts);
-                } else if (!(buf = av_malloc(24))) {
-                    return AVERROR(ENOMEM);
                 } else {
                     snprintf ( buf, 24, "%04d-%02d-%02d %02d:%02d:%02d.%02d", year, month, day, hour, min, sec, cts );
-                    av_metadata_set2(&song->metadata, "date", buf, AV_METADATA_DONT_STRDUP_VAL);
+                    av_metadata_set2(&song->metadata, "date", buf, 0);
                 }
             }
 
