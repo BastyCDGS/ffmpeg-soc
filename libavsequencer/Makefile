@@ -5,6 +5,7 @@ FFLIBS = avcodec avformat avutil
 
 HEADERS = avsequencer.h \
           instr.h       \
+          mixer.h       \
           module.h      \
           order.h       \
           player.h      \

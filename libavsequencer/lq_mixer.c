@@ -24,9 +24,7 @@
  * Sequencer low quality integer mixer.
  */
 
-#include "libavformat/avformat.h"
-#include "libavsequencer/avsequencer.h"
-#include "libavsequencer/player.h"
+#include "libavsequencer/mixer.h"
 
 typedef struct AVSequencerLQMixerData {
     AVSequencerMixerData mixer_data;
@@ -89,7 +87,7 @@ static av_cold void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerM
 static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
 static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
 static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf );
+static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf );
 
 static const char *low_quality_mixer_name(void *p)
 {
@@ -824,7 +822,7 @@ static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mi
     }
 }
 
-static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer_data, int32_t *buf ) {
+static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf ) {
     AVSequencerLQMixerData *lq_mixer_data = (AVSequencerLQMixerData *) mixer_data;
     uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
@@ -857,8 +855,8 @@ static av_cold void mix ( AVSequencerContext *avctx, AVSequencerMixerData *mixer
             if (current_left)
                 continue;
 
-            if (avctx->playback_handler)
-                avctx->playback_handler ( avctx );
+            if (mixer_data->handler)
+                mixer_data->handler ( mixer_data );
 
             current_left       = lq_mixer_data->pass_len;
             current_left_frac += lq_mixer_data->pass_len_frac;
