@@ -242,7 +242,8 @@ void avsequencer_destroy(AVSequencerContext *avctx);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque);
+AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
+                                       const char *args, void *opaque);
 
 /**
  * Creates a new uninitialized empty module.

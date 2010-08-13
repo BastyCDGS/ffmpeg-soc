@@ -90,7 +90,8 @@ static const AVClass avsequencer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char *inst_name) {
+AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx,
+                                     const char *inst_name) {
     AVSequencerContext *avctx;
     int i;
 
@@ -107,7 +108,7 @@ AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char
 
     avctx->mixers            = next_registered_mixer_idx;
     avctx->seed              = av_get_random_seed ();
-    avctx->player_mixer_data = avseq_mixer_init ( mixctx, NULL, NULL );
+    avctx->player_mixer_data = avseq_mixer_init ( avctx, mixctx, NULL, NULL );
 
     return avctx;
 }
@@ -131,11 +132,18 @@ void avsequencer_destroy(AVSequencerContext *avctx) {
     av_free(avctx);
 }
 
-AVSequencerMixerData *avseq_mixer_init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
+AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
+                                       const char *args, void *opaque) {
     AVSequencerMixerData *mixer_data = NULL;
 
-    if (mixctx && mixctx->init)
+    if (mixctx && mixctx->init) {
         mixer_data = mixctx->init(mixctx, args, opaque);
+
+        if (mixer_data) {
+            mixer_data->opaque  = (void *) avctx;
+            mixer_data->handler = avseq_playback_handler;
+        }
+    }
 
     return mixer_data;
 }
