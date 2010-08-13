@@ -1029,24 +1029,24 @@ static const int32_t global_panning_slide_trigger_mask[4] = {
 
 static const int8_t empty_waveform[256];
 
-void avseq_playback_handler ( AVSequencerContext *avctx ) {
+int avseq_playback_handler ( AVSequencerMixerData *mixer_data ) {
+    AVSequencerContext *avctx                         = (AVSequencerContext *) mixer_data->opaque;
     AVSequencerModule *module                         = avctx->player_module;
     AVSequencerSong *song                             = avctx->player_song;
     AVSequencerPlayerGlobals *player_globals          = avctx->player_globals;
     AVSequencerPlayerHostChannel *player_host_channel = avctx->player_host_channel;
     AVSequencerPlayerChannel *player_channel          = avctx->player_channel;
-    AVSequencerMixerData *mixer                       = avctx->player_mixer_data;
     AVSequencerPlayerHook *player_hook;
     uint16_t channel, virtual_channel;
 
-    if (!(module && song && player_globals && player_host_channel && player_channel && mixer))
-        return;
+    if (!(module && song && player_globals && player_host_channel && player_channel))
+        return 0;
 
     channel = 0;
 
     do {
-        if (mixer->mixctx->get_channel)
-            mixer->mixctx->get_channel ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
+        if (mixer_data->mixctx->get_channel)
+            mixer_data->mixctx->get_channel ( mixer_data, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
 
         player_channel++;
     } while (++channel < module->channels);
@@ -1055,7 +1055,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
         if (!player_globals->trace_count--)
             player_globals->trace_count = 0;
 
-        return;
+        return 0;
     }
 
     player_hook = avctx->player_hook;
@@ -1104,7 +1104,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
             player_host_channel->flags        &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT|AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE);
             player_host_channel->track         = (AVSequencerTrack *) player_host_channel->instrument;
             player_host_channel->effect        = NULL;
-            player_host_channel->row           = *(uint32_t *) &(player_host_channel->sample);
+            player_host_channel->row           = (uint32_t) player_host_channel->sample;
             player_host_channel->instrument    = NULL;
             player_host_channel->sample        = NULL;
 
@@ -1175,7 +1175,7 @@ void avseq_playback_handler ( AVSequencerContext *avctx ) {
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE) {
             AVSequencerInstrument *instrument;
             AVSequencerSample *sample = player_host_channel->sample;
-            uint32_t frequency        = *(uint32_t *) &(player_host_channel->instrument), i;
+            uint32_t frequency        = (uint32_t) player_host_channel->instrument, i;
             uint16_t virtual_channel;
 
             player_host_channel->flags             &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE;
@@ -1551,12 +1551,12 @@ turn_note_off:
 
             player_channel->mixer.panning = panning;
 
-            if (mixer->mixctx->set_channel_volume_panning_pitch)
-                mixer->mixctx->set_channel_volume_panning_pitch ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
+            if (mixer_data->mixctx->set_channel_volume_panning_pitch)
+                mixer_data->mixctx->set_channel_volume_panning_pitch ( mixer_data, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
         }
 not_calculate_no_playing:
-        if (mixer->mixctx->set_channel_position_repeat_flags)
-            mixer->mixctx->set_channel_position_repeat_flags ( mixer, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
+        if (mixer_data->mixctx->set_channel_position_repeat_flags)
+            mixer_data->mixctx->set_channel_position_repeat_flags ( mixer_data, (AVSequencerMixerChannel *) &(player_channel->mixer), channel );
 
         player_channel++;
     } while (++channel < module->channels);
@@ -1608,6 +1608,8 @@ check_song_end_done:
             } while (--channel);
         }
     }
+
+    return 0;
 }
 
 static void process_row ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {

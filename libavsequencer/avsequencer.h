@@ -153,7 +153,7 @@ typedef struct AVSequencerContext {
     uint32_t seed;
 
     /** Executes one tick of the playback handler.  */
-    void (*playback_handler)( struct AVSequencerContext *avctx );
+    int (*playback_handler)( AVSequencerMixerData *mixer_data );
 } AVSequencerContext;
 
 /** Registers all mixers to the AVSequencer.
@@ -844,12 +844,13 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
  * output buffers. This function might also be called from a hardware
  * and/or software interrupts on some platforms.
  *
- * @param avctx the AVSequencerContext of which to process the next tick
+ * @param mixer_data the AVSequencerMixerData of which to process the next tick
+ * @return >= 0 on success, a negative error code otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_playback_handler ( AVSequencerContext *avctx );
+int avseq_playback_handler ( AVSequencerMixerData *mixer_data );
 
 #endif /* AVSEQUENCER_AVSEQUENCER_H */
