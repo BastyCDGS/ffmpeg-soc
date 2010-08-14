@@ -2647,7 +2647,33 @@ static int iff_read_packet(AVFormatContext *s,
     ByteIOContext *pb = s->pb;
     AVStream *st = s->streams[0];
     int ret;
+#if CONFIG_AVSEQUENCER
+    if (iff->avctx) {
+        AVSequencerMixerData *mixer_data = iff->avctx->player_mixer_data;
+        int size = st->codec->channels * mixer_data->mix_buf_size << 2;
 
+        avseq_mixer_do_mix(mixer_data, NULL);
+
+        if ((ret = av_new_packet(pkt, size)) < 0) {
+            av_log(s, AV_LOG_ERROR, "Cannot allocate packet!\n");
+
+            return ret;
+        }
+
+        memcpy(pkt->data, mixer_data->mix_buf, size);
+
+        if (iff->sent_bytes == 0)
+            pkt->flags |= AV_PKT_FLAG_KEY;
+
+        iff->sent_bytes        += size;
+        pkt->stream_index       = 0;
+        pkt->pts                = iff->audio_frame_count;
+        iff->audio_frame_count += ret / st->codec->channels;
+
+        return ret;
+    }
+
+#endif
     if(iff->sent_bytes >= iff->body_size)
         return AVERROR(EIO);
 

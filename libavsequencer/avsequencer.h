@@ -296,6 +296,18 @@ uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t ampli
                                 uint32_t channels );
 
 /**
+ * Fills the output mixing buffer by calculating all the input channel samples.
+ *
+ * @param mixer_data the AVSequencerMixerData to do the actual mixing step
+ * @param buf the target buffer to mix the output data to
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_mixer_do_mix(AVSequencerMixerData *mixer_data, int32_t *buf);
+
+/**
  * Creates a new uninitialized empty module.
  *
  * @return pointer to freshly allocated AVSequencerModule, NULL if allocation failed

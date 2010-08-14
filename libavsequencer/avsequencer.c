@@ -174,7 +174,7 @@ uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_te
 
     mixctx = mixer_data->mixctx;
 
-    if (new_tempo && mixctx && mixctx->set_rate)
+    if (new_tempo && mixctx && mixctx->set_tempo)
         return mixctx->set_tempo(mixer_data, new_tempo);
 
     return mixer_data->tempo;
@@ -190,8 +190,24 @@ uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t ampli
 
     mixctx = mixer_data->mixctx;
 
-    if (channels && mixctx && mixctx->set_rate)
+    if (channels && mixctx && mixctx->set_volume)
         return mixctx->set_volume(mixer_data, amplify, left_volume, right_volume, channels);
 
     return mixer_data->tempo;
+}
+
+void avseq_mixer_do_mix(AVSequencerMixerData *mixer_data, int32_t *buf) {
+    AVSequencerMixerContext *mixctx;
+
+    if (!mixer_data)
+        return;
+
+    mixctx = mixer_data->mixctx;
+
+    if (mixctx) {
+        if (buf)
+            mixctx->mix(mixer_data, buf);
+        else if (mixer_data->mix_buf)
+            mixctx->mix(mixer_data, mixer_data->mix_buf);
+    }
 }
