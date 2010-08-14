@@ -142,7 +142,7 @@ typedef struct AVSequencerContext {
 
     /** Array of pointers containing every mixing engine which is
        registered and ready for access to the sequencer.  */
-    struct AVSequencerMixerContext **mixer_list;
+    AVSequencerMixerContext **mixer_list;
 
     /** Total amount of mixers registered to the sequencer.  */
     uint16_t mixers;
@@ -246,6 +246,56 @@ AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMix
                                        const char *args, void *opaque);
 
 /**
+ * Sets and transfers a new mixing rate to the mixing engine.
+ *
+ * @param mixer_data the AVSequencerMixerData to set the new mixing rate
+ * @param new_mix_rate the new mixing rate in Hz to use for mixing
+ * @return the mixing rate in Hz which actually has been set
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate);
+
+/**
+ * Sets and transfers a new tempo for the playback handler to the
+ * mixing engine.
+ *
+ * @param mixer_data the AVSequencerMixerData to set the new tempo
+ * @param new_tempo the new tempo in AV_TIME_BASE fractional seconds
+ *                  to use for mixing
+ * @return the tempo in AV_TIME_BASE fractional seconds which actually has been set
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo);
+
+/**
+ * Sets and transfers a new volume boost, left and right volume and
+ * number of channels to the mixing engine.
+ *
+ * @param mixer_data the AVSequencerMixerData to set the volume and channels
+ * @param amplify the new volume boost where a value of 65536 (=0x10000)
+ *                indicates 100%
+ * @param left_volume the new left volume where a value of 65536 (=0x10000)
+ *                    indicates 100%
+ * @param right_volume the new volume boost where a value of 65536 (=0x10000)
+ *                     indicates 100%
+ * @param channels the new number of channels to be used for mixing
+ * @return the number of channels which actually have been set
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t amplify,
+                                uint32_t left_volume, uint32_t right_volume,
+                                uint32_t channels );
+
+/**
  * Creates a new uninitialized empty module.
  *
  * @return pointer to freshly allocated AVSequencerModule, NULL if allocation failed
@@ -283,6 +333,28 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
 int avseq_module_set_channels(AVSequencerModule *module, uint32_t channels);
 
 /**
+ * Initializes the playback structures for playing back a sub-song in a module.
+ *
+ * @param avctx the AVSequencerContext to be initialized for playback
+ * @param mixctx the AVSequencerMixerContext to be initialized for playback
+ * @param module the AVSequencerModule to be initialized for playback
+ * @param song the AVSequencerSong to be initialized for playback
+ * @param args The string of parameters to use when initializing the mixer.
+ *             The format and meaning of this string varies by mixer.
+ * @param opaque The xtra non-string data needed by the mixer. The meaning
+ *               of this parameter varies by mixer.
+ * @param mode the playback mode to use, 0 is one-shoot playback and 1 is looping
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
+                      AVSequencerModule *module, AVSequencerSong *song,
+                      const char *args, void *opaque, uint32_t mode);
+
+/**
  * Creates a new uninitialized empty sub-song.
  *
  * @return pointer to freshly allocated AVSequencerSong, NULL if allocation failed
@@ -305,6 +377,19 @@ AVSequencerSong *avseq_song_create(void);
  *       ABI compatibility yet!
  */
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
+
+/**
+ * Calculates the speed of a sub-song and fills the player globals structure.
+ *
+ * @param avctx the AVSequencerContext to fill the player globals structure of
+ * @param song the AVSequencerSong structure to calculate the speed of
+ * @return relative tempo value in AV_TIME_BASE fractional seconds, 0 on error
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song);
 
 /**
  * Changes sub-song channels to new number of channels specified.

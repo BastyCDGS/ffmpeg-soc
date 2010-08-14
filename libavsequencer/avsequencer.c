@@ -80,7 +80,7 @@ static const char *mixer_name(void *p) {
     if (avctx->player_mixer_data && avctx->player_mixer_data->mixctx)
         return avctx->player_mixer_data->mixctx->name;
     else
-        return NULL;
+        return "AVSequencer";
 }
 
 static const AVClass avsequencer_class = {
@@ -106,9 +106,13 @@ AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx,
         avctx->mixer_list[i] = registered_mixers[i];
     }
 
+    avsequencer_register_all ();
+
     avctx->mixers            = next_registered_mixer_idx;
     avctx->seed              = av_get_random_seed ();
-    avctx->player_mixer_data = avseq_mixer_init ( avctx, mixctx, NULL, NULL );
+
+    if (mixctx)
+        avctx->player_mixer_data = avseq_mixer_init ( avctx, mixctx, NULL, NULL );
 
     return avctx;
 }
@@ -141,9 +145,53 @@ AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMix
 
         if (mixer_data) {
             mixer_data->opaque  = (void *) avctx;
-            mixer_data->handler = avseq_playback_handler;
+            mixer_data->handler = avctx->playback_handler;
         }
     }
 
     return mixer_data;
+}
+
+uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate) {
+    AVSequencerMixerContext *mixctx;
+
+    if (!mixer_data)
+        return 0;
+
+    mixctx = mixer_data->mixctx;
+
+    if (new_mix_rate && mixctx && mixctx->set_rate)
+        return mixctx->set_rate(mixer_data, new_mix_rate);
+
+    return mixer_data->rate;
+}
+
+uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo) {
+    AVSequencerMixerContext *mixctx;
+
+    if (!mixer_data)
+        return 0;
+
+    mixctx = mixer_data->mixctx;
+
+    if (new_tempo && mixctx && mixctx->set_rate)
+        return mixctx->set_tempo(mixer_data, new_tempo);
+
+    return mixer_data->tempo;
+}
+
+uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t amplify,
+                                uint32_t left_volume, uint32_t right_volume,
+                                uint32_t channels ) {
+    AVSequencerMixerContext *mixctx;
+
+    if (!mixer_data)
+        return 0;
+
+    mixctx = mixer_data->mixctx;
+
+    if (channels && mixctx && mixctx->set_rate)
+        return mixctx->set_volume(mixer_data, amplify, left_volume, right_volume, channels);
+
+    return mixer_data->tempo;
 }

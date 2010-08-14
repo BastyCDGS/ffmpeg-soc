@@ -247,17 +247,7 @@ static int iff_read_header(AVFormatContext *s,
 
 #if CONFIG_AVSEQUENCER
     if (st->codec->codec_tag == ID_TCM1) {
-        AVSequencerMixerContext *mixctx;
-
-        avsequencer_register_all ();
-
-        if (!(mixctx = avseq_mixer_get_by_name ( "Low quality mixer" ))) {
-            if (!(mixctx = avseq_mixer_get_by_name ( "Null mixer" )))
-                av_log(s, AV_LOG_ERROR, "No mixers found!\n");
-                return AVERROR(ENOMEM);
-        }
-
-        if (!(iff->avctx = avsequencer_open ( mixctx, "" )))
+        if (!(iff->avctx = avsequencer_open ( NULL, "" )))
             return AVERROR(ENOMEM);
 
         if (!(module = avseq_module_create ()))
@@ -271,8 +261,6 @@ static int iff_read_header(AVFormatContext *s,
         avseq_module_set_channels ( module, 1 );
 
         st->codec->codec_type  = AVMEDIA_TYPE_AUDIO;
-        st->codec->sample_rate = mixctx->frequency;
-        st->codec->channels    = (mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
     }
 #endif
 
@@ -408,7 +396,7 @@ static int iff_read_header(AVFormatContext *s,
         case ID_VHDR:
 #if CONFIG_AVSEQUENCER
             if (module)
-                break;
+                goto read_unknown_chunk;
 #endif
             st->codec->codec_type = AVMEDIA_TYPE_AUDIO;
 
@@ -425,7 +413,7 @@ static int iff_read_header(AVFormatContext *s,
         case ID_BODY:
 #if CONFIG_AVSEQUENCER
             if (module)
-                break;
+                goto read_unknown_chunk;
 #endif
             iff->body_pos = url_ftell(pb);
             iff->body_size = data_size;
@@ -434,7 +422,7 @@ static int iff_read_header(AVFormatContext *s,
         case ID_CHAN:
 #if CONFIG_AVSEQUENCER
             if (module)
-                break;
+                goto read_unknown_chunk;
 #endif
             if (data_size < 4)
                 return AVERROR_INVALIDDATA;
@@ -444,7 +432,7 @@ static int iff_read_header(AVFormatContext *s,
         case ID_CMAP:
 #if CONFIG_AVSEQUENCER
             if (module)
-                break;
+                goto read_unknown_chunk;
 #endif
             st->codec->extradata_size = data_size;
             st->codec->extradata      = av_malloc(data_size);
@@ -457,7 +445,7 @@ static int iff_read_header(AVFormatContext *s,
         case ID_BMHD:
 #if CONFIG_AVSEQUENCER
             if (module)
-                break;
+                goto read_unknown_chunk;
 #endif
             st->codec->codec_type            = AVMEDIA_TYPE_VIDEO;
             if (data_size <= 8)
@@ -493,6 +481,13 @@ static int iff_read_header(AVFormatContext *s,
         case ID_NAME:
             metadata_tag = "title";
             break;
+#if CONFIG_AVSEQUENCER
+        default:
+read_unknown_chunk:
+            // TODO: Add unknown chunk
+
+            break;
+#endif
         }
 
         if (metadata_tag) {
@@ -537,6 +532,7 @@ static int iff_read_header(AVFormatContext *s,
 
 #if CONFIG_AVSEQUENCER
         if (module) {
+            AVSequencerMixerContext *mixctx;
             unsigned i;
 
             if (songs != module->songs) {
@@ -657,6 +653,19 @@ static int iff_read_header(AVFormatContext *s,
                 }
             }
 
+            if (!(mixctx = avseq_mixer_get_by_name ( "Low quality mixer" ))) {
+                if (!(mixctx = avseq_mixer_get_by_name ( "Null mixer" ))) {
+                    av_log(s, AV_LOG_ERROR, "No mixers found!\n");
+                    return AVERROR(ENOMEM);
+                }
+            }
+
+            st->codec->sample_rate = mixctx->frequency;
+            st->codec->channels    = (mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
+
+            if ((res = avseq_module_play ( iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0)
+                return res;
+
             st->codec->bits_per_coded_sample = 32;
 #if AV_HAVE_BIGENDIAN
             st->codec->codec_id              = CODEC_ID_PCM_S32BE;
@@ -668,6 +677,7 @@ static int iff_read_header(AVFormatContext *s,
 #endif
         st->codec->bit_rate = st->codec->channels * st->codec->sample_rate * st->codec->bits_per_coded_sample;
         st->codec->block_align = st->codec->channels * st->codec->bits_per_coded_sample;
+
         break;
 
     case AVMEDIA_TYPE_VIDEO:

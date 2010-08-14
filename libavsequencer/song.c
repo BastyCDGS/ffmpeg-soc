@@ -26,6 +26,7 @@
 
 #include "libavutil/log.h"
 #include "libavsequencer/avsequencer.h"
+#include "libavsequencer/player.h"
 
 static const char *song_name(void *p)
 {
@@ -135,4 +136,59 @@ int avseq_song_set_channels ( AVSequencerSong *song, uint32_t channels ) {
     }
 
     return 0;
+}
+
+/** Old SoundTracker tempo definition table.  */
+static const uint32_t old_st_lut[] = {
+    192345259,  96192529,  64123930,  48096264,  38475419,
+     32061964,  27482767,  24048132,  21687744,  19240098
+};
+
+uint32_t avseq_song_calc_speed ( AVSequencerContext *avctx, AVSequencerSong *song ) {
+    AVSequencerPlayerGlobals *player_globals;
+    uint64_t tempo = 0;
+    uint16_t speed;
+    uint8_t speed_mul;
+
+    if (!(avctx && song))
+        return 0;
+
+    if (!(player_globals = avctx->player_globals))
+        return 0;
+
+    if (song->flags & AVSEQ_SONG_FLAG_SPD) {
+        player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING;
+
+        if ((speed = song->spd_speed) > 10) {
+            tempo = (uint32_t) 989156 * speed;
+
+            if ((speed_mul = song->speed_mul))
+                tempo *= speed_mul;
+
+            if ((speed_mul = song->speed_div))
+                tempo /= speed_mul;
+        } else {
+            tempo = avctx->old_st_lut ? avctx->old_st_lut[speed] : old_st_lut[speed];
+        }
+    } else {
+        player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING;
+        tempo                  = (song->bpm_speed) * (song->bpm_tempo) << 16;
+
+        if ((speed_mul = song->speed_mul))
+            tempo *= speed_mul;
+
+        if ((speed_mul = song->speed_div))
+            tempo /= speed_mul;
+    }
+
+    player_globals->speed_mul = song->speed_mul;
+    player_globals->speed_div = song->speed_div;
+    player_globals->spd_speed = song->spd_speed;
+    player_globals->bpm_tempo = song->bpm_tempo;
+    player_globals->bpm_speed = song->bpm_speed;
+    player_globals->tempo     = (tempo <= 0xFFFFFFFF) ? (uint32_t) tempo : 0;
+    tempo                    *= player_globals->relative_speed;
+    tempo                   >>= 16;
+
+    return (tempo <= 0xFFFFFFFF) ? (uint32_t) tempo : 0;
 }
