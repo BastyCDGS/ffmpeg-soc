@@ -2666,14 +2666,16 @@ static int iff_read_packet(AVFormatContext *s,
             pkt->flags |= AV_PKT_FLAG_KEY;
 
         iff->sent_bytes        += size;
+        pkt->duration           = mixer_data->mix_buf_size;
+        st->time_base           = (AVRational) {1, st->codec->sample_rate};
         pkt->stream_index       = 0;
         pkt->pts                = iff->audio_frame_count;
         iff->audio_frame_count += ret / st->codec->channels;
 
         return ret;
     }
-
 #endif
+
     if(iff->sent_bytes >= iff->body_size)
         return AVERROR(EIO);
 
