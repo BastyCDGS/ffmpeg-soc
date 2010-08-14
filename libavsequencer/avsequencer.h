@@ -420,7 +420,7 @@ AVSequencerTrackEffect *avseq_track_effect_create(void);
  * Opens and registers a new track data effect to track data.
  *
  * @param track the AVSequencerTrack structure to add the new track data effect to
- * @param data the AVSequencerTrackData structure to add the new track data effect to
+ * @param data the AVSequencerTrackRow structure to add the new track data effect to
  * @param effect the AVSequencerTrackEffect to be added to the track data
  * @return >= 0 on success, a negative error code otherwise
  *
@@ -428,7 +428,7 @@ AVSequencerTrackEffect *avseq_track_effect_create(void);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data, AVSequencerTrackEffect *effect);
+int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, AVSequencerTrackEffect *effect);
 
 /**
  * Gets the address of the track represented by an integer value.

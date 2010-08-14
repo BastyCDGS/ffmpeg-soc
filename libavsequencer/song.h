@@ -62,7 +62,8 @@ typedef struct AVSequencerSong {
      * date of composition and comment.  */
     AVMetadata *metadata;
 
-    /** AVSequencerOrderList pointer to list of order data.  */
+    /** AVSequencerOrderList pointer to list of order data for each
+       channel as an array.  */
     AVSequencerOrderList *order_list;
 
     /** Array (of size tracks) of pointers containing all tracks for
@@ -118,20 +119,23 @@ typedef struct AVSequencerSong {
        to disabled = 0.  */
     uint8_t speed_div;
 
-    /** Initial MED style SPD speed (defaults to 33 as in
+    /** Initial MED style SPD speed (defaults to 33 as used by
        OctaMED Soundstudio).  */
     uint16_t spd_speed;
 
-    /** Initial number of rows per beat (defaults to 4 rows are a beat).  */
+    /** Initial number of rows per beat (defaults to 4 rows are a beat
+       as practically used by every tracker).  */
     uint16_t bpm_tempo;
 
-    /** Initial beats per minute speed (defaults to 50 Hz => 125 BpM).  */
+    /** Initial beats per minute speed (defaults to 50 Hz => 125 BpM as
+       practically used by every tracker).  */
     uint16_t bpm_speed;
 
     /** Minimum and lower limit of number of frames per row
-       (defaults to 1), a value of zero is pointless, since
-       that would mean to play unlimited rows and tracks in
-       just one tick.  */
+       (defaults to 1, because most trackers stop at that value
+       when doing tempo slides, also a value of zero is pointless,
+       since that would mean to play unlimited rows and tracks in
+       just one tick).  */
     uint16_t frames_min;
 
     /** Maximum and upper limit of number of frames per row
@@ -142,36 +146,33 @@ typedef struct AVSequencerSong {
     uint16_t frames_max;
 
     /** Minimum and lower limit of MED style SPD timing values
-       (defaults to 1).  */
+       (defaults to 1, because OctaMED stop at that value when
+       doing tempo slides).  */
     uint16_t spd_min;
 
     /** Maximum and upper limit of MED style SPD timing values
-       (defaults to 255) since a larger value would not make
-       sense (see track effects, they all set 8-bit values only),
-       if we would allow a higher speed here, we could never
-       change the speed values which are larger than 255.  */
+       (defaults to 255, because OctaMED stop at that value when
+       doing tempo slides).  */
     uint16_t spd_max;
 
     /** Minimum and lower limit of rows per beat timing values
-       (defaults to 1).  */
+       (defaults to 1, because most trackers stop at that value
+       when doing tempo slides).  */
     uint16_t bpm_tempo_min;
 
     /** Maximum and upper limit of rows per beat timing values
-       (defaults to 255) since a larger value would not make
-       sense (see track effects, they all set 8-bit values only),
-       if we would allow a higher speed here, we could never
-       change the speed values which are larger than 255.  */
+       (defaults to 255, because most trackers stop at that value
+       when doing tempo slides).  */
     uint16_t bpm_tempo_max;
 
     /** Minimum and lower limit of beats per minute timing values
-       (defaults to 1).  */
+       (defaults to 1, because most trackers stop at that value
+       when doing tempo slides).  */
     uint16_t bpm_speed_min;
 
     /** Maximum and upper limit of beats per minute timing values
-       (defaults to 255) since a larger value would not make
-       sense (see track effects, they all set 8-bit values only),
-       if we would allow a higher speed here, we could never
-       change the speed values which are larger than 255.  */
+       (defaults to 255, because most trackers stop at that value
+       when doing tempo slides).  */
     uint16_t bpm_speed_max;
 
     /** Global volume of this sub-song. All other volume related

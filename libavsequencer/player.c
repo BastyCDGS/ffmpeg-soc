@@ -1796,7 +1796,7 @@ static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
     AVSequencerTrack *track;
 
     if ((track = player_host_channel->track)) {
-        AVSequencerTrackData *track_data = track->data;
+        AVSequencerTrackRow *track_data = track->data;
         AVSequencerTrackEffect *track_fx;
         uint32_t fx;
 
@@ -1860,7 +1860,7 @@ static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
 static uint32_t get_note ( AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel ) {
     AVSequencerModule *module = avctx->player_module;
     AVSequencerTrack *track;
-    AVSequencerTrackData *track_data;
+    AVSequencerTrackRow *track_data;
     AVSequencerInstrument *instrument;
     AVSequencerPlayerChannel *new_player_channel;
     uint32_t instr;
@@ -3276,7 +3276,7 @@ static void run_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
 
     if ((track = player_host_channel->track) && player_host_channel->effect) {
         AVSequencerTrackEffect *track_fx;
-        AVSequencerTrackData *track_data = track->data + player_host_channel->row;
+        AVSequencerTrackRow *track_data = track->data + player_host_channel->row;
         uint32_t fx                      = -1;
 
         while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {

@@ -113,7 +113,7 @@ enum AVSequencerSynthCodeInstruction {
 
     /** Instruction list (only positive instruction byte ones):  */
     /** Flow control / variable accessing instructions:  */
-    /** 0x00: STOP    vX+YYYY
+    /** STOP    vX+YYYY
        Also named END. Stops the synth sound instruction execution
        here if vX+YYYY is non-zero, otherwise this will set an
        external influence forbid mask in where a set of the most
@@ -126,7 +126,7 @@ enum AVSequencerSynthCodeInstruction {
        0x0008 | Forbid external JUMPSPC command for this synth.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_STOP       = 0x00,
 
-    /** 0x01: KILL    vX+YYYY
+    /** KILL    vX+YYYY
        Stops and frees current channel, most likely to be used in NNA
        handling code. vX+YYYY is the number of ticks to wait before
        the channel actually will be killed. Synth code instruction
@@ -137,65 +137,65 @@ enum AVSequencerSynthCodeInstruction {
        instruction straight afterwards.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_KILL       = 0x01,
 
-    /** 0x02: WAIT    vX+YYYY
+    /** WAIT    vX+YYYY
        Waits the given amount in ticks specified by vX+YYYY before
        continue processing of synth code instructions.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_WAIT       = 0x02,
 
-    /** 0x03: WAITVOL vX+YYYY
+    /** WAITVOL vX+YYYY
        Waits until the volume handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the volume code never reaches the specified line.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_WAITVOL    = 0x03,
 
-    /** 0x04: WAITPAN vX+YYYY
+    /** WAITPAN vX+YYYY
        Waits until the panning handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the panning code never reaches the specified line.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_WAITPAN    = 0x04,
 
-    /** 0x05: WAITSLD vX+YYYY
+    /** WAITSLD vX+YYYY
        Waits until the slide handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the slide code never reaches the specified line.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_WAITSLD    = 0x05,
 
-    /** 0x06: WAITSPC vX+YYYY
+    /** WAITSPC vX+YYYY
        Waits until the special handling code has reached the line
        specified by vX+YYYY. The delay can be until song end if
        the special code never reaches the specified line.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_WAITSPC    = 0x06,
 
-    /** 0x07: JUMP    vX+YYYY
+    /** JUMP    vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMP       = 0x07,
 
-    /** 0x08: JUMPEQ  vX+YYYY
+    /** JUMPEQ  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the zero flag of the
        condition variable is set otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPEQ     = 0x08,
 
-    /** 0x09: JUMPNE  vX+YYYY
+    /** JUMPNE  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the zero flag of the
        condition variable is cleared otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPNE     = 0x09,
 
-    /** 0x0A: JUMPPL  vX+YYYY
+    /** JUMPPL  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the negative flag of the
        condition variable is cleared otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPPL     = 0x0A,
 
-    /** 0x0B: JUMPMI  vX+YYYY
+    /** JUMPMI  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the negative flag of the
        condition variable is set otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPMI     = 0x0B,
 
-    /** 0x0C: JUMPLT  vX+YYYY
+    /** JUMPLT  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if either the negative or
        the overflow flag of the condition variable are set,
@@ -203,7 +203,7 @@ enum AVSequencerSynthCodeInstruction {
        do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLT     = 0x0C,
 
-    /** 0x0D: JUMPLE  vX+YYYY
+    /** JUMPLE  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if either the negative or
        the overflow flag and in addition the zero flag of
@@ -211,7 +211,7 @@ enum AVSequencerSynthCodeInstruction {
        or equal than comparision, otherwise will do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLE     = 0x0D,
 
-    /** 0x0E: JUMPGT  vX+YYYY
+    /** JUMPGT  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if neither the negative nor
        the overflow flag of the condition variable are set,
@@ -219,7 +219,7 @@ enum AVSequencerSynthCodeInstruction {
        do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPGT     = 0x0E,
 
-    /** 0x0F: JUMPGE  vX+YYYY
+    /** JUMPGE  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if neither the negative nor
        the overflow flag and in addition the zero flag of
@@ -227,95 +227,95 @@ enum AVSequencerSynthCodeInstruction {
        or equal than comparision, otherwise will do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPGE     = 0x0F,
 
-    /** 0x10: JUMPVS  vX+YYYY
+    /** JUMPVS  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the overflow flag of the
        condition variable is set otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVS     = 0x10,
 
-    /** 0x11: JUMPVC  vX+YYYY
+    /** JUMPVC  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if the overflow flag of the
        condition variable is cleared otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVC     = 0x11,
 
-    /** 0x12: JUMPCS  vX+YYYY
+    /** JUMPCS  vX+YYYY
        Also named JUMPLO, jumps to the target line number within the
        same synth code specified by vX+YYYY if the carry flag of the
        condition variable is set otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCS     = 0x12,
 
-    /** 0x13: JUMPCC  vX+YYYY
+    /** JUMPCC  vX+YYYY
        Also named JUMPHS, jumps to the target line number within the
        same synth code specified by vX+YYYY if the carry flag of the
        condition variable is cleared otherwise do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPCC     = 0x13,
 
-    /** 0x14: JUMPLS  vX+YYYY
+    /** JUMPLS  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if both the carry and negative
        flag are set, like an unsigned less or equal than
        comparision, otherwise this one will do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPLS     = 0x14,
 
-    /** 0x15: JUMPHI  vX+YYYY
+    /** JUMPHI  vX+YYYY
        Jumps to the target line number within the same synth
        code specified by vX+YYYY if both the carry and negative
        flag are cleared, like an unsigned greater than
        comparision, otherwise this one will do nothing.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPHI     = 0x15,
 
-    /** 0x16: JUMPVOL vX+YYYY
+    /** JUMPVOL vX+YYYY
        Jumps the synth sound volume handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPVOL    = 0x16,
 
-    /** 0x17: JUMPPAN vX+YYYY
+    /** JUMPPAN vX+YYYY
        Jumps the synth sound panning handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPPAN    = 0x17,
 
-    /** 0x18: JUMPSLD vX+YYYY
+    /** JUMPSLD vX+YYYY
        Jumps the synth sound slide handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPSLD    = 0x18,
 
-    /** 0x19: JUMPSPC vX+YYYY
+    /** JUMPSPC vX+YYYY
        Jumps the synth sound special handling code to the target line
        number within the same synth code specified by vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_JUMPSPC    = 0x19,
 
-    /** 0x1A: CALL    vX+YYYY,vZ
+    /** CALL    vX+YYYY,vZ
        Pushes the next line number being executed to the destination
        variable specified by vZ, then continues execution at the line
        specified by vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_CALL       = 0x1A,
 
-    /** 0x1B: RETURN  vX+YYYY,vZ
+    /** RETURN  vX+YYYY,vZ
        Pops the next line number being executed from vX+YYYY and
        continues execution there. The old line number will be
        stored in the destination variable specified by vZ.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_RETURN     = 0x1B,
 
-    /** 0x1C: POSVAR  vX+YYYY
+    /** POSVAR  vX+YYYY
        Pushes the next line number being executed to the source
        variable specified by vX and adds YYYY to it afterwards,
        then continues execution normally at the next line.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_POSVAR     = 0x1C,
 
-    /** 0x1D: LOAD    vX+YYYY,vZ
+    /** LOAD    vX+YYYY,vZ
        Loads, i.e. moves the contents from the source variable
        vX, adds YYYY afterward to it and stores the final result
        into vZ and sets the condition variable accordingly.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_LOAD       = 0x1D,
 
     /** Arithmetic instructions:  */
-    /** 0x1E: ADD     vX+YYYY,vZ
+    /** ADD     vX+YYYY,vZ
        Adds the contents from vX+YYYY to vZ and stores the final
        result into vZ and sets the condition variable accordingly.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ADD        = 0x1E,
 
-    /** 0x1F: ADDX    vX+YYYY,vZ
+    /** ADDX    vX+YYYY,vZ
        Adds the contents from vX+YYYY (if extend flag is cleared)
        or vX+YYYY+1 (if extend flag is set) to vZ and stores the final
        result into vZ and sets the condition variable accordingly.
@@ -323,13 +323,13 @@ enum AVSequencerSynthCodeInstruction {
        is non-zero, it is not touched otherwise.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ADDX       = 0x1F,
 
-    /** 0x20: SUB     vX+YYYY,vZ
+    /** SUB     vX+YYYY,vZ
        Subtracts the contents from vX+YYYY from vZ and stores the
        final result into vZ and sets the condition variable
        accordingly.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SUB        = 0x20,
 
-    /** 0x21: SUBX    vX+YYYY,vZ
+    /** SUBX    vX+YYYY,vZ
        Subtracts the contents from vX+YYYY (if extend flag is cleared)
        or vX+YYYY+1 (if extend flag is set) from vZ and stores the
        final result into vZ and sets the condition variable
@@ -337,13 +337,13 @@ enum AVSequencerSynthCodeInstruction {
        the result is non-zero, it is not touched otherwise.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SUBX       = 0x21,
 
-    /** 0x22: CMP     vX+YYYY,vZ
+    /** CMP     vX+YYYY,vZ
        Subtracts the contents from vX+YYYY from vZ and sets the
        condition variable accordingly. This does effectively a
        comparision of two values.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_CMP        = 0x22,
 
-    /** 0x23: MULU    vX+YYYY,vZ
+    /** MULU    vX+YYYY,vZ
        Multiplies the contents from vX+YYYY with vZ by threating
        both values as unsigned integers and discards the upper 16 bits
        of the result. The lower 16 bits are stored into vZ and finally
@@ -352,7 +352,7 @@ enum AVSequencerSynthCodeInstruction {
        cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_MULU       = 0x23,
 
-    /** 0x24: MULS    vX+YYYY,vZ
+    /** MULS    vX+YYYY,vZ
        Multiplies the contents from vX+YYYY with vZ by threating
        both values as signed integers and discards the upper 16 bits
        of the result. The lower 16 bits are stored into vZ and finally
@@ -361,7 +361,7 @@ enum AVSequencerSynthCodeInstruction {
        cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_MULS       = 0x24,
 
-    /** 0x25: DMULU   vX+YYYY,[vH:]vL
+    /** DMULU   vX+YYYY,[vH:]vL
        Multiplies the contents from vX+YYYY with vL by threating both
        values as unsigned integers and stores the upper 16 bits of the
        result into vH and the lower 16 bits into vL. vH is always vL
@@ -372,7 +372,7 @@ enum AVSequencerSynthCodeInstruction {
        cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_DMULU      = 0x25,
 
-    /** 0x26: DMULS   vX+YYYY,[vH:]vL
+    /** DMULS   vX+YYYY,[vH:]vL
        Multiplies the contents from vX+YYYY with vL by threating both
        values as signed integers and stores the upper 16 bits of the
        result into vH and the lower 16 bits into vL. vH is always vL
@@ -383,7 +383,7 @@ enum AVSequencerSynthCodeInstruction {
        cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_DMULS      = 0x26,
 
-    /** 0x27: DIVU    vX+YYYY,vZ
+    /** DIVU    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
        values as unsigned integers and stores the quotient into
        vZ and then sets the condition variable accordingly. If a
@@ -393,7 +393,7 @@ enum AVSequencerSynthCodeInstruction {
        always be cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_DIVU       = 0x27,
 
-    /** 0x28: DIVS    vX+YYYY,vZ
+    /** DIVS    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
        values as signed integers and stores the quotient into
        vZ and then sets the condition variable accordingly. If a
@@ -403,7 +403,7 @@ enum AVSequencerSynthCodeInstruction {
        always be cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_DIVS       = 0x28,
 
-    /** 0x29: MODU    vX+YYYY,vZ
+    /** MODU    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
        values as unsigned integers and stores the remainder into
        vZ and then sets the condition variable accordingly. If a
@@ -413,7 +413,7 @@ enum AVSequencerSynthCodeInstruction {
        always be cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_MODU       = 0x29,
 
-    /** 0x2A: MODS    vX+YYYY,vZ
+    /** MODS    vX+YYYY,vZ
        Divides the contents from vX+YYYY by vZ by threating both
        values as signed integers and stores the remainder into
        vZ and then sets the condition variable accordingly. If a
@@ -423,7 +423,7 @@ enum AVSequencerSynthCodeInstruction {
        always be cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_MODS       = 0x2A,
 
-    /** 0x2B: DDIVU   vX+YYYY,[vH:]vL
+    /** DDIVU   vX+YYYY,[vH:]vL
        Divides the contents from vX+YYYY by the 32-bit integer value
        represented by vH * 0x10000 + vL by threating both values as
        unsigned integers and stores the quotient in vL and the
@@ -439,7 +439,7 @@ enum AVSequencerSynthCodeInstruction {
        unchanged and only the overflow flag is set.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_DDIVU      = 0x2B,
 
-    /** 0x2C: DDIVS   vX+YYYY,[vH:]vL
+    /** DDIVS   vX+YYYY,[vH:]vL
        Divides the contents from vX+YYYY by the 32-bit integer value
        represented by vH * 0x10000 + vL by threating both values as
        signed integers and stores the quotient in vL and the remainder
@@ -455,7 +455,7 @@ enum AVSequencerSynthCodeInstruction {
        unchanged and only the overflow flag is set.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_DDIVS      = 0x2C,
 
-    /** 0x2D: ASHL    vX+YYYY,vZ
+    /** ASHL    vX+YYYY,vZ
        Arithmetically left shifts the destination variable specified
        by vZ by a number of bits specified with (vX + YYYY) & 0x003F
        by threatening both values as signed integers and finally sets
@@ -468,7 +468,7 @@ enum AVSequencerSynthCodeInstruction {
        C | Like X, but always cleared when the shift count is 0.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ASHL       = 0x2D,
 
-    /** 0x2E: ASHR    vX+YYYY,vZ
+    /** ASHR    vX+YYYY,vZ
        Arithmetically right shifts the destination variable specified
        by vZ by a number of bits specified with (vX + YYYY) & 0x003F
        by threatening both values as signed integers and finally sets
@@ -481,7 +481,7 @@ enum AVSequencerSynthCodeInstruction {
        C | Like X, but always cleared when the shift count is 0.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ASHR       = 0x2E,
 
-    /** 0x2F: LSHL    vX+YYYY,vZ
+    /** LSHL    vX+YYYY,vZ
        Logically left shifts the destination variable specified
        by vZ by a number of bits specified with (vX + YYYY) & 0x003F
        by threatening both values as unsigned integers and finally
@@ -493,7 +493,7 @@ enum AVSequencerSynthCodeInstruction {
        C | Like X, but always cleared when the shift count is 0.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_LSHL       = 0x2F,
 
-    /** 0x30: LSHR    vX+YYYY,vZ
+    /** LSHR    vX+YYYY,vZ
        Logically right shifts the destination variable specified
        by vZ by a number of bits specified with (vX + YYYY) & 0x003F
        by threatening both values as unsigned integers and finally
@@ -505,7 +505,7 @@ enum AVSequencerSynthCodeInstruction {
        C | Like X, but always cleared when the shift count is 0.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_LSHR       = 0x30,
 
-    /** 0x31: ROL     vX+YYYY,vZ
+    /** ROL     vX+YYYY,vZ
        Left rotates the destination variable specified by vZ by a
        number of bits specified with (vX + YYYY) & 0x003F and finally
        sets the condition variable according to the following table:
@@ -517,7 +517,7 @@ enum AVSequencerSynthCodeInstruction {
            for a shift count of zero.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ROL        = 0x31,
 
-    /** 0x32: ROR     vX+YYYY,vZ
+    /** ROR     vX+YYYY,vZ
        Right rotates the destination variable specified by vZ by a
        number of bits specified with (vX + YYYY) & 0x003F and finally
        sets the condition variable according to the following table:
@@ -529,7 +529,7 @@ enum AVSequencerSynthCodeInstruction {
            for a shift count of zero.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ROR        = 0x32,
 
-    /** 0x33: ROLX    vX+YYYY,vZ
+    /** ROLX    vX+YYYY,vZ
        Left rotates the destination variable specified by vZ by a
        number of bits specified with (vX + YYYY) & 0x003F by using the
        extend flag to determine what bit to rotate in from the right
@@ -543,7 +543,7 @@ enum AVSequencerSynthCodeInstruction {
            for a shift count of zero.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ROLX       = 0x33,
 
-    /** 0x34: RORX    vX+YYYY,vZ
+    /** RORX    vX+YYYY,vZ
        Right rotates the destination variable specified by vZ by a
        number of bits specified with (vX + YYYY) & 0x003F by using the
        extend flag to determine what bit to rotate in from the left
@@ -557,7 +557,7 @@ enum AVSequencerSynthCodeInstruction {
            for a shift count of zero.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_RORX       = 0x34,
 
-    /** 0x35: OR      vX+YYYY,vZ
+    /** OR      vX+YYYY,vZ
        Combines the contents from vX+YYYY to vZ by applying a logical
        OR operator and stores the final result into vZ and sets the
        condition variable accordingly. Please note that the extend
@@ -565,7 +565,7 @@ enum AVSequencerSynthCodeInstruction {
        are always cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_OR         = 0x35,
 
-    /** 0x36: AND     vX+YYYY,vZ
+    /** AND     vX+YYYY,vZ
        Combines the contents from vX+YYYY to vZ by applying a logical
        AND operator and stores the final result into vZ and sets the
        condition variable accordingly. Please note that the extend
@@ -573,7 +573,7 @@ enum AVSequencerSynthCodeInstruction {
        are always cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_AND        = 0x36,
 
-    /** 0x37: XOR     vX+YYYY,vZ
+    /** XOR     vX+YYYY,vZ
        Combines the contents from vX+YYYY to vZ by applying a logical
        exclusive OR operator and stores the final result into vZ and
        sets the condition variable accordingly. Please note that the
@@ -581,7 +581,7 @@ enum AVSequencerSynthCodeInstruction {
        flags are always cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_XOR        = 0x37,
 
-    /** 0x38: NOT     vX+YYYY,vZ
+    /** NOT     vX+YYYY,vZ
        Inverts the destination variable specified by vZ then adds
        vX+YYYY to the final result which is stored in vZ and sets the
        condition variable accordingly. Please note that the extend
@@ -589,14 +589,14 @@ enum AVSequencerSynthCodeInstruction {
        are always cleared.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_NOT        = 0x38,
 
-    /** 0x39: NEG     vX+YYYY,vZ
+    /** NEG     vX+YYYY,vZ
        Negates the destination variable specified by vZ by subtracting
        it from zero, then adds the contents from vX+YYYY to the final
        result which is then stored into vZ and sets the condition
        variable accordingly.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_NEG        = 0x39,
 
-    /** 0x3A: NEGX    vX+YYYY,vZ
+    /** NEGX    vX+YYYY,vZ
        Negates the destination variable specified by vZ by subtracting
        it from either one (if the extend flag is set) or from zero (if
        the extend flag is cleared), then adds the contents from
@@ -604,14 +604,14 @@ enum AVSequencerSynthCodeInstruction {
        sets the condition variable accordingly.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_NEGX       = 0x3A,
 
-    /** 0x3B: EXTB    vX+YYYY,vZ
+    /** EXTB    vX+YYYY,vZ
        Copies bit 7 of the value referenced by vZ to bits 8-15, then
        continues adding the contents from vX+YYYY to the final result
        which is finally stored in vZ and sets the condition variable
        accordingly.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_EXTB       = 0x3B,
 
-    /** 0x3C: EXT     vX+YYYY,[vH:]vL
+    /** EXT     vX+YYYY,[vH:]vL
        Copies bit 15 of vL to bits 0-15 of vH, i.e. vH * 0x10000 + vL
        is threatened as a signed 32-bit value which is sign extended
        from a signed 16-bit value. Since vH is always vL decremented
@@ -622,7 +622,7 @@ enum AVSequencerSynthCodeInstruction {
        as a 32-bit variable.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_EXT        = 0x3C,
 
-    /** 0x3D: XCHG    vX+YYYY,vZ
+    /** XCHG    vX+YYYY,vZ
        Exchanges the contents of the two variables vX and vZ, then
        adds YYYY to the final results which is finally stored in vZ
        and sets the condition variables according to if the final
@@ -630,7 +630,7 @@ enum AVSequencerSynthCodeInstruction {
        calculated by the formula: vZ * 0x10000 + vX+YYYY.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_XCHG       = 0x3D,
 
-    /** 0x3E: SWAP    vX+YYYY,vZ
+    /** SWAP    vX+YYYY,vZ
        Swaps the upper byte (bits 8-15) of the value represented by
        vZ with the lower byte (bits 0-7) of vZ. The condition
        variable is set as if vZ would be compared against zero.
@@ -639,33 +639,33 @@ enum AVSequencerSynthCodeInstruction {
     AVSEQ_SYNTH_CODE_INSTRUCTION_SWAP       = 0x3E,
 
     /** Sound instructions:  */
-    /** 0x3F: GETWAVE vX+YYYY,vZ
+    /** GETWAVE vX+YYYY,vZ
        Gets the current sample waveform number and adds vX+YYYY to the
        obtained sample waveform number, stores the final result in vZ
        and the condition variable remains completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETWAVE    = 0x3F,
 
-    /** 0x40: GETWLEN vX+YYYY,vZ
+    /** GETWLEN vX+YYYY,vZ
        Gets the current sample waveform length in samples and adds
        vX+YYYY to the obtained sample waveform length, stores the
        final result in vZ and the condition variable remains
        completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETWLEN    = 0x40,
 
-    /** 0x41: GETWPOS vX+YYYY,vZ
+    /** GETWPOS vX+YYYY,vZ
        Gets the current sample waveform position in samples and adds
        vX+YYYY to the obtained sample waveform position, stores the
        final result in vZ and the condition variable remains
        completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETWPOS    = 0x41,
 
-    /** 0x42: GETCHAN vX+YYYY,vZ
+    /** GETCHAN vX+YYYY,vZ
        Gets the current host channel number and adds vX+YYYY to the
        obtained host channel number, stores the final result in vZ
        and the condition variable remains completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETCHAN    = 0x42,
 
-    /** 0x43: GETNOTE vX+YYYY,vZ
+    /** GETNOTE vX+YYYY,vZ
        Gets the current note playing and adds vX+YYYY to the obtained
        current octave playing * 12 + current note playing where C- is
        considered as zero, C# as one, D- as two, stores the final
@@ -673,7 +673,7 @@ enum AVSequencerSynthCodeInstruction {
        unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETNOTE    = 0x43,
 
-    /** 0x44: GETRANS vX+YYYY,vZ
+    /** GETRANS vX+YYYY,vZ
        Gets the current note playing and adds vX+YYYY to the obtained
        current octave playing * 12 + current note playing + current
        transpose value, i.e. the final note being played where C- is
@@ -682,7 +682,7 @@ enum AVSequencerSynthCodeInstruction {
        unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETRANS    = 0x44,
 
-    /** 0x45: GETPTCH vX+YYYY,[vH:]vL
+    /** GETPTCH vX+YYYY,[vH:]vL
        Gets the current sample frequency in Hz then adds vX+YYYY to
        the final result which contains,the upper 16 bits of frequency
        in vH and the lower 16 bits of frequency in vL. Since vH is
@@ -692,7 +692,7 @@ enum AVSequencerSynthCodeInstruction {
        unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETPTCH    = 0x45,
 
-    /** 0x46: GETPER  vX+YYYY,[vH:]vL
+    /** GETPER  vX+YYYY,[vH:]vL
        Gets the current sample frequency in Hz and converts it Amiga
        Paula sound chip period value then adds vX+YYYY to the final
        result which contains,the upper 16 bits of the Amiga period
@@ -702,7 +702,7 @@ enum AVSequencerSynthCodeInstruction {
        and the condition variable remains completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETPER     = 0x46,
 
-    /** 0x47: GETFX   vX+YYYY,vZ
+    /** GETFX   vX+YYYY,vZ
        Stores the value of effect number specified by the upper 8 bits
        of vX+YYYY into the destination variable referenced by vZ which
        usually is the last command data word passed to it, e.g. if
@@ -713,122 +713,122 @@ enum AVSequencerSynthCodeInstruction {
        condition variable is completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETFX      = 0x47,
 
-    /** 0x48: GETARPW vX+YYYY,vZ
+    /** GETARPW vX+YYYY,vZ
        Gets the current arpeggio waveform number and adds vX+YYYY to
        the obtained arpeggio waveform number, stores the final result
        in vZ and the condition variable is completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPW    = 0x48,
 
-    /** 0x49: GETARPV vX+YYYY,vZ
+    /** GETARPV vX+YYYY,vZ
        Gets the current arpeggio waveform data value and adds vX+YYYY
        to the obtained arpeggio waveform data value, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPV    = 0x49,
 
-    /** 0x4A: GETARPL vX+YYYY,vZ
+    /** GETARPL vX+YYYY,vZ
        Gets the current arpeggio waveform length in ticks and adds
        vX+YYYY to the obtained arpeggio waveform length, stores the
        final result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPL    = 0x4A,
 
-    /** 0x4B: GETARPP vX+YYYY,vZ
+    /** GETARPP vX+YYYY,vZ
        Gets the current arpeggio waveform position and adds vX+YYYY
        to the obtained arpeggio waveform position, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETARPP    = 0x4B,
 
-    /** 0x4C: GETVIBW vX+YYYY,vZ
+    /** GETVIBW vX+YYYY,vZ
        Gets the current vibrato waveform number and adds vX+YYYY to
        the obtained vibrato waveform number, stores the final result
        in vZ and the condition variable is completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBW    = 0x4C,
 
-    /** 0x4D: GETVIBV vX+YYYY,vZ
+    /** GETVIBV vX+YYYY,vZ
        Gets the current vibrato waveform data value and adds vX+YYYY
        to the obtained vibrato waveform data value, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBV    = 0x4D,
 
-    /** 0x4E: GETVIBL vX+YYYY,vZ
+    /** GETVIBL vX+YYYY,vZ
        Gets the current vibrato waveform length in ticks and adds
        vX+YYYY to the vibrato waveform length, stores the
        final result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBL    = 0x4E,
 
-    /** 0x4F: GETVIBP vX+YYYY,vZ
+    /** GETVIBP vX+YYYY,vZ
        Gets the current vibrato waveform position and adds vX+YYYY
        to the obtained vibrato waveform position, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETVIBP    = 0x4F,
 
-    /** 0x50: GETTRMW vX+YYYY,vZ
+    /** GETTRMW vX+YYYY,vZ
        Gets the current tremolo waveform number and adds vX+YYYY to
        the obtained tremolo waveform number, stores the final result
        in vZ and the condition variable is completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMW    = 0x50,
 
-    /** 0x51: GETTRMV vX+YYYY,vZ
+    /** GETTRMV vX+YYYY,vZ
        Gets the current tremolo waveform data value and adds vX+YYYY
        to the obtained tremolo waveform data value, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMV    = 0x51,
 
-    /** 0x52: GETTRML vX+YYYY,vZ
+    /** GETTRML vX+YYYY,vZ
        Gets the current tremolo waveform length in ticks and adds
        vX+YYYY to the tremolo waveform length, stores the
        final result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRML    = 0x52,
 
-    /** 0x53: GETTRMP vX+YYYY,vZ
+    /** GETTRMP vX+YYYY,vZ
        Gets the current tremolo waveform position and adds vX+YYYY
        to the obtained tremolo waveform position, stores the final
        result in vZ and the condition variable is completely
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETTRMP    = 0x53,
 
-    /** 0x54: GETPANW vX+YYYY,vZ
+    /** GETPANW vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform number and adds
        vX+YYYY to the obtained pannolo / panbrello waveform number,
        stores the final result in vZ and the condition variable is
        completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANW    = 0x54,
 
-    /** 0x55: GETPANV vX+YYYY,vZ
+    /** GETPANV vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform data value and
        adds vX+YYYY to the obtained pannolo / panbrello waveform data
        value, stores the final result in vZ and the condition variable
        is completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANV    = 0x55,
 
-    /** 0x56: GETPANL vX+YYYY,vZ
+    /** GETPANL vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform length in ticks
        and adds vX+YYYY to the pannolo / panbrello waveform length,
        stores the final result in vZ and the condition variable is
        completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANL    = 0x56,
 
-    /** 0x57: GETPANP vX+YYYY,vZ
+    /** GETPANP vX+YYYY,vZ
        Gets the current pannolo / panbrello waveform position and
        adds vX+YYYY to the obtained pannolo / panbrello waveform
        position, stores the final result in vZ and the condition
        variable is completely untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETPANP    = 0x57,
 
-    /** 0x58: GETRND  vX+YYYY,vZ
+    /** GETRND  vX+YYYY,vZ
        Gets a random value in the closed interval of zero and
        vX+YYYY and stores the final result in vZ while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETRND     = 0x58,
 
-    /** 0x59: GETSINE vX+YYYY,vZ
+    /** GETSINE vX+YYYY,vZ
        Gets the sine value by considering vX+YYYY as a 16-bit
        signed value which represents the degrees to calculate
        the sine value from and the final result which ranges always
@@ -837,7 +837,7 @@ enum AVSequencerSynthCodeInstruction {
        will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_GETSINE    = 0x59,
 
-    /** 0x5A: PORTAUP vX+YYYY
+    /** PORTAUP vX+YYYY
        Slides the pitch up with the portamento value specified by
        vX+YYYY (the difference between this and the generic command
        is, that this instruction has its own memory and so does not
@@ -845,7 +845,7 @@ enum AVSequencerSynthCodeInstruction {
        will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PORTAUP    = 0x5A,
 
-    /** 0x5B: PORTADN vX+YYYY
+    /** PORTADN vX+YYYY
        Slides the pitch down with the portamento value specified by
        vX+YYYY (the difference between this and the generic command
        is, that this instruction has its own memory and so does not
@@ -853,27 +853,27 @@ enum AVSequencerSynthCodeInstruction {
        will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PORTADN    = 0x5B,
 
-    /** 0x5C: VIBSPD  vX+YYYY
+    /** VIBSPD  vX+YYYY
        Sets the vibrato speed specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VIBSPD     = 0x5C,
 
-    /** 0x5D: VIBDPTH vX+YYYY
+    /** VIBDPTH vX+YYYY
        Sets the vibrato depth specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VIBDPTH    = 0x5D,
 
-    /** 0x5E: VIBWAVE vX+YYYY
+    /** VIBWAVE vX+YYYY
        Sets the vibrato waveform specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VIBWAVE    = 0x5E,
 
-    /** 0x5F: VIBWAVP vX+YYYY
+    /** VIBWAVP vX+YYYY
        Sets the vibrato waveform position specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VIBWAVP    = 0x5F,
 
-    /** 0x60: VIBRATO vX+YYYY
+    /** VIBRATO vX+YYYY
        Executes the vibrato. The upper 8 bits of vX+YYYY contains the
        vibrato speed or 0 to use the previous value and the lower 8
        bits represents the vibrato depth or 0 to use the previous one.
@@ -882,27 +882,27 @@ enum AVSequencerSynthCodeInstruction {
        remains completely unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VIBRATO    = 0x60,
 
-    /** 0x61: VIBVAL  vX+YYYY
+    /** VIBVAL  vX+YYYY
        Executes the vibrato with the Amiga period specified by vX+YYYY
        without changing the the condition variable.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VIBVAL     = 0x61,
 
-    /** 0x62: ARPSPD  vX+YYYY
+    /** ARPSPD  vX+YYYY
        Sets the arpeggio speed specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ARPSPD     = 0x62,
 
-    /** 0x63: ARPWAVE vX+YYYY
+    /** ARPWAVE vX+YYYY
        Sets the arpeggio waveform specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ARPWAVE    = 0x63,
 
-    /** 0x64: ARPWAVP vX+YYYY
+    /** ARPWAVP vX+YYYY
        Sets the arpeggio waveform position specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ARPWAVP    = 0x64,
 
-    /** 0x65: ARPEGIO vX+YYYY
+    /** ARPEGIO vX+YYYY
        Executes the arpeggio. The upper 8 bits of vX+YYYY contains the
        unsigned arpeggio speed or 0 to use the previous value and the
        lower 8 bits represents the signed finetuning value. or 0 to
@@ -910,7 +910,7 @@ enum AVSequencerSynthCodeInstruction {
        unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ARPEGIO    = 0x65,
 
-    /** 0x66: ARPVAL  vX+YYYY
+    /** ARPVAL  vX+YYYY
        Executes the arpeggio. The upper 8 bits of vX+YYYY contains the
        signed transpose value to be used as arpeggio or 0 to use the
        previous one and the lower 8 bits represents the signed
@@ -918,7 +918,7 @@ enum AVSequencerSynthCodeInstruction {
        variable will remain unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ARPVAL     = 0x66,
 
-    /** 0x67: SETWAVE vX+YYYY
+    /** SETWAVE vX+YYYY
        Sets the sample waveform number specified by vX+YYYY when
        the current sample playing either arrives at end of sample or
        reaches a loop end marker or if no sample is being played it
@@ -926,33 +926,33 @@ enum AVSequencerSynthCodeInstruction {
        completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SETWAVE    = 0x67,
 
-    /** 0x68: ISETWAV vX+YYYY
+    /** ISETWAV vX+YYYY
        Sets the sample waveform number specified by vX+YYYY either by
        immediately breaking the current sample playing or simply
        start the new one if no sample being played The condition
        variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_ISETWAV    = 0x68,
 
-    /** 0x69: SETWAVP vX+YYYY
+    /** SETWAVP vX+YYYY
        Sets the sample waveform position in samples specified by
        vX+YYYY while the condition variable remains unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SETWAVP    = 0x69,
 
-    /** 0x6A: SETRANS vX+YYYY
+    /** SETRANS vX+YYYY
        Replaces the sample transpose value specified by vX+YYYY and
        interpreted as a signed 16-bit value with the transpose value
        of current sample while preserving all flags of the condition
        variable.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SETRANS    = 0x6A,
 
-    /** 0x6B: SETNOTE vX+YYYY
+    /** SETNOTE vX+YYYY
        Sets a new sample frequency by using the transpose value
        specified by vX+YYYY without replacing the old transpose value
        interpreted as a signed 16-bit value while preserving all flags
        of the condition variable.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SETNOTE    = 0x6B,
 
-    /** 0x6C: SETPTCH vX+YYYY,[vH:]vL
+    /** SETPTCH vX+YYYY,[vH:]vL
        Sets the current sample frequency in Hz by adding vX+YYYY to
        vH * 0x10000 + vL which contains,the upper 16 bits of frequency
        in vH and the lower 16 bits of frequency in vL and take that
@@ -963,7 +963,7 @@ enum AVSequencerSynthCodeInstruction {
        completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SETPTCH    = 0x6C,
 
-    /** 0x6D: SETPER  vX+YYYY,[vH:]vL
+    /** SETPER  vX+YYYY,[vH:]vL
        Sets the current sample frequency in Hz by converting first
        the Amiga Paula sound chip period value gathered by adding
        first vX+YYYY to vH * 0x10000 + vL which contains,the upper 16
@@ -975,7 +975,7 @@ enum AVSequencerSynthCodeInstruction {
        variable remains completely unaffected.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_SETPER     = 0x6D,
 
-    /** 0x6E: RESET   vX+YYYY
+    /** RESET   vX+YYYY
        Resets the vibrato / tremolo / pannolo (panbrello) counters
        depending on the mask obtained by vX+YYYY which is defined
        by the following table (all condition variable flags are
@@ -989,7 +989,7 @@ enum AVSequencerSynthCodeInstruction {
          0x0020 | Disables portamento reset.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_RESET      = 0x6E,
 
-    /** 0x6F: VOLSLUP vX+YYYY
+    /** VOLSLUP vX+YYYY
        Slides the volume up with the volume level specified by
        vX+YYYY (the difference between this and the generic command
        is, that this instruction has its own memory and so does not
@@ -997,7 +997,7 @@ enum AVSequencerSynthCodeInstruction {
        will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VOLSLUP    = 0x6F,
 
-    /** 0x70: VOLSLDN vX+YYYY
+    /** VOLSLDN vX+YYYY
        Slides the volume down with the volume level specified by
        vX+YYYY (the difference between this and the generic command
        is, that this instruction has its own memory and so does not
@@ -1005,27 +1005,27 @@ enum AVSequencerSynthCodeInstruction {
        will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_VOLSLDN    = 0x70,
 
-    /** 0x71: TRMSPD  vX+YYYY
+    /** TRMSPD  vX+YYYY
        Sets the tremolo speed specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_TRMSPD     = 0x71,
 
-    /** 0x72: TRMDPTH vX+YYYY
+    /** TRMDPTH vX+YYYY
        Sets the tremolo depth specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_TRMDPTH    = 0x72,
 
-    /** 0x73: TRMWAVE vX+YYYY
+    /** TRMWAVE vX+YYYY
        Sets the tremolo waveform specified by vX+YYYY while the
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_TRMWAVE    = 0x73,
 
-    /** 0x74: TRMWAVP vX+YYYY
+    /** TRMWAVP vX+YYYY
        Sets the tremolo waveform position specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_TRMWAVP    = 0x74,
 
-    /** 0x75: TREMOLO vX+YYYY
+    /** TREMOLO vX+YYYY
        Executes the tremolo. The upper 8 bits of vX+YYYY contains the
        tremolo speed or 0 to use the previous value and the lower 8
        bits represents the tremolo depth or 0 to use the previous one.
@@ -1034,13 +1034,13 @@ enum AVSequencerSynthCodeInstruction {
        remains completely unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_TREMOLO    = 0x75,
 
-    /** 0x76: TRMVAL  vX+YYYY
+    /** TRMVAL  vX+YYYY
        Executes the tremolo with a absolute volume obtained from
        vX+YYYY or 0 to use the previous one. The condition variable
        will remain unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_TRMVAL     = 0x76,
 
-    /** 0x77: PANLEFT vX+YYYY
+    /** PANLEFT vX+YYYY
        Slides the panning position to left stereo with the panning
        level specified by vX+YYYY (the difference between this and the
        generic command is, that this instruction has its own memory
@@ -1048,7 +1048,7 @@ enum AVSequencerSynthCodeInstruction {
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANLEFT    = 0x77,
 
-    /** 0x78: PANRIGHT vX+YYYY
+    /** PANRIGHT vX+YYYY
        Slides the panning position to right stereo with the panning
        level specified by vX+YYYY (the difference between this and the
        generic command is, that this instruction has its own memory
@@ -1056,29 +1056,29 @@ enum AVSequencerSynthCodeInstruction {
        condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANRGHT    = 0x78,
 
-    /** 0x79: PANSPD  vX+YYYY
+    /** PANSPD  vX+YYYY
        Sets the pannolo (panbrello) speed specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANSPD     = 0x79,
 
-    /** 0x7A: PANDPTH vX+YYYY
+    /** PANDPTH vX+YYYY
        Sets the pannolo (panbrello) depth specified by vX+YYYY while
        the condition variable will be completely kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANDPTH    = 0x7A,
 
-    /** 0x7B: PANWAVE vX+YYYY
+    /** PANWAVE vX+YYYY
        Sets the pannolo (panbrello) waveform specified by vX+YYYY
        while the condition variable will be completely kept
        untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANWAVE    = 0x7B,
 
-    /** 0x7C: PANWAVP vX+YYYY
+    /** PANWAVP vX+YYYY
        Sets the pannolo (panbrello) waveform position specified by
        vX+YYYY while the condition variable will be completely
        kept untouched.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANWAVP    = 0x7C,
 
-    /** 0x7D: PANNOLO vX+YYYY
+    /** PANNOLO vX+YYYY
        Executes the pannolo (panbrello). The upper 8 bits of vX+YYYY
        contains the pannolo speed or 0 to use the previous value and
        the lower 8 bits represents the pannolo depth or 0 to use the
@@ -1087,7 +1087,7 @@ enum AVSequencerSynthCodeInstruction {
        condition variable remains completely unchanged.  */
     AVSEQ_SYNTH_CODE_INSTRUCTION_PANNOLO    = 0x7D,
 
-    /** 0x7E: PANVAL  vX+YYYY
+    /** PANVAL  vX+YYYY
        Executes the pannolo (panbrello) with a absolute panning
        obtained from vX+YYYY or 0 to use the previous one. The
        condition variable will remain unchanged.  */

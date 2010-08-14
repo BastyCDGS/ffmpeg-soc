@@ -30,7 +30,7 @@ enum AVSequencerOrderDataFlags {
     AVSEQ_ORDER_DATA_FLAG_END_SONG      = 0x02, ///< Order data indicates end of whole song
     AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE   = 0x04, ///< Order data will be skipped if you're playing in one-time mode
     AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT = 0x08, ///< Order data will be skipped if you're playing in repeat mode
-    AVSEQ_ORDER_DATA_FLAG_TRACK_SYNC    = 0x10, ///< Order data is a track synchronization point.
+    AVSEQ_ORDER_DATA_FLAG_TRACK_SYNC    = 0x10, ///< Order data is a track synchronization point
     AVSEQ_ORDER_DATA_FLAG_SET_VOLUME    = 0x20, ///< Order data takes advantage of the order list volume set
 };
 
@@ -89,12 +89,13 @@ typedef struct AVSequencerOrderData {
        in the internal playback engine.  */
     uint8_t flags;
 
-    /** Relative note transpose for full track. Allows playing several
-       tracks some half-tones up/down.  */
+    /** Relative note transpose for full track in semitones.
+       Allows playing several tracks some half-tones up/down.  */
     int8_t transpose;
 
     /** Instrument transpose. All instruments will be relatively
-       mapped to this if this is non-zero.  */
+       mapped to this if this is non-zero, i.e. added to the
+       instrument number from the track data.  */
     int16_t instr_transpose;
 
     /** Tempo change or zero to skip tempo change. A tempo value of

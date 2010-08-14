@@ -89,7 +89,7 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
 }
 
 int avseq_track_data_open(AVSequencerTrack *track) {
-    AVSequencerTrackData *data;
+    AVSequencerTrackRow *data;
     unsigned last_row;
 
     if (!track)
@@ -98,12 +98,12 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     data     = track->data;
     last_row = track->last_row + 1;
 
-    if (!(data = av_realloc(data, (last_row * sizeof(AVSequencerTrackData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    if (!(data = av_realloc(data, (last_row * sizeof(AVSequencerTrackRow)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(track, AV_LOG_ERROR, "Cannot allocate storage container.\n");
         return AVERROR(ENOMEM);
     }
 
-    memset ( data, 0, last_row * sizeof(AVSequencerTrackData) );
+    memset ( data, 0, last_row * sizeof(AVSequencerTrackRow) );
 
     track->data     = data;
     track->last_row = (uint16_t) (last_row - 1);
@@ -115,7 +115,7 @@ AVSequencerTrackEffect *avseq_track_effect_create(void) {
     return av_mallocz(sizeof(AVSequencerTrackEffect));
 }
 
-int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackData *data, AVSequencerTrackEffect *effect) {
+int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, AVSequencerTrackEffect *effect) {
     AVSequencerTrackEffect **fx_list;
     uint16_t effects;
 
@@ -150,7 +150,7 @@ AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track)
 }
 
 int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len) {
-    AVSequencerTrackData *data;
+    AVSequencerTrackRow *data;
     uint16_t rows, last_pack_row = 0;
     uint8_t pack_type;
 

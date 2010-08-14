@@ -28,28 +28,28 @@
 /** AVSequencerTrackEffect->command values.  */
 enum AVSequencerTrackEffectCommand {
     /** Note effect commands.
-       0x00 - Arpeggio:
+       Arpeggio:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the first halftone and yy the second halftone.
        Both xx and yy are signed values which means that a
        negative value is a backward arpeggio.  */
     AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO      = 0x00,
 
-    /** 0x01 - Portamento up:
+    /** Portamento up:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the portamento up slide value and yy is
        a super finetuning with a 256x accuracy.
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_PORTA_UP      = 0x01,
 
-    /** 0x02 - Portamento down:
+    /** Portamento down:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the portamento down slide value and yy is
        a super finetuning with a 256x accuracy.
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN    = 0x02,
 
-    /** 0x03 - Fine portamento up:
+    /** Fine portamento up:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the fine portamento up slide value which is
        16 times more accurate than command byte 01 and yy is
@@ -57,7 +57,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_PORTA_UP    = 0x03,
 
-    /** 0x04 - Fine portamento down:
+    /** Fine portamento down:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the fine portamento down slide value which is
        16 times more accurate than command byte 01 and yy is
@@ -65,7 +65,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_PORTA_DOWN  = 0x04,
 
-    /** 0x05 - Portamento up once:
+    /** Portamento up once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the portamento up slide value and yy is
        a super finetuning with a 256x accuracy. The portamento
@@ -73,7 +73,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_O_PORTA_UP    = 0x05,
 
-    /** 0x06 - Portamento down once:
+    /** Portamento down once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the portamento down slide value and yy is
        a super finetuning with a 256x accuracy. The portamento
@@ -81,7 +81,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_O_PORTA_DOWN  = 0x06,
 
-    /** 0x07 - Fine portamento up once:
+    /** Fine portamento up once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the fine portamento up slide value which is
        16 times more accurate than command byte 01 and yy is
@@ -90,7 +90,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_OFPORTA_UP    = 0x07,
 
-    /** 0x08 - Fine portamento down once:
+    /** Fine portamento down once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the fine portamento down slide value which is
        16 times more accurate than command byte 01 and yy is
@@ -99,14 +99,14 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_OFPORTA_DOWN  = 0x08,
 
-    /** 0x09 - Tone portamento:
+    /** Tone portamento:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the target tone slide value encoded as;
        octave * 12 + note and yy is a super finetuning with
        a 256x accuracy. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TONE_PORTA    = 0x09,
 
-    /** 0x0A - Fine tone portamento:
+    /** Fine tone portamento:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the target tone slide value encoded as;
        octave * 12 + note which is 16 times more accurate
@@ -114,7 +114,7 @@ enum AVSequencerTrackEffectCommand {
        a 256x accuracy. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_TONE_PORTA  = 0x0A,
 
-    /** 0x0B - Tone portamento once:
+    /** Tone portamento once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the target tone slide value encoded as;
        octave * 12 + note and yy is a super finetuning with
@@ -123,7 +123,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_O_TONE_PORTA  = 0x0B,
 
-    /** 0x0C - Fine tone portamento once:
+    /** Fine tone portamento once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the target tone slide value encoded as;
        octave * 12 + note which is 16 times more accurate
@@ -133,7 +133,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_OFTONE_PORTA  = 0x0C,
 
-    /** 0x0D - Note slide:
+    /** Note slide:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is a declared set of values which interpret
        the actual action according to the following table:
@@ -149,7 +149,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_NOTE_SLIDE    = 0x0D,
 
-    /** 0x0E - Vibrato:
+    /** Vibrato:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the vibrato speed and yy is the vibrato
        depth. The vibrato values are compatible with the
@@ -160,7 +160,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_VIBRATO       = 0x0E,
 
-    /** 0x0F - Fine vibrato:
+    /** Fine vibrato:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the vibrato speed and yy is the fine vibrato
        depth. The vibrato values are compatible with the MOD
@@ -171,7 +171,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_FINE_VIBRATO  = 0x0F,
 
-    /** 0x10 - Vibrato once:
+    /** Vibrato once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the vibrato speed and yy is the vibrato
        depth. The vibrato values are compatible with the MOD,
@@ -183,7 +183,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_VIBRATO_ONCE  = 0x10,
 
-    /** 0x11 - Fine vibrato once:
+    /** Fine vibrato once:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the vibrato speed and yy is the fine vibrato
        depth. The vibrato values are compatible with the MOD,
@@ -195,25 +195,25 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_F_VIB_ONCE    = 0x11,
 
-    /** 0x12 - Do a keyoff:
+    /** Do a keyoff:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the
        keyoff is executed.  */
     AVSEQ_TRACK_EFFECT_CMD_DO_KEYOFF     = 0x12,
 
-    /** 0x13 - Do a hold delay:
+    /** Do a hold delay:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the
        hold delay is executed.  */
     AVSEQ_TRACK_EFFECT_CMD_DO_HOLD       = 0x13,
 
-    /** 0x14 - Do a fadeout:
+    /** Do a fadeout:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the
        fadeout is executed.  */
     AVSEQ_TRACK_EFFECT_CMD_NOTE_FADE     = 0x14,
 
-    /** 0x15 - Note cut:
+    /** Note cut:
        Data word consists of 4-bit upper nibble named x
        and 12-bit unsigned value named yyy. If x is
        zero then just the volume is set to zero,
@@ -221,13 +221,13 @@ enum AVSequencerTrackEffectCommand {
        completely.  */
     AVSEQ_TRACK_EFFECT_CMD_NOTE_CUT      = 0x15,
 
-    /** 0x16 - Note delay:
+    /** Note delay:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the note
        delay is executed.  */
     AVSEQ_TRACK_EFFECT_CMD_NOTE_DELAY    = 0x16,
 
-    /** 0x17 - Tremor:
+    /** Tremor:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the number of ticks the note is turned on
        and yy is the number of ticks the note is turned off
@@ -235,7 +235,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TREMOR        = 0x17,
 
-    /** 0x18 - Note retrigger:
+    /** Note retrigger:
        Data word consists of a 16-bit unsigned value which represents
        the retrigger repeat tick count. This command is mostly the
        same as the MOD note retrigger (E9x) command. It differs in
@@ -253,7 +253,7 @@ enum AVSequencerTrackEffectCommand {
        (fraction is is just dropped away).  */
     AVSEQ_TRACK_EFFECT_CMD_RETRIG_NOTE   = 0x18,
 
-    /** 0x19 - Multi retrigger note:
+    /** Multi retrigger note:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the retrigger repeat tick count and yy
        is the mode how to affect the volume levels, 0x80-0xBF
@@ -270,7 +270,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_MULTI_RETRIG  = 0x19,
 
-    /** 0x1A - Extended control:
+    /** Extended control:
        Data word consists of one upper 4-bit nibble named x and of
        a 12-bit value named yyy. All values are considered unsigned
        and the meaning of x is declared by the following table:
@@ -305,7 +305,7 @@ enum AVSequencerTrackEffectCommand {
            since other values are reserved for newer versions of FFmpeg.
        6 | Set pitch sub-slide value to lower 8-bits of yyy.  */
 
-    /** 0x1B - Invert loop:
+    /** Invert loop:
        Data word consists of a 16-bit unsigned value
        which represents the tick number at which the sample
        speed being inverted. Some trackers this effect Funk It!
@@ -314,14 +314,14 @@ enum AVSequencerTrackEffectCommand {
        sample data.  */
     AVSEQ_TRACK_EFFECT_CMD_INVERT_LOOP   = 0x1B,
 
-    /** 0x1C - Execute command effect at tick:
+    /** Execute command effect at tick:
        Data word consists of a 16-bit unsigned value which
        represents the tick number at where the next effect
        will be executed. This also can be used to simulate
        fast slides or vibratos by putting a zero as value.  */
     AVSEQ_TRACK_EFFECT_CMD_EXECUTE_FX    = 0x1C,
 
-    /** 0x1D - Stop command effect at tick:
+    /** Stop command effect at tick:
        Data word consists of two 8-bit pairs named xx and yy
        where xx represents the tick number at where to stop
        command effect execution and yy will be the command
@@ -331,7 +331,7 @@ enum AVSequencerTrackEffectCommand {
 
     /* Volume effect commands.  */
 
-    /** 0x20 - Set volume:
+    /** Set volume:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the volume level (ranging either from
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
@@ -339,7 +339,7 @@ enum AVSequencerTrackEffectCommand {
        of a volume level. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_VOLUME    = 0x20,
 
-    /** 0x21 - Volume slide up:
+    /** Volume slide up:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the volume level (ranging either from
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
@@ -348,7 +348,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_UP    = 0x21,
 
-    /** 0x22 - Volume slide down:
+    /** Volume slide down:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the volume level (ranging either from
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
@@ -357,7 +357,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_DOWN  = 0x22,
 
-    /** 0x23 - Fine volume slide up:
+    /** Fine volume slide up:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the volume level (ranging either from
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
@@ -367,7 +367,7 @@ enum AVSequencerTrackEffectCommand {
        (at first tick). Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_VOLSL_UP    = 0x23,
 
-    /** 0x24 - Fine volume slide down:
+    /** Fine volume slide down:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the volume level (ranging either from
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
@@ -377,7 +377,7 @@ enum AVSequencerTrackEffectCommand {
        (at first tick). Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_VOLSL_DOWN  = 0x24,
 
-    /** 0x25 - Volume slide to:
+    /** Volume slide to:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is either the volume level (ranging either from
        0x01 - 0xFE or in tracker volume mode from 0x01 - 0x3F)
@@ -389,7 +389,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_TO    = 0x25,
 
-    /** 0x26 - Tremolo:
+    /** Tremolo:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the tremolo speed and yy is the tremolo
        depth. The tremolo values are compatible with the MOD,
@@ -400,7 +400,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_TREMOLO       = 0x26,
 
-    /** 0x27 - Tremolo once:
+    /** Tremolo once:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the tremolo speed and yy is the tremolo depth. The
        tremolo values are compatible with the MOD, S3M, XM and IT
@@ -411,7 +411,7 @@ enum AVSequencerTrackEffectCommand {
        means that the tremolo envelope values will be inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_TREMOLO_ONCE  = 0x27,
 
-    /** 0x28 - Set track volume:
+    /** Set track volume:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) and yy is the
@@ -420,7 +420,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_TRK_VOL   = 0x28,
 
-    /** 0x29 - Track volume slide up:
+    /** Track volume slide up:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) to slide up and
@@ -429,7 +429,7 @@ enum AVSequencerTrackEffectCommand {
        scaled with track volume. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_UP    = 0x29,
 
-    /** 0x2A - Track volume slide down:
+    /** Track volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) to slide down and
@@ -438,7 +438,7 @@ enum AVSequencerTrackEffectCommand {
        scaled with track volume. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_DOWN  = 0x2A,
 
-    /** 0x2B - Fine track volume slide up:
+    /** Fine track volume slide up:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) to slide up and
@@ -449,7 +449,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_TVOL_SL_UP  = 0x2B,
 
-    /** 0x2C - Fine track volume slide down:
+    /** Fine track volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) to slide down and
@@ -460,7 +460,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_TVOL_SL_DN  = 0x2C,
 
-    /** 0x2D - Track volume slide to:
+    /** Track volume slide to:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is either the track volume level (ranging either from
        0x01 - 0xFE or in tracker volume mode from 0x01 - 0x3F) to
@@ -472,7 +472,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TVOL_SLD_TO   = 0x2D,
 
-    /** 0x2E - Track tremolo:
+    /** Track tremolo:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track tremolo speed and yy is the track tremolo
        depth. The track tremolo values are compatible with the MOD,
@@ -483,7 +483,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_TRK_TREMOLO   = 0x2E,
 
-    /** 0x2F - Track tremolo once:
+    /** Track tremolo once:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track tremolo speed and yy is the track tremolo
        depth. The track tremolo values are compatible with the MOD,
@@ -496,7 +496,7 @@ enum AVSequencerTrackEffectCommand {
 
     /* Panning effect commands.  */
 
-    /** 0x30 - Set panning position:
+    /** Set panning position:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning position ranging from 0x00 (full stereo left
        left panning) to 0xFF (full stereo right panning) while 0x80
@@ -506,7 +506,7 @@ enum AVSequencerTrackEffectCommand {
        position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_PANNING   = 0x30,
 
-    /** 0x31 - Panning slide left:
+    /** Panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning left position level ranging from 0x00 - 0xFF
        and yy is the sub-panning slide left position which allows to
@@ -514,7 +514,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_PAN_SL_LEFT   = 0x31,
 
-    /** 0x32 - Panning slide right:
+    /** Panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning right slide position ranging from 0x00 - 0xFF
        and yy is the sub-panning slide right position which allows to
@@ -522,7 +522,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_PAN_SL_RIGHT  = 0x32,
 
-    /** 0x33 - Fine panning slide left:
+    /** Fine panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning left slide position ranging from 0x00 - 0xFF
        and yy is the sub-panning slide left position which allows to
@@ -531,7 +531,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_P_SL_LEFT   = 0x33,
 
-    /** 0x34 - Fine panning slide right:
+    /** Fine panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning right slide position ranging from 0x00 - 0xFF
        and yy is the sub-panning slide right position which allows to
@@ -540,7 +540,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_P_SL_RIGHT  = 0x34,
 
-    /** 0x35 - Panning slide to:
+    /** Panning slide to:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the panning position ranging from 0x01 (almost full stereo
        left panning) to 0xFE (almost full stereo right panning) while
@@ -554,7 +554,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_PAN_SLD_TO    = 0x35,
 
-    /** 0x36 - Pannolo / Panbrello:
+    /** Pannolo / Panbrello:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the pannolo speed and yy is the pannolo
        depth. The pannolo values are compatible with the MOD,
@@ -565,7 +565,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_PANNOLO       = 0x36,
 
-    /** 0x37 - Pannolo / Panbrello once:
+    /** Pannolo / Panbrello once:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the pannolo speed and yy is the pannolo depth. The
        pannolo values are compatible with the MOD, S3M, XM and IT
@@ -576,7 +576,7 @@ enum AVSequencerTrackEffectCommand {
        means that the pannolo envelope values will be inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_PANNOLO_ONCE  = 0x37,
 
-    /** 0x38 - Set track panning:
+    /** Set track panning:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track panning position ranging from 0x00 (full stereo
        left panning) to 0xFF (full stereo right panning) while 0x80
@@ -587,7 +587,7 @@ enum AVSequencerTrackEffectCommand {
        panning position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_TRK_PAN   = 0x38,
 
-    /** 0x39 - Track panning slide left:
+    /** Track panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track panning left slide position ranging from
        0x00 - 0xFF and yy is the sub-panning track slide left
@@ -596,7 +596,7 @@ enum AVSequencerTrackEffectCommand {
        panning position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_LEFT  = 0x39,
 
-    /** 0x3A - Track panning slide right:
+    /** Track panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track panning right slide position ranging from
        0x00 - 0xFF and yy is the sub-panning track slide right
@@ -605,7 +605,7 @@ enum AVSequencerTrackEffectCommand {
        panning position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_RGHT  = 0x3A,
 
-    /** 0x3B - Fine track panning slide left:
+    /** Fine track panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track panning left slide position ranging from
        0x00 - 0xFF and yy is the sub-panning track slide left
@@ -616,7 +616,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_TP_SL_LEFT  = 0x3B,
 
-    /** 0x3C - Fine track panning slide right:
+    /** Fine track panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track panning right slide position ranging from
        0x00 - 0xFF and yy is the sub-panning track slide right
@@ -627,7 +627,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_TP_SL_RGHT  = 0x3C,
 
-    /** 0x3D - Track panning slide to:
+    /** Track panning slide to:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track panning position ranging from 0x01 (almost full
        stereo left panning) to 0xFE (almost full stereo right panning)
@@ -642,7 +642,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_TPAN_SLD_TO   = 0x3D,
 
-    /** 0x3E - Track pannolo / panbrello:
+    /** Track pannolo / panbrello:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track pannolo speed and yy is the track pannolo
        depth. The track pannolo values are compatible with the MOD,
@@ -653,7 +653,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_TRK_PANNOLO   = 0x3E,
 
-    /** 0x3F - Track pannolo / panbrello once:
+    /** Track pannolo / panbrello once:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the track pannolo speed and yy is the track pannolo depth.
        The track pannolo values are compatible with the MOD, S3M, XM
@@ -666,13 +666,13 @@ enum AVSequencerTrackEffectCommand {
 
     /* Track effect commands.  */
 
-    /** 0x40 - Set channel tempo:
+    /** Set channel tempo:
        Data word consists of a 16-bit unsigned value which
        represents the number of ticks per row to change to
        for this track or zero for marking the song end.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_TEMPO     = 0x40,
 
-    /** 0x41 - Set channel tempo:
+    /** Set channel tempo:
        Data word consists of a 16-bit signed value which
        represents the relative number of ticks per row to
        add for this track. A positive value will make the
@@ -680,27 +680,27 @@ enum AVSequencerTrackEffectCommand {
        value will make it faster instead.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_REL_TMPO  = 0x41,
 
-    /** 0x42 - Pattern break:
+    /** Pattern break:
        Data word consists of a 16-bit unsigned value which
        represents the new row where to start next track after
        breaking current track. Zero is the first track.  */
     AVSEQ_TRACK_EFFECT_CMD_PATT_BREAK    = 0x42,
 
-    /** 0x43 - Position jump:
+    /** Position jump:
        Data word consists of a 16-bit unsigned value which
        represents the new position / order list number to
        jump to (zero being the first order list entry).
        The current track is cancelled immediately.  */
     AVSEQ_TRACK_EFFECT_CMD_POS_JUMP      = 0x43,
 
-    /** 0x44 - Relative position jump:
+    /** Relative position jump:
        Data word consists of a 16-bit signed value which
        represents the new relative position / order list
        number to jump to. A positive value means a forward
        jump and negative values represent backward jumping.  */
     AVSEQ_TRACK_EFFECT_CMD_REL_POS_JUMP  = 0x44,
 
-    /** 0x45 - Change pattern:
+    /** Change pattern:
        Data word consists of a 16-bit unsigned value which
        represents the new track number where to switch
        to. Unlike pattern break this effect does not change
@@ -708,7 +708,7 @@ enum AVSequencerTrackEffectCommand {
        track being played.  */
     AVSEQ_TRACK_EFFECT_CMD_CHG_PATTERN   = 0x45,
 
-    /** 0x46 - Reverse play control:
+    /** Reverse play control:
        Data word consists of a 16-bit unsigned value which
        either has the value 0xFF00 for changing playback
        direction to always backwards, 0x0001 for changing
@@ -716,20 +716,20 @@ enum AVSequencerTrackEffectCommand {
        playback direction.  */
     AVSEQ_TRACK_EFFECT_CMD_REVERSE_PLAY  = 0x46,
 
-    /** 0x47 - Pattern delay:
+    /** Pattern delay:
        Data word consists of a 16-bit unsigned value which
        determines the value of number of rows to compact
        to one, i.e. the row will be delayed for this track
        while the effects continue normal executing.  */
     AVSEQ_TRACK_EFFECT_CMD_PATT_DELAY    = 0x47,
 
-    /** 0x48 - Fine pattern delay:
+    /** Fine pattern delay:
        Data word consists of a 16-bit unsigned value which
        determines the value of number of ticks to compact delay
        this track, the effects continue normal executing.  */
     AVSEQ_TRACK_EFFECT_CMD_F_PATT_DELAY  = 0x48,
 
-    /** 0x49 - Pattern loop:
+    /** Pattern loop:
        Data word consists of a 16-bit unsigned value which determines
        determines either setting the loop mark when the value is zero
        which pushes the current order list / position number on the
@@ -738,7 +738,7 @@ enum AVSequencerTrackEffectCommand {
        is full, the newest loop mark will be overwritten.  */
     AVSEQ_TRACK_EFFECT_CMD_PATT_LOOP     = 0x49,
 
-    /** 0x4A - GoSub:
+    /** GoSub:
        Data word consists of a 16-bit unsigned value which represents
        the new order list entry number where to jump to. The current
        order list entry and track row number is pushed on the GoSub
@@ -746,7 +746,7 @@ enum AVSequencerTrackEffectCommand {
        new order list entry otherwise simply nothing happens.  */
     AVSEQ_TRACK_EFFECT_CMD_GOSUB         = 0x4A,
 
-    /** 0x4B - Return from GoSub:
+    /** Return from GoSub:
        Data word consists of a 16-bit unsigned value which determines,
        if set to non-zero, the row number of the track number stored
        with the GoSub command otherwise it will continue playback at
@@ -754,7 +754,7 @@ enum AVSequencerTrackEffectCommand {
        will be disabled for the whole song.  */
     AVSEQ_TRACK_EFFECT_CMD_RETURN        = 0x4B,
 
-    /** 0x4C - Channel synchronization:
+    /** Channel synchronization:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the first channel to synchronize with and yy the second
        channel to synchronize with. If both xx and yy are zero, it
@@ -764,7 +764,7 @@ enum AVSequencerTrackEffectCommand {
        is finished. Both xx and yy represent unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_CHANNEL_SYNC  = 0x4C,
 
-    /** 0x4D - Set target sub-slide to:
+    /** Set target sub-slide to:
        Data word consists of two unsigned 8-bit pairs named xx and yy
        where xx defines the the target sub-slide types to set the
        sub-slide values to for having 256x more finer control which
@@ -784,7 +784,7 @@ enum AVSequencerTrackEffectCommand {
 
     /* Instrument, sample and synth effect commands.  */
 
-    /** 0x50 - Sample offset high word:
+    /** Sample offset high word:
        Data word consists of a 16-bit unsigned value which
        is the high word (upper 16 bits) of the target
        sample position to start the sample playback at.
@@ -792,7 +792,7 @@ enum AVSequencerTrackEffectCommand {
        position (see below).  */
     AVSEQ_TRACK_EFFECT_CMD_SMP_OFF_HIGH  = 0x50,
 
-    /** 0x51 - Sample offset low word:
+    /** Sample offset low word:
        Data word consists of a 16-bit unsigned value which is the low
        word (lower 16 bits) of the target sample position to start
        the sample playback at. This effect executes the actual change
@@ -802,28 +802,27 @@ enum AVSequencerTrackEffectCommand {
        accuracy of exactly one sample.  */
     AVSEQ_TRACK_EFFECT_CMD_SMP_OFF_LOW   = 0x51,
 
-    /** 0x52 - Set hold:
+    /** Set hold:
        Data word consists of a 16-bit unsigned value which
        represents the new hold count of MED-style trackers
        to be used. This allows resetting the hold instrument.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_HOLD      = 0x52,
 
-    /** 0x53 - Set decay:
+    /** Set decay:
        Data word consists of a 16-bit unsigned value which
        contains either the decay to be set (if decay is not
        alread in action or the decay counter otherwise, i.e.
        new hold count of MED-style trackers.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_DECAY     = 0x53,
 
-    /** 0x54 - Set transpose:
+    /** Set transpose:
        Data word consists of two signed 8-bit pairs named xx and yy
        where xx is the new transpose and yy the new finetune value
        which should be applied to the new note. This command has
        no effect if not used in conjunction with a new note.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_TRANSP    = 0x54,
 
-    /** Instrument control. Data word = xxyy.  */
-    /** 0x55 - Instrument control:
+    /** Instrument control:
        Data word consists of two 8-bit pairs named xx and yy
        where xx are the turn off bits and yy the turn off bits.
        Bits not touched by either will be prevented from the
@@ -850,7 +849,7 @@ enum AVSequencerTrackEffectCommand {
                instead of the Amiga one.  */
     AVSEQ_TRACK_EFFECT_CMD_INS_CONTROL   = 0x55,
 
-    /** 0x56 - Instrument change:
+    /** Instrument change:
        Data word consists of one upper 4-bit nibble named x and of a
        12-bit value named yyy. All values are considered unsigned and
        the meanings of x change by declarition of the following table:
@@ -882,7 +881,7 @@ enum AVSequencerTrackEffectCommand {
            being 0x002.  */
     AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE    = 0x56,
 
-    /** 0x57 - Synth control:
+    /** Synth control:
        Data word consists of two 8-bit pairs named xx and yy where
        xx the amount of following entries (see table below) are
        to be included into changing values, e.g. 0x0F10 would change
@@ -922,14 +921,14 @@ enum AVSequencerTrackEffectCommand {
        0x28 | Set arpeggio waveform.  */
     AVSEQ_TRACK_EFFECT_CMD_SYNTH_CTRL    = 0x57,
 
-    /** 0x58 - Set synth value:
+    /** Set synth value:
        Data word consists of a 16-bit unsigned value which
        contains the actual value to be set, since command
        0x57 (synth control) does only set the type not the
        actual value (unless most upper bit is set).  */
     AVSEQ_TRACK_EFFECT_CMD_SET_SYN_VAL   = 0x58,
 
-    /** 0x59 - Envelope control:
+    /** Envelope control:
        Data word consists of two unsigned 8-bit pairs named xx and yy
        where xx is the kind of envelope to be selected as declared by
        the following table which can have the most upper bit set to
@@ -987,14 +986,14 @@ enum AVSequencerTrackEffectCommand {
        0x0F | Set random highest value.  */
     AVSEQ_TRACK_EFFECT_CMD_ENV_CONTROL   = 0x59,
 
-    /** 0x5A - Set envelope value:
+    /** Set envelope value:
        Data word consists of a 16-bit unsigned value which
        contains the actual value to be set, since command
        0x59 (envelope control) does only set the type not
        the actual value (unless most upper bit is set).  */
     AVSEQ_TRACK_EFFECT_CMD_SET_ENV_VAL   = 0x5A,
 
-    /** 0x5B - NNA (New Note Action) control:
+    /** NNA (New Note Action) control:
        Data word consists of two unsigned 8-bit pairs named xx and yy
        where xx is the kind of note action to be changed and yy
        the type of note action to be controlled. xx and yy are declared
@@ -1035,7 +1034,7 @@ enum AVSequencerTrackEffectCommand {
        compared with OR when an xx of 0x11 would be used.  */
     AVSEQ_TRACK_EFFECT_CMD_NNA_CONTROL   = 0x5B,
 
-    /** 0x5C - Loop control:
+    /** Loop control:
        Data word consists of one upper 4-bit nibble named x and of a
        12-bit value named yyy. All values are considered unsigned and
        the meanings of x change by declarition of the following table
@@ -1066,7 +1065,7 @@ enum AVSequencerTrackEffectCommand {
 
     /* Global effect commands.  */
 
-    /** 0x60 - Set speed:
+    /** Set speed:
        Data word consists of one upper 4-bit nibble named x and of a
        12-bit value named yyy. All values are considered unsigned and
        the meanings of x indicate what kind of tempo or speed should
@@ -1096,7 +1095,7 @@ enum AVSequencerTrackEffectCommand {
        tempos which is required for MED compatibility.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_SPEED     = 0x60,
 
-    /** 0x61 - Speed slide faster:
+    /** Speed slide faster:
        Data word consists of a 16-bit unsigned value which contains
        the actual speed faster slide value. It will always slide the
        currently selected timing mode with set tempo (0x60) command.
@@ -1105,7 +1104,7 @@ enum AVSequencerTrackEffectCommand {
        than 8 (see there). Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_FAST  = 0x61,
 
-    /** 0x62 - Speed slide slower:
+    /** Speed slide slower:
        Data word consists of a 16-bit unsigned value which contains
        the actual speed slower slide value. It will always slide the
        currently selected timing mode with set tempo (0x60) command.
@@ -1114,7 +1113,7 @@ enum AVSequencerTrackEffectCommand {
        than 8 (see there). Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_SLOW  = 0x62,
 
-    /** 0x63 - Fine speed slide faster:
+    /** Fine speed slide faster:
        Data word consists of a 16-bit unsigned value which contains
        the actual speed faster slide value. It will always slide the
        currently selected timing mode with set tempo (0x60) command.
@@ -1125,7 +1124,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_S_SLD_FAST  = 0x63,
 
-    /** 0x64 - Fine speed slide slower:
+    /** Fine speed slide slower:
        Data word consists of a 16-bit unsigned value which contains
        the actual speed slower slide value. It will always slide the
        currently selected timing mode with set tempo (0x60) command.
@@ -1136,7 +1135,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_S_SLD_SLOW  = 0x64,
 
-    /** 0x65 - Speed slide to:
+    /** Speed slide to:
        Data word consists of two 8-bit pairs named xx and yy where
        xx represents the unsigned speed ranging from 0x01 - 0xFE
        to slide to (the target speed desired), 0x00 to execute the
@@ -1149,7 +1148,7 @@ enum AVSequencerTrackEffectCommand {
        selected timing mode is smaller than 8 (see there).  */
     AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_TO    = 0x65,
 
-    /** 0x66 - Spenolo (vibrato for speed):
+    /** Spenolo (vibrato for speed):
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the spenolo speed and yy is the spenolo depth. The
        spenolo values are compatible with the MOD, S3M, XM and IT
@@ -1162,7 +1161,7 @@ enum AVSequencerTrackEffectCommand {
        if the selected timing mode is smaller than 8 (see there).  */
     AVSEQ_TRACK_EFFECT_CMD_SPENOLO       = 0x66,
 
-    /** 0x67 - Spenolo once (vibrato once for speed):
+    /** Spenolo once (vibrato once for speed):
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the spenolo speed and yy is the spenolo depth. The
        spenolo values are compatible with the MOD, S3M, XM and IT
@@ -1176,7 +1175,7 @@ enum AVSequencerTrackEffectCommand {
        if the selected timing mode is smaller than 8 (see there).  */
     AVSEQ_TRACK_EFFECT_CMD_SPENOLO_ONCE  = 0x67,
 
-    /** 0x68 - Channel control:
+    /** Channel control:
        Data word consists of one upper 4-bit pair named x, followed
        by one 4-bit pair named y (bits 8-11) and an 8-bit pair named
        zz where x is the kind of the channel action and y chooses the
@@ -1240,7 +1239,7 @@ enum AVSequencerTrackEffectCommand {
        0x11 | Mutes the channel is zz is zero, un-mutes otherwise.  */
     AVSEQ_TRACK_EFFECT_CMD_CHANNEL_CTRL  = 0x68,
 
-    /** 0x69 - Set global volume:
+    /** Set global volume:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) and yy is the
@@ -1249,7 +1248,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_G_VOLUME  = 0x69,
 
-    /** 0x6A - Global volume slide up:
+    /** Global volume slide up:
        Data word consists of two 8-bit pairs named xx and yy
        where xx is the global volume level (ranging either from
        0x00 - 0xFF or in tracker volume mode from 0x00 - 0x40)
@@ -1258,7 +1257,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_UP    = 0x6A,
 
-    /** 0x6B - Global volume slide down:
+    /** Global volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where xx
        is the global volume level (ranging either from 0x00 - 0xFF or
        in tracker volume mode from 0x00 - 0x40) to slide down and yy
@@ -1267,7 +1266,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_DOWN  = 0x6B,
 
-    /** 0x6C - Fine global volume slide up:
+    /** Fine global volume slide up:
        Data word consists of two 8-bit pairs named xx and yy where xx
        xx is the global volume level (ranging either from 0x00 - 0xFF
        or in tracker volume mode from 0x00 - 0x40) to slide up and yy
@@ -1277,7 +1276,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_G_VOL_UP    = 0x6C,
 
-    /** 0x6D - Fine global volume slide down:
+    /** Fine global volume slide down:
        Data word consists of two 8-bit pairs named xx and yy where xx
        is the global volume level (ranging either from 0x00 - 0xFF or
        in tracker volume mode from 0x00 - 0x40) to slide down and yy
@@ -1287,7 +1286,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_F_G_VOL_DOWN  = 0x6D,
 
-    /** 0x6E - Global volume slide to:
+    /** Global volume slide to:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is either the global volume level (ranging either from
        0x01 - 0xFE or in tracker volume mode from 0x01 - 0x3F) to
@@ -1299,7 +1298,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_G_VOLSL_TO    = 0x6E,
 
-    /** 0x6F - Global tremolo:
+    /** Global tremolo:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global tremolo speed and yy is the global tremolo
        depth. The global tremolo values are compatible with the MOD,
@@ -1310,7 +1309,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_G_TREMOLO     = 0x6F,
 
-    /** 0x70 - Global tremolo once:
+    /** Global tremolo once:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global tremolo speed and yy is the global tremolo
        depth. The global tremolo values are compatible with the MOD,
@@ -1321,7 +1320,7 @@ enum AVSequencerTrackEffectCommand {
        means that the tremolo envelope values will be inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_G_TREMO_ONCE  = 0x70,
 
-    /** 0x71 - Set global panning:
+    /** Set global panning:
        Data word consists of two 8-bit pairs named xx and yy where xx
        is the global panning position ranging from 0x00 (full stereo
        left panning) to 0xFF (full stereo right panning) while 0x80
@@ -1332,7 +1331,7 @@ enum AVSequencerTrackEffectCommand {
        panning position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_SET_G_PAN     = 0x71,
 
-    /** 0x72 - Global panning slide left:
+    /** Global panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global panning left slide position ranging from
        0x00 - 0xFF and yy is the sub-panning global slide left
@@ -1341,7 +1340,7 @@ enum AVSequencerTrackEffectCommand {
        panning position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_GPANSL_LEFT   = 0x72,
 
-    /** 0x73 - Global panning slide right:
+    /** Global panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global panning right slide position ranging from
        0x00 - 0xFF and yy is the sub-panning global slide right
@@ -1350,7 +1349,7 @@ enum AVSequencerTrackEffectCommand {
        panning position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_GPANSL_RIGHT  = 0x73,
 
-    /** 0x74 - Fine global panning slide left:
+    /** Fine global panning slide left:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global panning left slide position ranging from
        0x00 - 0xFF and yy is the sub-panning global slide left
@@ -1361,7 +1360,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_FGP_SL_LEFT   = 0x74,
 
-    /** 0x75 - Fine global panning slide right:
+    /** Fine global panning slide right:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global panning right slide position ranging from
        0x00 - 0xFF and yy is the sub-panning global slide right
@@ -1372,7 +1371,7 @@ enum AVSequencerTrackEffectCommand {
        Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_FGP_SL_RIGHT  = 0x75,
 
-    /** 0x76 - Global panning slide to:
+    /** Global panning slide to:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global panning position ranging from 0x01 (almost
        full stereo left panning) to 0xFE (almost full stereo right
@@ -1387,7 +1386,7 @@ enum AVSequencerTrackEffectCommand {
        position. Both xx and yy are unsigned values.  */
     AVSEQ_TRACK_EFFECT_CMD_GPANSL_TO     = 0x76,
 
-    /** 0x77 - Global pannolo / panbrello:
+    /** Global pannolo / panbrello:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global pannolo speed and yy is the global pannolo
        depth. The global pannolo values are compatible with the MOD,
@@ -1398,7 +1397,7 @@ enum AVSequencerTrackEffectCommand {
        inverted.  */
     AVSEQ_TRACK_EFFECT_CMD_G_PANNOLO    = 0x77,
 
-    /** 0x78 - Global pannolo / panbrello once:
+    /** Global pannolo / panbrello once:
        Data word consists of two 8-bit pairs named xx and yy where
        xx is the global pannolo speed and yy is the global pannolo
        depth. The global pannolo values are compatible with the MOD,
@@ -1430,7 +1429,7 @@ typedef struct AVSequencerTrackEffect {
 } AVSequencerTrackEffect;
 
 /** AVSequencerTrackEffect->note values.  */
-enum AVSequencerTrackDataNote {
+enum AVSequencerTrackRowNote {
     /** ---  */
     AVSEQ_TRACK_DATA_NOTE_NONE       = 0,
 
@@ -1497,7 +1496,7 @@ enum AVSequencerTrackDataNote {
  * Removal, reordering and changes to existing fields require a major
  * version bump.
  */
-typedef struct AVSequencerTrackData {
+typedef struct AVSequencerTrackRow {
     /** Array (of size effects) of pointers containing all effects
        used by this track.  */
     AVSequencerTrackEffect **effects_data;
@@ -1517,7 +1516,7 @@ typedef struct AVSequencerTrackData {
 
     /** Number of instrument to be played or 0 to take previous one.  */
     uint16_t instrument;
-} AVSequencerTrackData;
+} AVSequencerTrackRow;
 
 /** AVSequencerTrack->compat_flags bitfield.  */
 enum AVSequencerTrackCompatFlags {
@@ -1557,8 +1556,8 @@ typedef struct AVSequencerTrack {
        track begin and finish date of composition and comment.  */
     AVMetadata *metadata;
 
-    /** AVSequencerTrackData pointer to array of track data.  */
-    AVSequencerTrackData *data;
+    /** AVSequencerTrackRow pointer to array of track data.  */
+    AVSequencerTrackRow *data;
 
     /** Last valid row of track (defaults to 63 = 0x3F) which
        is the default for most trackers (64 rows per pattern).  */

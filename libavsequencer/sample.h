@@ -107,8 +107,8 @@ typedef struct AVSequencerSample {
        if this is neither a synth nor a hybrid.  */
     AVSequencerSynth *synth;
 
-    /** Pointer to raw sample data, must be padded for
-       perfect perfomance gain when accessing sample data.
+    /** Pointer to raw sample data, must be aligned to allow
+       possible CPU optimizations when accessing sample data.
        This can be NULL in case if this is a MIDI instrument
        or a synth sound instead.  */
     int16_t *data;
