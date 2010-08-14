@@ -2675,7 +2675,7 @@ static int iff_read_packet(AVFormatContext *s,
         pkt->pts                = iff->audio_frame_count;
         iff->audio_frame_count += mixer_data->mix_buf_size;
 
-        return mixer_data->mix_buf_size;
+        return size;
     }
 #endif
 
