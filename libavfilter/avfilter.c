@@ -21,8 +21,8 @@
 
 /* #define DEBUG */
 
-#include "libavcodec/imgconvert.h"
 #include "libavutil/pixdesc.h"
+#include "libavcore/imgutils.h"
 #include "avfilter.h"
 #include "internal.h"
 
@@ -211,6 +211,9 @@ AVFilterBufferRef *avfilter_get_video_buffer(AVFilterLink *link, int perms, int 
     if(!ret)
         ret = avfilter_default_get_video_buffer(link, perms, w, h);
 
+    if (ret)
+        ret->type = AVMEDIA_TYPE_VIDEO;
+
     FF_DPRINTF_START(NULL, get_video_buffer); ff_dprintf_link(NULL, link, 0); dprintf(NULL, " returning "); ff_dprintf_picref(NULL, ret, 1);
 
     return ret;
@@ -319,7 +322,7 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 
         for(i = 0; i < 4; i ++) {
             int planew =
-                ff_get_plane_bytewidth(link->format, link->cur_buf->video->w, i);
+                av_get_image_linesize(link->format, link->cur_buf->video->w, i);
 
             if(!src[i]) continue;
 
