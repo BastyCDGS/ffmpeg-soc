@@ -661,7 +661,7 @@ read_unknown_chunk:
             }
 
             st->codec->sample_rate = mixctx->frequency;
-            st->codec->channels    = (av_stristr(args, "stereo=true;") && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
+            st->codec->channels    = ((av_stristr(args, "stereo=true;") || av_stristr(args, "stereo=enabled;") || av_stristr(args, "stereo=1;")) && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
 
             if ((res = avseq_module_play ( iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0)
                 return res;
