@@ -662,6 +662,7 @@ read_unknown_chunk:
 
             st->codec->sample_rate = mixctx->frequency;
             st->codec->channels    = ((av_stristr(args, "stereo=true;") || av_stristr(args, "stereo=enabled;") || av_stristr(args, "stereo=1;")) && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
+            iff->body_size         = ((uint64_t) s->duration * st->codec->sample_rate * (st->codec->channels << 2)) / AV_TIME_BASE;
 
             if ((res = avseq_module_play ( iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0)
                 return res;
@@ -672,7 +673,6 @@ read_unknown_chunk:
 #else
             st->codec->codec_id              = CODEC_ID_PCM_S32LE;
 #endif
-            break;
         }
 #endif
         st->codec->bit_rate = st->codec->channels * st->codec->sample_rate * st->codec->bits_per_coded_sample;
@@ -2647,6 +2647,9 @@ static int iff_read_packet(AVFormatContext *s,
     ByteIOContext *pb = s->pb;
     AVStream *st = s->streams[0];
     int ret;
+
+    if(iff->sent_bytes >= iff->body_size)
+        return AVERROR(EIO);
 #if CONFIG_AVSEQUENCER
     if (iff->avctx) {
         AVSequencerMixerData *mixer_data = iff->avctx->player_mixer_data;
@@ -2670,14 +2673,11 @@ static int iff_read_packet(AVFormatContext *s,
         st->time_base           = (AVRational) {1, st->codec->sample_rate};
         pkt->stream_index       = 0;
         pkt->pts                = iff->audio_frame_count;
-        iff->audio_frame_count += ret / st->codec->channels;
+        iff->audio_frame_count += mixer_data->mix_buf_size;
 
-        return ret;
+        return mixer_data->mix_buf_size;
     }
 #endif
-
-    if(iff->sent_bytes >= iff->body_size)
-        return AVERROR(EIO);
 
     if(st->codec->channels == 2) {
         uint8_t sample_buffer[PACKET_SIZE];
