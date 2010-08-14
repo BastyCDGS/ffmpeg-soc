@@ -120,9 +120,9 @@ typedef struct AVSequencerOrderData {
 
 /** AVSequencerOrderList->flags bitfield.  */
 enum AVSequencerOrderListFlags {
-    AVSEQ_ORDER_LIST_FLAG_CHANNEL_SURROUND  = 0x01, ///< Initial channel surround instead of stereo panning
-    AVSEQ_ORDER_LIST_FLAG_TRACK_SURROUND    = 0x02, ///< Initial track surround instead of stereo panning
-    AVSEQ_ORDER_LIST_FLAG_MUTED             = 0x04, ///< Initial muted channel
+    AVSEQ_ORDER_LIST_FLAG_CHANNEL_SURROUND  = 0x01, ///< Use initial channel surround instead of stereo panning
+    AVSEQ_ORDER_LIST_FLAG_TRACK_SURROUND    = 0x02, ///< Use initial track surround instead of stereo panning
+    AVSEQ_ORDER_LIST_FLAG_MUTED             = 0x04, ///< Use initial muted channel
 };
 
 /**

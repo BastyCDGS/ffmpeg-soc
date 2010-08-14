@@ -1432,61 +1432,61 @@ typedef struct AVSequencerTrackEffect {
 /** AVSequencerTrackEffect->note values.  */
 enum AVSequencerTrackDataNote {
     /** ---  */
-    AVSEQ_TRACK_DATA_NOTE_NONE          = 0,
+    AVSEQ_TRACK_DATA_NOTE_NONE       = 0,
 
     /** C-n  */
-    AVSEQ_TRACK_DATA_NOTE_C             = 1,
+    AVSEQ_TRACK_DATA_NOTE_C,
 
     /** C#n = Dbn  */
-    AVSEQ_TRACK_DATA_NOTE_C_SHARP       = 2,
+    AVSEQ_TRACK_DATA_NOTE_C_SHARP,
 
     /** D-n  */
-    AVSEQ_TRACK_DATA_NOTE_D             = 3,
+    AVSEQ_TRACK_DATA_NOTE_D,
 
     /** D#n = Ebn  */
-    AVSEQ_TRACK_DATA_NOTE_D_SHARP       = 4,
+    AVSEQ_TRACK_DATA_NOTE_D_SHARP,
 
     /** E-n  */
-    AVSEQ_TRACK_DATA_NOTE_E             = 5,
+    AVSEQ_TRACK_DATA_NOTE_E,
 
     /** F-n  */
-    AVSEQ_TRACK_DATA_NOTE_F             = 6,
+    AVSEQ_TRACK_DATA_NOTE_F,
 
     /** F#n = Gbn  */
-    AVSEQ_TRACK_DATA_NOTE_F_SHARP       = 7,
+    AVSEQ_TRACK_DATA_NOTE_F_SHARP,
 
     /** G-n  */
-    AVSEQ_TRACK_DATA_NOTE_G             = 8,
+    AVSEQ_TRACK_DATA_NOTE_G,
 
     /** G#n = Abn  */
-    AVSEQ_TRACK_DATA_NOTE_G_SHARP       = 9,
+    AVSEQ_TRACK_DATA_NOTE_G_SHARP,
 
     /** A-n  */
-    AVSEQ_TRACK_DATA_NOTE_A             = 10,
+    AVSEQ_TRACK_DATA_NOTE_A,
 
     /** A#n = Bbn  */
-    AVSEQ_TRACK_DATA_NOTE_A_SHARP       = 11,
+    AVSEQ_TRACK_DATA_NOTE_A_SHARP,
 
     /** B-n = H-n  */
-    AVSEQ_TRACK_DATA_NOTE_B             = 12,
+    AVSEQ_TRACK_DATA_NOTE_B,
 
     /** ^^^ = note kill  */
-    AVSEQ_TRACK_DATA_NOTE_KILL          = -1,
+    AVSEQ_TRACK_DATA_NOTE_KILL       = -1,
 
     /** ^^- = note off  */
-    AVSEQ_TRACK_DATA_NOTE_OFF           = -2,
+    AVSEQ_TRACK_DATA_NOTE_OFF        = -2,
 
     /** === = keyoff note  */
-    AVSEQ_TRACK_DATA_NOTE_KEYOFF        = -3,
+    AVSEQ_TRACK_DATA_NOTE_KEYOFF     = -3,
 
     /** -|- = hold delay  */
-    AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY    = -4,
+    AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY = -4,
 
     /** -\- = note fade  */
-    AVSEQ_TRACK_DATA_NOTE_FADE          = -5,
+    AVSEQ_TRACK_DATA_NOTE_FADE       = -5,
 
     /** END = pattern end marker  */
-    AVSEQ_TRACK_DATA_NOTE_END           = -16,
+    AVSEQ_TRACK_DATA_NOTE_END        = -16,
 };
 
 /**
@@ -1512,7 +1512,7 @@ typedef struct AVSequencerTrackData {
        trackers if values outside this range are used.  */
     uint8_t octave;
 
-    /** Note to be played (see defines below, n is octave number).  */
+    /** Note to be played (see definition above).  */
     int8_t note;
 
     /** Number of instrument to be played or 0 to take previous one.  */

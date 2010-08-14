@@ -81,11 +81,9 @@ typedef struct AVSequencerModule {
     uint16_t arpeggios;
 
     /** Forced duration of the module, in AV_TIME_BASE fractional
-       seconds. This is the total sum of all sub-song durations
-       this module contains or zero if the duration is unknown and
-       also cannot be automatically determined. The composer then can
-       set manually a duration after which the player can skip over to
-       the next module if it is playing back in once mode.  */
+       seconds. If non-zero, the song should forcibly end after
+       this duration, even if there are still notes to
+       be played.  */
     uint64_t forced_duration;
 
     /** Maximum number of virtual channels, including NNA (New Note

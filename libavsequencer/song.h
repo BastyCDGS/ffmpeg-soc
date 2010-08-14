@@ -41,7 +41,7 @@ enum AVSequencerSongFlags {
     AVSEQ_SONG_FLAG_LINEAR_FREQ_TABLE   = 0x01, ///< Use linear instead of Amiga frequency table
     AVSEQ_SONG_FLAG_SPD                 = 0x02, ///< Use SPD (OctaMED style) timing instead of BpM
     AVSEQ_SONG_FLAG_MONO                = 0x04, ///< Use mono instead of stereo output
-    AVSEQ_SONG_FLAG_SURROUND            = 0x08, ///< Initial global surround instead of stereo panning
+    AVSEQ_SONG_FLAG_SURROUND            = 0x08, ///< Initially use default global surround instead of stereo panning
 };
 
 /**

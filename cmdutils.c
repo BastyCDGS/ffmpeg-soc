@@ -337,15 +337,15 @@ static int warned_cfg = 0;
 
 static void print_all_libs_info(FILE* outstream, int flags)
 {
-    PRINT_LIB_INFO(outstream, avutil,   AVUTIL,   flags);
-    PRINT_LIB_INFO(outstream, avcore,   AVCORE,   flags);
-    PRINT_LIB_INFO(outstream, avcodec,  AVCODEC,  flags);
-    PRINT_LIB_INFO(outstream, avformat, AVFORMAT, flags);
+    PRINT_LIB_INFO(outstream, avutil,      AVUTIL,      flags);
+    PRINT_LIB_INFO(outstream, avcore,      AVCORE,      flags);
+    PRINT_LIB_INFO(outstream, avcodec,     AVCODEC,     flags);
+    PRINT_LIB_INFO(outstream, avformat,    AVFORMAT,    flags);
     PRINT_LIB_INFO(outstream, avsequencer, AVSEQUENCER, flags);
-    PRINT_LIB_INFO(outstream, avdevice, AVDEVICE, flags);
-    PRINT_LIB_INFO(outstream, avfilter, AVFILTER, flags);
-    PRINT_LIB_INFO(outstream, swscale,  SWSCALE,  flags);
-    PRINT_LIB_INFO(outstream, postproc, POSTPROC, flags);
+    PRINT_LIB_INFO(outstream, avdevice,    AVDEVICE,    flags);
+    PRINT_LIB_INFO(outstream, avfilter,    AVFILTER,    flags);
+    PRINT_LIB_INFO(outstream, swscale,     SWSCALE,     flags);
+    PRINT_LIB_INFO(outstream, postproc,    POSTPROC,    flags);
 }
 
 void show_banner(void)

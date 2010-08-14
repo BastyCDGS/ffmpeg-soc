@@ -187,7 +187,7 @@ typedef struct AVSequencerArpeggio {
     AVSequencerArpeggioData *data;
 
     /** Instrument arpeggio control flags. Some sequencers feature
-       customized arpeggio command control.which have to be taken
+       customized arpeggio command control, which have to be taken
        care specially in the internal playback engine.  */
     uint16_t flags;
 
