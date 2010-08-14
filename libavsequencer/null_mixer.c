@@ -24,6 +24,7 @@
  * Sequencer null mixer.
  */
 
+#include "libavutil/avstring.h"
 #include "libavsequencer/mixer.h"
 
 typedef struct AVSequencerNULLMixerData {
@@ -540,7 +541,7 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     uint64_t pass_value;
     uint32_t buf_size, mix_buf_mem_size, channel_rate;
     uint16_t channels, i;
-    uint8_t stereo;
+    uint8_t stereo = 0;
 
     if (!mixer_data)
         return AVERROR_INVALIDDATA;
@@ -549,7 +550,8 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     buf_size        = null_mixer_data->mixer_data.mix_buf_size;
     channels        = null_mixer_data->mixer_data.channels_max;
 
-    // TODO: Implement stereo and mono settings
+    if (av_stristr(args, "stereo=true;"))
+        stereo = 1;
 
     if (!null_mixer_data->channel_info || (channels != null_mixer_data->channels)) {
         AVSequencerNULLMixerChannelInfo *old_channel_info;

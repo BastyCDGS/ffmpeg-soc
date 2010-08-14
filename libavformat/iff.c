@@ -227,7 +227,7 @@ static int iff_read_header(AVFormatContext *s,
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
     uint8_t buf[24];
-    const char *args = "load_samples=true; samples_dir=; load_synth_code_symbols=true;";
+    const char *args = "stereo=true; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
@@ -661,7 +661,7 @@ read_unknown_chunk:
             }
 
             st->codec->sample_rate = mixctx->frequency;
-            st->codec->channels    = (mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
+            st->codec->channels    = (av_stristr(args, "stereo=true;") && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
 
             if ((res = avseq_module_play ( iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0)
                 return res;

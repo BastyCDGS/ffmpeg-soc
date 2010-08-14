@@ -24,6 +24,7 @@
  * Sequencer low quality integer mixer.
  */
 
+#include "libavutil/avstring.h"
 #include "libavsequencer/mixer.h"
 
 typedef struct AVSequencerLQMixerData {
@@ -880,7 +881,7 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     uint64_t pass_value;
     uint32_t buf_size, mix_buf_mem_size, channel_rate;
     uint16_t channels, i;
-    uint8_t stereo;
+    uint8_t stereo = 0;
 
     if (!mixer_data)
         return AVERROR_INVALIDDATA;
@@ -889,7 +890,8 @@ static int mixer_init ( AVSequencerMixerData *mixer_data, const char *args, void
     buf_size      = lq_mixer_data->mixer_data.mix_buf_size;
     channels      = lq_mixer_data->mixer_data.channels_max;
 
-    // TODO: Implement stereo and mono settings
+    if (av_stristr(args, "stereo=true;"))
+        stereo = 1;
 
     if ((channels != lq_mixer_data->channels) || (lq_mixer_data->mixer_data.volume_boost != lq_mixer_data->amplify) || (stereo != lq_mixer_data->stereo_mode)) {
         int32_t *volume_lut  = lq_mixer_data->volume_lut;
