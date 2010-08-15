@@ -175,7 +175,7 @@ void avsequencer_register_all(void);
  */
 int avseq_mixer_register(AVSequencerMixerContext *mixctx);
 
-/** Gets a mixer by it's name.
+/** Gets a mixer by its name.
  *
  * @param name the name of the mixer to get
  * @return pointer to mixer context on success, NULL otherwise

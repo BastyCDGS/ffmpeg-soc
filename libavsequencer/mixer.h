@@ -188,7 +188,7 @@ typedef struct AVSequencerMixerData {
 
     /** Executes one tick of the playback handler when enough mixing
        data has been processed.  */
-    int (*handler)( struct AVSequencerMixerData *mixer_data );
+    int (*handler)(struct AVSequencerMixerData *mixer_data);
 } AVSequencerMixerData;
 
 /** AVSequencerMixerContext->flags bitfield.  */
