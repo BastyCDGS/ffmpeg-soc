@@ -172,6 +172,25 @@ typedef struct AVSequencerPlayerGlobals {
         the loop start and loop count for recursive loops.  */
     uint16_t *loop_stack;
 
+    /** Stack size, i.e. maximum recursion depth of GoSub command which
+       defaults to 4.  */
+    uint16_t gosub_stack_size;
+
+    /** Stack size, i.e. maximum recursion depth of the pattern loop
+       command, which defaults to 1 to imitate most trackers (most
+       trackers do not even support any other value than one, i.e.
+       the pattern loop command is not nestable).  */
+    uint16_t loop_stack_size;
+
+    /** Maximum number of host channels allocated in the stack
+       (defaults to 16).  */
+    uint16_t stack_channels;
+
+   /** Maximum number of virtual channels, including NNA (New Note
+       Action) background channels to be allocated and processed by
+       the mixing engine (defaults to 64).  */
+    uint16_t virtual_channels;
+
     /** Player envelope flags. Some sequencers allow envelopes
        to operate in different modes, e.g. different loop types,
        randomization, processing modes which have to be taken

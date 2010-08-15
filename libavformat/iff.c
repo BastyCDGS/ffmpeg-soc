@@ -48,10 +48,10 @@ static const char *const metadata_tag_list[] = {
 
 /* Metadata string read */
 static int seq_get_metadata (AVFormatContext *s, AVMetadata **const metadata, const char *const tag, const unsigned data_size);
-static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint32_t data_size );
+static int open_tcm1_song ( AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size );
 static int open_song_patt ( AVFormatContext *s, AVSequencerSong *song, uint32_t data_size );
 static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t data_size );
-static int open_song_posi ( AVFormatContext *s, AVSequencerSong *song, uint32_t data_size );
+static int open_song_posi ( AVFormatContext *s, AVSequencerContext *avctx, AVSequencerSong *song, uint32_t data_size );
 static int open_posi_post ( AVFormatContext *s, AVSequencerSong *song, uint32_t channel, uint32_t data_size );
 static int open_post_posl ( AVFormatContext *s, AVSequencerOrderList *order_list, uint32_t data_size );
 
@@ -258,7 +258,7 @@ static int iff_read_header(AVFormatContext *s,
             return res;
         }
 
-        avseq_module_set_channels ( module, 1 );
+        avseq_module_set_channels ( iff->avctx, module, 1 );
 
         st->codec->codec_type  = AVMEDIA_TYPE_AUDIO;
     }
@@ -350,7 +350,7 @@ static int iff_read_header(AVFormatContext *s,
 
             switch (get_le32(pb)) {
             case ID_SONG:
-                if ((res = open_tcm1_song ( s, module, data_size)) < 0)
+                if ((res = open_tcm1_song ( s, iff->avctx, module, data_size)) < 0)
                     return res;
 
                 break;
@@ -667,6 +667,9 @@ read_unknown_chunk:
             if ((res = avseq_module_play ( iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0)
                 return res;
 
+            if ((res = avseq_song_reset ( iff->avctx, module->song_list[0])) < 0)
+                return res;
+
             st->codec->bits_per_coded_sample = 32;
 #if AV_HAVE_BIGENDIAN
             st->codec->codec_id              = CODEC_ID_PCM_S32BE;
@@ -720,7 +723,7 @@ static int seq_get_metadata(AVFormatContext *s,
     return 0;
 }
 
-static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint32_t data_size ) {
+static int open_tcm1_song ( AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size ) {
     ByteIOContext *pb = s->pb;
     AVSequencerSong *song;
     uint32_t iff_size = 4;
@@ -740,7 +743,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
         return res;
     }
 
-    avseq_song_set_channels ( song, 1 );
+    avseq_song_set_channels ( avctx, song, 1 );
 
     while (!url_feof(pb) && (data_size -= iff_size)) {
         unsigned year, month, day, hour, min, sec, cts;
@@ -824,7 +827,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
             song->global_panning     = get_byte(pb);
             song->global_sub_panning = get_byte(pb);
 
-            if ((res = avseq_song_set_channels ( song, channels)) < 0)
+            if ((res = avseq_song_set_channels ( avctx, song, channels)) < 0)
                 return res;
 
             break;
@@ -836,7 +839,7 @@ static int open_tcm1_song ( AVFormatContext *s, AVSequencerModule *module, uint3
 
                 break;
             case ID_POSI:
-                if ((res = open_song_posi ( s, song, iff_size)) < 0)
+                if ((res = open_song_posi ( s, avctx, song, iff_size)) < 0)
                     return res;
 
                 break;
@@ -1063,7 +1066,7 @@ static int open_patt_trak ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
     return 0;
 }
 
-static int open_song_posi ( AVFormatContext *s, AVSequencerSong *song, uint32_t data_size ) {
+static int open_song_posi ( AVFormatContext *s, AVSequencerContext *avctx, AVSequencerSong *song, uint32_t data_size ) {
     ByteIOContext *pb = s->pb;
     uint32_t iff_size = 4, channel = 0;
     int res;
@@ -1086,7 +1089,7 @@ static int open_song_posi ( AVFormatContext *s, AVSequencerSong *song, uint32_t 
             switch (get_le32(pb)) {
             case ID_POST:
                 if (channel >= song->channels) {
-                    if ((res = avseq_song_set_channels ( song, channel + 1)) < 0)
+                    if ((res = avseq_song_set_channels ( avctx, song, channel + 1)) < 0)
                         return res;
                 }
 

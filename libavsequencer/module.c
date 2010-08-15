@@ -86,6 +86,10 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
     AVSequencerPlayerHostChannel *player_host_channel;
     AVSequencerPlayerChannel *player_channel;
     AVSequencerMixerData *mixer_data;
+    uint16_t *gosub_stack = NULL;
+    uint16_t *loop_stack = NULL;
+    uint16_t *new_gosub_stack = NULL;
+    uint16_t *new_loop_stack = NULL;
     uint64_t volume_boost;
     uint32_t tempo;
 
@@ -116,18 +120,132 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate mixer data.\n");
     }
 
-    memset ( player_globals, 0, sizeof(AVSequencerPlayerGlobals) );
-    memset ( player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel) );
-    memset ( player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel) );
+    if (avctx->player_globals) {
+        gosub_stack = player_globals->gosub_stack;
+        loop_stack  = player_globals->loop_stack;
+    } else {
+        memset ( player_globals, 0, sizeof(AVSequencerPlayerGlobals) );
+    }
 
-    avctx->player_globals      = player_globals;
-    avctx->player_host_channel = player_host_channel;
-    avctx->player_channel      = player_channel;
-    avctx->player_module       = module;
-    avctx->player_song         = song;
-    avctx->player_mixer_data   = mixer_data;
+    if (!avctx->player_host_channel) {
+        if (avctx->player_globals) {
+            if (song->channels > player_globals->stack_channels)
+                memset ( player_host_channel + player_globals->stack_channels, 0, (song->channels - player_globals->stack_channels) * sizeof(AVSequencerPlayerHostChannel) );
+        } else {
+            memset ( player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel) );
+        }
+    }
 
-    player_globals->flags &= ~(AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN|AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN);
+    if (!avctx->player_channel) {
+        if (avctx->player_globals) {
+            if (module->channels > player_globals->virtual_channels)
+                memset ( player_channel + player_globals->virtual_channels, 0, (module->channels - player_globals->virtual_channels) * sizeof(AVSequencerPlayerChannel) );
+        } else {
+            memset ( player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel) );
+        }
+    }
+
+    if (!gosub_stack || (player_globals->stack_channels != song->channels) || (player_globals->gosub_stack_size != song->gosub_stack_size)) {
+        if (!(new_gosub_stack = av_mallocz((song->channels * song->gosub_stack_size << 2) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            avseq_mixer_uninit ( avctx, mixer_data );
+            av_free(player_channel);
+            av_free(player_host_channel);
+            av_free(player_globals);
+            av_log(avctx, AV_LOG_ERROR, "Cannot allocate GoSub command stack storage container.\n");
+            return AVERROR(ENOMEM);
+        }
+    } else if (!loop_stack || (player_globals->stack_channels != song->channels) || (player_globals->loop_stack_size != song->loop_stack_size)) {
+        if (!(new_loop_stack = av_mallocz((song->channels * song->loop_stack_size << 2) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            av_free(new_gosub_stack);
+            avseq_mixer_uninit ( avctx, mixer_data );
+            av_free(player_channel);
+            av_free(player_host_channel);
+            av_free(player_globals);
+            av_log(avctx, AV_LOG_ERROR, "Cannot allocate pattern loop command stack storage container.\n");
+            return AVERROR(ENOMEM);
+        }
+    }
+
+    avctx->player_globals       = player_globals;
+    avctx->player_host_channel  = player_host_channel;
+    avctx->player_channel       = player_channel;
+    avctx->player_module        = module;
+    avctx->player_song          = song;
+    avctx->player_mixer_data    = mixer_data;
+
+    if (new_gosub_stack && gosub_stack) {
+        uint32_t *process_stack     = (uint32_t *) player_globals->gosub_stack;
+        uint32_t *process_new_stack = (uint32_t *) new_gosub_stack;
+        uint16_t skip_over_channel  = song->channels, skip_over_stack, skip_new_stack, skip_old_stack, i;
+
+        if (player_globals->stack_channels < skip_over_channel)
+            skip_over_channel = player_globals->stack_channels;
+
+        skip_over_stack = song->gosub_stack_size;
+
+        if (player_globals->gosub_stack_size < skip_over_stack)
+            skip_over_stack = player_globals->gosub_stack_size;
+
+        for (i = skip_over_channel; i > 0; i--) {
+            uint16_t j;
+
+            skip_new_stack = song->gosub_stack_size;
+            skip_old_stack = player_globals->gosub_stack_size;
+
+            for (j = skip_over_stack; j > 0; j--) {
+                *process_new_stack++ = *process_stack++;
+
+                skip_new_stack--;
+                skip_old_stack--;
+            }
+
+            process_stack     += skip_old_stack;
+            process_new_stack += skip_new_stack;
+        }
+
+        av_free(gosub_stack);
+    }
+
+    if (new_loop_stack && loop_stack) {
+        uint32_t *process_stack     = (uint32_t *) player_globals->loop_stack;
+        uint32_t *process_new_stack = (uint32_t *) new_loop_stack;
+        uint16_t skip_over_channel  = song->channels, skip_over_stack, skip_new_stack, skip_old_stack, i;
+
+        if (player_globals->stack_channels < skip_over_channel)
+            skip_over_channel = player_globals->stack_channels;
+
+        skip_over_stack = song->loop_stack_size;
+
+        if (player_globals->loop_stack_size < skip_over_stack)
+            skip_over_stack = player_globals->loop_stack_size;
+
+        for (i = skip_over_channel; i > 0; i--) {
+            uint16_t j;
+
+            skip_new_stack = song->loop_stack_size;
+            skip_old_stack = player_globals->loop_stack_size;
+
+            for (j = skip_over_stack; j > 0; j--) {
+                *process_new_stack++ = *process_stack++;
+
+                skip_new_stack--;
+                skip_old_stack--;
+            }
+
+            process_stack     += skip_old_stack;
+            process_new_stack += skip_new_stack;
+        }
+
+        av_free(loop_stack);
+    }
+
+    player_globals->gosub_stack      = new_gosub_stack;
+    player_globals->gosub_stack_size = song->gosub_stack_size;
+    player_globals->loop_stack       = new_loop_stack;
+    player_globals->loop_stack_size  = song->loop_stack_size;
+    player_globals->stack_channels   = song->channels;
+    player_globals->virtual_channels = module->channels;
+    player_globals->flags           &= ~(AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN|AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_PATTERN);
 
     if (mode)
         player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE;
@@ -135,10 +253,15 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
         player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE;
 
     player_globals->play_type      = AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG;
-    player_globals->relative_speed = 0x10000;
-    player_globals->relative_pitch = 0x10000;
+
+    if (!player_globals->relative_speed)
+        player_globals->relative_speed = 0x10000;
+
+    if (!player_globals->relative_pitch)
+        player_globals->relative_pitch = player_globals->relative_speed;
+
     tempo                          = avseq_song_calc_speed ( avctx, song );
-    volume_boost                   = ((module->channels * 65536*125/1000) + (65536*75/1000)) >> 16;
+    volume_boost                   = (((uint64_t) module->channels * 65536*125/1000) + (65536*75/1000)) >> 16;
     mixer_data->flags             |= AVSEQ_MIXER_DATA_FLAG_MIXING;
 
     avseq_mixer_set_rate ( mixer_data, mixctx->frequency );
@@ -147,8 +270,9 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
 
     return 0;
 }
-int avseq_module_set_channels ( AVSequencerModule *module, uint32_t channels ) {
-    if (!module)
+int avseq_module_set_channels (AVSequencerContext *avctx, AVSequencerModule *module,
+                               uint32_t channels) {
+    if (!(avctx && module))
         return AVERROR_INVALIDDATA;
 
     if (!channels)
@@ -156,6 +280,56 @@ int avseq_module_set_channels ( AVSequencerModule *module, uint32_t channels ) {
 
     if (channels > 65535)
         channels = 65535;
+
+    if ((module == avctx->player_module) && (channels != module->channels)) {
+        AVSequencerPlayerGlobals *player_globals;
+        AVSequencerPlayerChannel *player_channel;
+
+        if ((player_channel = avctx->player_channel)) {
+            AVSequencerSong *song;
+
+            if (!(player_channel = av_realloc(player_channel, (module->channels * sizeof (AVSequencerPlayerChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                av_log(avctx, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
+                return AVERROR(ENOMEM);
+            }
+
+            if (channels > module->channels)
+                memset ( player_channel + module->channels, 0, (channels - module->channels) * sizeof(AVSequencerPlayerChannel) );
+
+            if ((song = avctx->player_song)) {
+                AVSequencerPlayerHostChannel *player_host_channel;
+
+                if ((song == avctx->player_song) && (player_host_channel = avctx->player_host_channel)) {
+                    uint16_t i, host_channel = 0;
+
+                    for (i = song->channels; i > 0; i--) {
+                        if (player_host_channel->virtual_channel >= channels) {
+                            AVSequencerPlayerChannel *updated_player_channel = player_channel;
+                            uint16_t j;
+
+                            player_host_channel->virtual_channel  = 0;
+                            player_host_channel->virtual_channels = 0;
+
+                            for (j = channels; j > 0; j--) {
+                                if (player_channel->host_channel == host_channel)
+                                    updated_player_channel->mixer.flags = 0;
+
+                                updated_player_channel++;
+                            }
+                        }
+
+                        host_channel++;
+                        player_host_channel++;
+                    }
+                }
+            }
+
+            avctx->player_channel = player_channel;
+
+            if ((player_globals = avctx->player_globals))
+                player_globals->virtual_channels = module->channels;
+        }
+    }
 
     module->channels = channels;
 

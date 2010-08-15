@@ -140,16 +140,34 @@ AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMix
                                        const char *args, void *opaque) {
     AVSequencerMixerData *mixer_data = NULL;
 
-    if (mixctx && mixctx->init) {
+    if (avctx && mixctx && mixctx->init) {
         mixer_data = mixctx->init(mixctx, args, opaque);
 
         if (mixer_data) {
-            mixer_data->opaque  = (void *) avctx;
-            mixer_data->handler = avctx->playback_handler;
+            mixer_data->opaque       = (void *) avctx;
+            mixer_data->handler      = avctx->playback_handler;
         }
     }
 
     return mixer_data;
+}
+
+int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_data) {
+    AVSequencerMixerContext *mixctx;
+
+    if (!(avctx && mixer_data))
+        return AVERROR_INVALIDDATA;
+
+    mixctx = mixer_data->mixctx;
+
+    if (mixctx && mixctx->uninit) {
+        if (avctx->player_mixer_data == mixer_data)
+            avctx->player_mixer_data = NULL;
+
+        return mixctx->uninit(mixer_data);
+    }
+
+    return 0;
 }
 
 uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate) {

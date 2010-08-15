@@ -1092,6 +1092,7 @@ int avseq_playback_handler ( AVSequencerMixerData *mixer_data ) {
     channel = 0;
 
     do {
+        av_log(NULL, AV_LOG_WARNING, "channel: %02d, playing track: %08x, tempo counter: %d/%d, row: %02d!\n", channel, player_host_channel->track, player_host_channel->tempo_counter, player_host_channel->tempo, player_host_channel->row);
         player_channel = avctx->player_channel + player_host_channel->virtual_channel;
 
         if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) &&
@@ -1796,7 +1797,7 @@ static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
     AVSequencerTrack *track;
 
     if ((track = player_host_channel->track)) {
-        AVSequencerTrackRow *track_data = track->data;
+        AVSequencerTrackRow *track_data = track->data + player_host_channel->row;
         AVSequencerTrackEffect *track_fx;
         uint32_t fx;
 
@@ -1809,7 +1810,7 @@ static void get_effects ( AVSequencerContext *avctx, AVSequencerPlayerHostChanne
             }
         } else {
             fx          = 0;
-            track_data += player_host_channel->row;
+            track_fx    = track_data->effects_data[0];
         }
 
         player_host_channel->effect = track_fx;

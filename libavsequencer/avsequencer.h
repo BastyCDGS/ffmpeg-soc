@@ -246,6 +246,18 @@ AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMix
                                        const char *args, void *opaque);
 
 /**
+ * Closes and uninitializes an AVSequencer mixer data container.
+ *
+ * @param avctx the AVSequencerContext to uninitialize the mixer from
+ * @param mixer_data the AVSequencerMixerData to uninitialize
+ * @return >= 0 on success, a negative error code otherwise
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_data);
+
+/**
  * Sets and transfers a new mixing rate to the mixing engine.
  *
  * @param mixer_data the AVSequencerMixerData to set the new mixing rate
@@ -334,6 +346,8 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
 /**
  * Changes module virtual channels to new number of channels specified.
  *
+ * @param avctx the AVSequencerContext to update the number of virtual
+ *              channels for playback
  * @param module the AVSequencerModule to set the new number of virtual channels to
  * @param channels the new amount of virtual channels to use
  * @return >= 0 on success, a negative error code otherwise
@@ -342,7 +356,8 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_module_set_channels(AVSequencerModule *module, uint32_t channels);
+int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *module,
+                              uint32_t channels);
 
 /**
  * Initializes the playback structures for playing back a sub-song in a module.
@@ -404,8 +419,25 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
 uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song);
 
 /**
+ * Resets a sub-song to start playback from very beginning and fills the player
+ * globals and host channel structures.
+ *
+ * @param avctx the AVSequencerContext to fill the player globals and host channel
+ *              structure of
+ * @param song the AVSequencerSong structure to reset to playback from beginning
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song);
+
+/**
  * Changes sub-song channels to new number of channels specified.
  *
+ * @param avctx the AVSequencerContext to update the number of
+ *              channels for playback
  * @param song the AVSequencerSong to set the new number of channels to
  * @param channels the new amount of channels to use
  * @return >= 0 on success, a negative error code otherwise
@@ -414,7 +446,27 @@ uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song)
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_song_set_channels(AVSequencerSong *song, uint32_t channels);
+int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
+                            uint32_t channels);
+
+/**
+ * Sets the sub-song GoSub and pattern loop command stack size to a
+ * new stack size.
+ *
+ * @param avctx the AVSequencerContext to update the stack size
+ *              pointers for playback
+ * @param song the AVSequencerSong to set the new GoSub and pattern
+ *             loop command stack size to
+ * @param gosub_stack the new size of the GoSub command stack
+ * @param loop_stack the new size of the pattern loop command stack
+ * @return >= 0 on success, a negative error code otherwise
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+int avseq_song_set_stack(AVSequencerContext *avctx, AVSequencerSong *song,
+                         uint32_t gosub_stack, uint32_t loop_stack);
 
 /**
  * Opens and registers a new order list to a sub-song.
