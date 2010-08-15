@@ -191,6 +191,21 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song) {
     memset ( player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel) );
     memset ( player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel) );
 
+    if ((module == avctx->player_module) && (song == avctx->player_song)) {
+        AVSequencerMixerData *mixer_data = avctx->player_mixer_data;
+
+        if (mixer_data) {
+            uint32_t channel = 0;
+
+            for (i = module->channels; i > 0; i--) {
+                if (mixer_data->mixctx->set_channel_position_repeat_flags)
+                    mixer_data->mixctx->set_channel_position_repeat_flags ( mixer_data, (AVSequencerMixerChannel *) &(player_channel[channel].mixer), channel );
+
+                channel++;
+            }
+        }
+    }
+
     player_globals->gosub_stack        = gosub_stack;
     player_globals->gosub_stack_size   = song->gosub_stack_size;
     player_globals->loop_stack         = loop_stack;

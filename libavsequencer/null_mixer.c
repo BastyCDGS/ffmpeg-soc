@@ -196,8 +196,11 @@ static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const
     null_mixer_data->mix_rate                = channel_rate;
     null_mixer_data->mixer_data.flags       &= ~AVSEQ_MIXER_DATA_FLAG_STEREO;
 
-    if (stereo)
-        null_mixer_data->mixer_data.flags |= AVSEQ_MIXER_DATA_FLAG_STEREO;
+    if (stereo) {
+        null_mixer_data->mixer_data.flags    |= AVSEQ_MIXER_DATA_FLAG_STEREO;
+        null_mixer_data->previous_stereo_mode = null_mixer_data->stereo_mode;
+        null_mixer_data->stereo_mode          = stereo;
+    }
 
     return (AVSequencerMixerData *) null_mixer_data;
 }
@@ -720,16 +723,16 @@ mix_sample_forwards:
                                     channel_info->next.sample_start_ptr = NULL;
                                 }
 
-                                mixer_change_func = (void *) channel_info->current.mix_backwards_func;
+                                mixer_change_func                        = (void *) channel_info->current.mix_backwards_func;
                                 channel_info->current.mix_backwards_func = (void *) mix_func;
-                                mix_func = (void *) mixer_change_func;
-                                channel_info->current.mix_func   = (void *) mix_func;
-                                channel_info->current.flags     ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
-                                remain_mix                       = channel_info->current.end_offset;
-                                offset                          -= remain_mix;
-                                offset                           = -offset + remain_mix;
-                                remain_mix                      -= channel_info->current.restart_offset;
-                                channel_info->current.end_offset = remain_mix;
+                                mix_func                                 = (void *) mixer_change_func;
+                                channel_info->current.mix_func           = (void *) mix_func;
+                                channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+                                remain_mix                               = channel_info->current.end_offset;
+                                offset                                  -= remain_mix;
+                                offset                                   = -offset + remain_mix;
+                                remain_mix                              -= channel_info->current.restart_offset;
+                                channel_info->current.end_offset         = remain_mix;
 
                                 if (remain_len)
                                     goto mix_sample_backwards;
