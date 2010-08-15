@@ -45,11 +45,13 @@ static const AVClass avseq_track_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerTrack *avseq_track_create(void) {
+AVSequencerTrack *avseq_track_create(void)
+{
     return av_mallocz(sizeof(AVSequencerTrack) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track) {
+int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track)
+{
     AVSequencerTrack **track_list;
     uint16_t tracks;
     int res;
@@ -103,7 +105,7 @@ int avseq_track_data_open(AVSequencerTrack *track) {
         return AVERROR(ENOMEM);
     }
 
-    memset ( data, 0, last_row * sizeof(AVSequencerTrackRow) );
+    memset(data, 0, last_row * sizeof(AVSequencerTrackRow));
 
     track->data     = data;
     track->last_row = (uint16_t) (last_row - 1);
@@ -111,11 +113,13 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     return 0;
 }
 
-AVSequencerTrackEffect *avseq_track_effect_create(void) {
+AVSequencerTrackEffect *avseq_track_effect_create(void)
+{
     return av_mallocz(sizeof(AVSequencerTrackEffect));
 }
 
-int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, AVSequencerTrackEffect *effect) {
+int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, AVSequencerTrackEffect *effect)
+{
     AVSequencerTrackEffect **fx_list;
     uint16_t effects;
 
@@ -139,7 +143,8 @@ int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, 
     return 0;
 }
 
-AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track) {
+AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track)
+{
     if (!(song && track))
         return NULL;
 
@@ -149,7 +154,8 @@ AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track)
     return song->track_list[--track];
 }
 
-int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len) {
+int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len)
+{
     AVSequencerTrackRow *data;
     uint16_t rows, last_pack_row = 0;
     uint8_t pack_type;

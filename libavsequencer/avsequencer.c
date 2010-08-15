@@ -28,15 +28,18 @@
  * Implement AVSequencer functions.
  */
 
-unsigned avsequencer_version(void) {
+unsigned avsequencer_version(void)
+{
     return LIBAVSEQUENCER_VERSION_INT;
 }
 
-const char *avsequencer_configuration(void) {
+const char *avsequencer_configuration(void)
+{
     return FFMPEG_CONFIGURATION;
 }
 
-const char *avsequencer_license(void) {
+const char *avsequencer_license(void)
+{
 #define LICENSE_PREFIX "libavsequencer license: "
     return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
 }
@@ -46,7 +49,8 @@ const char *avsequencer_license(void) {
 static AVSequencerMixerContext *registered_mixers[AVSEQUENCER_MAX_REGISTERED_MIXERS_NB + 1];
 static int next_registered_mixer_idx = 0;
 
-AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name) {
+AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name)
+{
     int i;
 
     for (i = 0; i < next_registered_mixer_idx; i++) {
@@ -57,7 +61,8 @@ AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name) {
     return NULL;
 }
 
-int avseq_mixer_register(AVSequencerMixerContext *mixctx) {
+int avseq_mixer_register(AVSequencerMixerContext *mixctx)
+{
     if (next_registered_mixer_idx == AVSEQUENCER_MAX_REGISTERED_MIXERS_NB)
         return -1;
 
@@ -65,16 +70,19 @@ int avseq_mixer_register(AVSequencerMixerContext *mixctx) {
     return 0;
 }
 
-AVSequencerMixerContext **avseq_mixer_next(AVSequencerMixerContext **mixctx) {
+AVSequencerMixerContext **avseq_mixer_next(AVSequencerMixerContext **mixctx)
+{
     return mixctx ? ++mixctx : &registered_mixers[0];
 }
 
-void avsequencer_uninit(void) {
+void avsequencer_uninit(void)
+{
     memset(registered_mixers, 0, sizeof(registered_mixers));
     next_registered_mixer_idx = 0;
 }
 
-static const char *mixer_name(void *p) {
+static const char *mixer_name(void *p)
+{
     AVSequencerContext *avctx = p;
 
     if (avctx->player_mixer_data && avctx->player_mixer_data->mixctx)
@@ -91,7 +99,8 @@ static const AVClass avsequencer_class = {
 };
 
 AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx,
-                                     const char *inst_name) {
+                                     const char *inst_name)
+{
     AVSequencerContext *avctx;
     int i;
 
@@ -112,12 +121,13 @@ AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx,
     avctx->seed              = av_get_random_seed ();
 
     if (mixctx)
-        avctx->player_mixer_data = avseq_mixer_init ( avctx, mixctx, NULL, NULL );
+        avctx->player_mixer_data = avseq_mixer_init(avctx, mixctx, NULL, NULL);
 
     return avctx;
 }
 
-void avsequencer_destroy(AVSequencerContext *avctx) {
+void avsequencer_destroy(AVSequencerContext *avctx)
+{
     int i;
 
     for (i = 0; i < avctx->modules; ++i) {
@@ -128,8 +138,7 @@ void avsequencer_destroy(AVSequencerContext *avctx) {
     av_freep(&avctx->module_list);
 
     for (i = 0; i < avctx->mixers; ++i) {
-    // TODO: actual mixer list destroy
-//        avseq_mixer_destroy(avctx->mixer_list[i]);
+        avseq_mixer_uninit(avctx, avctx->mixer_list[i]);
     }
 
     av_freep(&avctx->mixer_list);
@@ -137,7 +146,8 @@ void avsequencer_destroy(AVSequencerContext *avctx) {
 }
 
 AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
-                                       const char *args, void *opaque) {
+                                       const char *args, void *opaque)
+{
     AVSequencerMixerData *mixer_data = NULL;
 
     if (avctx && mixctx && mixctx->init) {
@@ -152,7 +162,8 @@ AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMix
     return mixer_data;
 }
 
-int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_data) {
+int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_data)
+{
     AVSequencerMixerContext *mixctx;
 
     if (!(avctx && mixer_data))
@@ -170,7 +181,8 @@ int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_da
     return 0;
 }
 
-uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate) {
+uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate)
+{
     AVSequencerMixerContext *mixctx;
 
     if (!mixer_data)
@@ -184,7 +196,8 @@ uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix
     return mixer_data->rate;
 }
 
-uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo) {
+uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo
+{
     AVSequencerMixerContext *mixctx;
 
     if (!mixer_data)
@@ -200,7 +213,8 @@ uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_te
 
 uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t amplify,
                                 uint32_t left_volume, uint32_t right_volume,
-                                uint32_t channels ) {
+                                uint32_t channels)
+{
     AVSequencerMixerContext *mixctx;
 
     if (!mixer_data)
@@ -214,7 +228,8 @@ uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t ampli
     return mixer_data->tempo;
 }
 
-void avseq_mixer_do_mix(AVSequencerMixerData *mixer_data, int32_t *buf) {
+void avseq_mixer_do_mix(AVSequencerMixerData *mixer_data, int32_t *buf)
+{
     AVSequencerMixerContext *mixctx;
 
     if (!mixer_data)

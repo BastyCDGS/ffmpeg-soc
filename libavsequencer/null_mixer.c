@@ -54,7 +54,7 @@ typedef struct AVSequencerNULLMixerChannelInfo {
         uint32_t fraction;
         uint32_t advance;
         uint32_t advance_frac;
-        void (*mix_func)( AVSequencerNULLMixerData *mixer_data, struct AVSequencerNULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len );
+        void (*mix_func)(AVSequencerNULLMixerData *mixer_data, struct AVSequencerNULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
         uint32_t end_offset;
         uint32_t restart_offset;
         uint32_t repeat;
@@ -62,7 +62,7 @@ typedef struct AVSequencerNULLMixerChannelInfo {
         uint32_t count_restart;
         uint32_t counted;
         uint32_t rate;
-        void (*mix_backwards_func)( AVSequencerNULLMixerData *mixer_data, struct AVSequencerNULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len );
+        void (*mix_backwards_func)(AVSequencerNULLMixerData *mixer_data, struct AVSequencerNULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
         uint8_t volume;
@@ -72,16 +72,16 @@ typedef struct AVSequencerNULLMixerChannelInfo {
 } AVSequencerNULLMixerChannelInfo;
 
 #if CONFIG_NULL_MIXER
-static av_cold AVSequencerMixerData *init ( AVSequencerMixerContext *mixctx, const char *args, void *opaque );
-static av_cold int uninit ( AVSequencerMixerData *mixer_data );
-static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate );
-static av_cold uint32_t set_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo );
-static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels );
-static av_cold void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel );
-static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf );
+static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque);
+static av_cold int uninit(AVSequencerMixerData *mixer_data);
+static av_cold uint32_t set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate);
+static av_cold uint32_t set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo);
+static av_cold uint32_t set_volume(AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels);
+static av_cold void get_channel(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel);
+static av_cold void set_channel(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel);
+static av_cold void set_channel_volume_panning_pitch(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel);
+static av_cold void set_channel_position_repeat_flags(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel);
+static av_cold void mix(AVSequencerMixerData *mixer_data, int32_t *buf);
 
 static const char *null_mixer_name(void *p)
 {
@@ -97,56 +97,28 @@ static const AVClass avseq_null_mixer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerMixerContext null_mixer = {
-    .av_class                          = &avseq_null_mixer_class,
-    .name                              = "Null mixer",
-    .description                       = NULL_IF_CONFIG_SMALL("Always outputs silence and simulates basic mixing"),
+static void mix_sample(AVSequencerNULLMixerData *mixer_data, int32_t *buf, uint32_t len);
+static void set_sample_mix_rate(AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info, uint32_t rate);
+static void set_mix_functions(AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info);
 
-    .flags                             = AVSEQ_MIXER_CONTEXT_FLAG_STEREO|AVSEQ_MIXER_CONTEXT_FLAG_SURROUND|AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER,
-    .frequency                         = 44100,
-    .frequency_min                     = 1000,
-    .frequency_max                     = 768000,
-    .buf_size                          = 512,
-    .buf_size_min                      = 64,
-    .buf_size_max                      = 32768,
-    .volume_boost                      = 0x10000,
-    .channels_max                      = 65535,
-
-    .init                              = init,
-    .uninit                            = uninit,
-    .set_rate                          = set_rate,
-    .set_tempo                         = set_tempo,
-    .set_volume                        = set_volume,
-    .get_channel                       = get_channel,
-    .set_channel                       = set_channel,
-    .set_channel_volume_panning_pitch  = set_channel_volume_panning_pitch,
-    .set_channel_position_repeat_flags = set_channel_position_repeat_flags,
-    .mix                               = mix,
-};
-
-static void mix_sample ( AVSequencerNULLMixerData *mixer_data, int32_t *buf, uint32_t len );
-static void set_sample_mix_rate ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info, uint32_t rate );
-static void set_mix_functions ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info );
-
-#define MIX(type)                                                                   \
-    static void mix_##type ( AVSequencerNULLMixerData *mixer_data,                  \
-                             AVSequencerNULLMixerChannelInfo *channel_info,         \
-                             int32_t **buf, uint32_t *offset, uint32_t *fraction,   \
-                             uint32_t advance, uint32_t adv_frac, uint32_t len )
+#define MIX(type)                                                                  \
+    static void mix_##type (AVSequencerNULLMixerData *mixer_data,                  \
+                            AVSequencerNULLMixerChannelInfo *channel_info,         \
+                            int32_t **buf, uint32_t *offset, uint32_t *fraction,   \
+                            uint32_t advance, uint32_t adv_frac, uint32_t len)
 
 MIX(skip);
 MIX(skip_backwards);
 
-// TODO: Implement null quality mixer identification and configuration.
-
-static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque) {
+static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const char *args, void *opaque)
+{
     AVSequencerNULLMixerData *null_mixer_data = NULL;
     AVSequencerNULLMixerChannelInfo *channel_info;
     const char *cfg_buf;
     int32_t *buf;
     uint32_t buf_size, mix_buf_mem_size, channel_rate;
     uint16_t channels = 1;
-    uint8_t stereo = 0;
+    uint8_t stereo    = 0;
 
     if (!(null_mixer_data = av_mallocz(sizeof (AVSequencerNULLMixerData) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(mixctx, AV_LOG_ERROR, "Cannot allocate mixer data factory.\n");
@@ -205,7 +177,8 @@ static av_cold AVSequencerMixerData *init(AVSequencerMixerContext *mixctx, const
     return (AVSequencerMixerData *) null_mixer_data;
 }
 
-static av_cold int uninit(AVSequencerMixerData *mixer_data) {
+static av_cold int uninit(AVSequencerMixerData *mixer_data)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
 
     if (!null_mixer_data)
@@ -218,7 +191,8 @@ static av_cold int uninit(AVSequencerMixerData *mixer_data) {
     return 0;
 }
 
-static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t new_mix_rate ) {
+static av_cold uint32_t set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     uint32_t mix_rate, mix_rate_frac;
 
@@ -236,7 +210,7 @@ static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t ne
             null_mixer_data->mix_rate_frac = mix_rate_frac;
 
             if (null_mixer_data->mixer_data.tempo)
-                set_tempo ( (AVSequencerMixerData *) mixer_data, null_mixer_data->mixer_data.tempo );
+                set_tempo((AVSequencerMixerData *) mixer_data, null_mixer_data->mixer_data.tempo);
 
             for (i = null_mixer_data->channels; i > 0; i--) {
                 channel_info->current.advance      = channel_info->current.rate / mix_rate;
@@ -254,7 +228,8 @@ static av_cold uint32_t set_rate ( AVSequencerMixerData *mixer_data, uint32_t ne
     return new_mix_rate;
 }
 
-static av_cold uint32_t set_tempo ( AVSequencerMixerData *mixer_data, uint32_t new_tempo ) {
+static av_cold uint32_t set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     uint32_t channel_rate;
     uint64_t pass_value;
@@ -268,7 +243,8 @@ static av_cold uint32_t set_tempo ( AVSequencerMixerData *mixer_data, uint32_t n
     return new_tempo;
 }
 
-static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels ) {
+static av_cold uint32_t set_volume(AVSequencerMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels)
+{
     AVSequencerNULLMixerData *null_mixer_data         = (AVSequencerNULLMixerData *) mixer_data;
     AVSequencerNULLMixerChannelInfo *channel_info     = NULL;
     AVSequencerNULLMixerChannelInfo *old_channel_info = null_mixer_data->channel_info;
@@ -291,7 +267,7 @@ static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t 
         if (copy_channels > channels)
             copy_channels = channels;
 
-        memcpy ( channel_info, old_channel_info, copy_channels * sizeof (AVSequencerNULLMixerChannelInfo ));
+        memcpy(channel_info, old_channel_info, copy_channels * sizeof (AVSequencerNULLMixerChannelInfo));
 
         null_mixer_data->channel_info = channel_info;
         null_mixer_data->channels     = channels;
@@ -302,7 +278,7 @@ static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t 
     channel_info = null_mixer_data->channel_info;
 
     for (i = channels; i > 0; i--) {
-        set_sample_mix_rate ( null_mixer_data, channel_info, channel_info->current.rate );
+        set_sample_mix_rate(null_mixer_data, channel_info, channel_info->current.rate);
 
         channel_info++;
     }
@@ -310,7 +286,8 @@ static av_cold uint32_t set_volume ( AVSequencerMixerData *mixer_data, uint32_t 
     return channels;
 }
 
-static av_cold void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void get_channel(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     AVSequencerNULLMixerChannelInfo *channel_info;
 
@@ -331,7 +308,8 @@ static av_cold void get_channel ( AVSequencerMixerData *mixer_data, AVSequencerM
     }
 }
 
-static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void set_channel(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     AVSequencerNULLMixerChannelInfo *channel_info;
 
@@ -375,7 +353,7 @@ static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerM
             channel_info->next.count_restart  = mixer_channel->repeat_count;
             channel_info->next.counted        = mixer_channel->repeat_counted;
 
-            set_sample_mix_rate ( null_mixer_data, (AVSequencerNULLMixerChannelInfo *) &(channel_info->next), mixer_channel->rate );
+            set_sample_mix_rate(null_mixer_data, (AVSequencerNULLMixerChannelInfo *) &(channel_info->next), mixer_channel->rate);
         } else {
             channel_info->current.offset           = mixer_channel->pos;
             channel_info->current.fraction         = 0;
@@ -409,12 +387,13 @@ static av_cold void set_channel ( AVSequencerMixerData *mixer_data, AVSequencerM
             channel_info->current.count_restart  = mixer_channel->repeat_count;
             channel_info->current.counted        = mixer_channel->repeat_counted;
 
-            set_sample_mix_rate ( null_mixer_data, (AVSequencerNULLMixerChannelInfo *) &(channel_info->current), mixer_channel->rate );
+            set_sample_mix_rate(null_mixer_data, (AVSequencerNULLMixerChannelInfo *) &(channel_info->current), mixer_channel->rate);
         }
     }
 }
 
-static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void set_channel_volume_panning_pitch(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     AVSequencerNULLMixerChannelInfo *channel_info;
 
@@ -450,13 +429,14 @@ static av_cold void set_channel_volume_panning_pitch ( AVSequencerMixerData *mix
             channel_info->current.advance_frac = rate_frac;
             channel_info->next.advance_frac    = rate_frac;
 
-            set_mix_functions ( null_mixer_data, channel_info );
-            set_mix_functions ( null_mixer_data, (AVSequencerNULLMixerChannelInfo *) &(channel_info->next) );
+            set_mix_functions(null_mixer_data, channel_info);
+            set_mix_functions(null_mixer_data, (AVSequencerNULLMixerChannelInfo *) &(channel_info->next));
         }
     }
 }
 
-static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel ) {
+static av_cold void set_channel_position_repeat_flags(AVSequencerMixerData *mixer_data, AVSequencerMixerChannel *mixer_channel, uint32_t channel)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     AVSequencerNULLMixerChannelInfo *channel_info;
 
@@ -529,12 +509,13 @@ static av_cold void set_channel_position_repeat_flags ( AVSequencerMixerData *mi
             channel_info->current.count_restart  = mixer_channel->repeat_count;
             channel_info->current.counted        = mixer_channel->repeat_counted;
 
-            set_mix_functions ( null_mixer_data, channel_info );
+            set_mix_functions(null_mixer_data, channel_info);
         }
     }
 }
 
-static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf ) {
+static av_cold void mix(AVSequencerMixerData *mixer_data, int32_t *buf)
+{
     AVSequencerNULLMixerData *null_mixer_data = (AVSequencerNULLMixerData *) mixer_data;
     uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
@@ -544,7 +525,7 @@ static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf ) {
         current_left_frac = null_mixer_data->current_left_frac;
         buf_size          = null_mixer_data->buf_size;
 
-        memset ( buf, 0, buf_size << (null_mixer_data->stereo_mode ? 3 : 2) );
+        memset(buf, 0, buf_size << (null_mixer_data->stereo_mode ? 3 : 2));
 
         while (buf_size) {
             if (current_left) {
@@ -556,7 +537,7 @@ static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf ) {
                 current_left -= mix_len;
                 buf_size     -= mix_len;
 
-                mix_sample ( null_mixer_data, buf, mix_len );
+                mix_sample(null_mixer_data, buf, mix_len);
 
                 if (null_mixer_data->stereo_mode)
                     mix_len += mix_len;
@@ -580,11 +561,10 @@ static av_cold void mix ( AVSequencerMixerData *mixer_data, int32_t *buf ) {
         null_mixer_data->current_left      = current_left;
         null_mixer_data->current_left_frac = current_left_frac;
     }
-
-    // TODO: Execute post-processing step in libavfilter and pass the PCM data.
 }
 
-static void mix_sample ( AVSequencerNULLMixerData *mixer_data, int32_t *buf, uint32_t len ) {
+static void mix_sample(AVSequencerNULLMixerData *mixer_data, int32_t *buf, uint32_t len)
+{
     AVSequencerNULLMixerChannelInfo *channel_info = mixer_data->channel_info;
     uint16_t i;
 
@@ -610,7 +590,7 @@ mix_sample_backwards:
 
                     if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len );
+                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
 
                             if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
                                 remain_len = 0;
@@ -620,7 +600,7 @@ mix_sample_backwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix );
+                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
 
                             if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -640,7 +620,7 @@ mix_sample_backwards:
                                 void *mixer_change_func;
 
                                 if (channel_info->next.sample_start_ptr) {
-                                    memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+                                    memcpy(channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
 
                                     channel_info->next.sample_start_ptr = NULL;
                                 }
@@ -688,7 +668,7 @@ mix_sample_forwards:
 
                     if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len );
+                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
 
                             if (offset >= channel_info->current.end_offset)
                                 remain_len = 0;
@@ -698,7 +678,7 @@ mix_sample_forwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func ( mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix );
+                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
 
                             if ((offset < channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -718,7 +698,7 @@ mix_sample_forwards:
                                 void *mixer_change_func;
 
                                 if (channel_info->next.sample_start_ptr) {
-                                    memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+                                    memcpy(channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
 
                                     channel_info->next.sample_start_ptr = NULL;
                                 }
@@ -743,7 +723,7 @@ mix_sample_forwards:
                                 offset -= channel_info->current.restart_offset;
 
                                 if (channel_info->next.sample_start_ptr) {
-                                    memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+                                    memcpy(channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
 
                                     channel_info->next.sample_start_ptr = NULL;
                                 }
@@ -757,7 +737,7 @@ mix_sample_forwards:
                     } else {
                         if (channel_info->next.sample_start_ptr) {
 mix_sample_synth:
-                            memcpy ( channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
+                            memcpy(channel_info, &(channel_info->next), sizeof (struct ChannelBlock));
 
                             channel_info->next.sample_start_ptr = NULL;
 
@@ -780,7 +760,8 @@ mix_sample_synth:
     }
 }
 
-static void set_sample_mix_rate ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info, uint32_t rate ) {
+static void set_sample_mix_rate(AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info, uint32_t rate)
+{
     uint32_t mix_rate;
 
     channel_info->current.rate         = rate;
@@ -791,7 +772,8 @@ static void set_sample_mix_rate ( AVSequencerNULLMixerData *mixer_data, AVSequen
     set_mix_functions ( mixer_data, channel_info );
 }
 
-static void set_mix_functions ( AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info ) {
+static void set_mix_functions(AVSequencerNULLMixerData *mixer_data, AVSequencerNULLMixerChannelInfo *channel_info)
+{
     if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
         channel_info->current.mix_func           = (void *) mix_skip_backwards;
         channel_info->current.mix_backwards_func = (void *) mix_skip;
@@ -801,7 +783,8 @@ static void set_mix_functions ( AVSequencerNULLMixerData *mixer_data, AVSequence
     }
 }
 
-MIX(skip) {
+MIX(skip)
+{
     uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
     uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
 
@@ -817,7 +800,8 @@ MIX(skip) {
     *fraction = curr_frac;
 }
 
-MIX(skip_backwards) {
+MIX(skip_backwards)
+{
     uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
     uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
 
@@ -832,5 +816,32 @@ MIX(skip_backwards) {
     *offset   = curr_offset;
     *fraction = curr_frac;
 }
+
+AVSequencerMixerContext null_mixer = {
+    .av_class                          = &avseq_null_mixer_class,
+    .name                              = "Null mixer",
+    .description                       = NULL_IF_CONFIG_SMALL("Always outputs silence and simulates basic mixing"),
+
+    .flags                             = AVSEQ_MIXER_CONTEXT_FLAG_STEREO|AVSEQ_MIXER_CONTEXT_FLAG_SURROUND,
+    .frequency                         = 44100,
+    .frequency_min                     = 1000,
+    .frequency_max                     = 768000,
+    .buf_size                          = 512,
+    .buf_size_min                      = 64,
+    .buf_size_max                      = 32768,
+    .volume_boost                      = 0x10000,
+    .channels_max                      = 65535,
+
+    .init                              = init,
+    .uninit                            = uninit,
+    .set_rate                          = set_rate,
+    .set_tempo                         = set_tempo,
+    .set_volume                        = set_volume,
+    .get_channel                       = get_channel,
+    .set_channel                       = set_channel,
+    .set_channel_volume_panning_pitch  = set_channel_volume_panning_pitch,
+    .set_channel_position_repeat_flags = set_channel_position_repeat_flags,
+    .mix                               = mix,
+};
 
 #endif /* CONFIG_NULL_MIXER */

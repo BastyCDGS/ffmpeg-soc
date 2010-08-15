@@ -46,11 +46,13 @@ static const AVClass avseq_song_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerSong *avseq_song_create(void) {
+AVSequencerSong *avseq_song_create(void)
+{
     return av_mallocz(sizeof(AVSequencerSong) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song) {
+int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song)
+{
     AVSequencerSong **song_list;
     uint16_t songs;
     int res;
@@ -104,7 +106,8 @@ static const uint32_t old_st_lut[] = {
      32061964,  27482767,  24048132,  21687744,  19240098
 };
 
-uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song) {
+uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song)
+{
     AVSequencerPlayerGlobals *player_globals;
     uint64_t tempo = 0;
     uint16_t speed;
@@ -153,7 +156,8 @@ uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song)
     return (tempo <= 0xFFFFFFFF) ? (uint32_t) tempo : 0;
 }
 
-int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song) {
+int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
+{
     AVSequencerModule *module;
     AVSequencerOrderList *order_list;
     AVSequencerPlayerGlobals *player_globals;
@@ -187,9 +191,9 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song) {
     av_free(player_globals->gosub_stack);
     av_free(player_globals->loop_stack);
 
-    memset ( player_globals, 0, sizeof(AVSequencerPlayerGlobals) );
-    memset ( player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel) );
-    memset ( player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel) );
+    memset(player_globals, 0, sizeof(AVSequencerPlayerGlobals));
+    memset(player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel));
+    memset(player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel));
 
     if ((module == avctx->player_module) && (song == avctx->player_song)) {
         AVSequencerMixerData *mixer_data = avctx->player_mixer_data;
@@ -199,7 +203,7 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song) {
 
             for (i = module->channels; i > 0; i--) {
                 if (mixer_data->mixctx->set_channel_position_repeat_flags)
-                    mixer_data->mixctx->set_channel_position_repeat_flags ( mixer_data, (AVSequencerMixerChannel *) &(player_channel[channel].mixer), channel );
+                    mixer_data->mixctx->set_channel_position_repeat_flags(mixer_data, (AVSequencerMixerChannel *) &(player_channel[channel].mixer), channel);
 
                 channel++;
             }
@@ -273,7 +277,8 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song) {
 static int set_new_channel_stack(AVSequencerContext *avctx, AVSequencerSong *song, uint16_t gosub_stack, uint16_t loop_stack, uint16_t channels);
 
 int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
-                            uint32_t channels) {
+                            uint32_t channels)
+{
     if (!(avctx && song))
         return AVERROR_INVALIDDATA;
 
@@ -307,7 +312,7 @@ int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
             }
 
             if (channels > song->channels)
-                memset ( player_host_channel + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerPlayerHostChannel) );
+                memset(player_host_channel + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerPlayerHostChannel));
 
             if ((module = avctx->player_module)) {
                 AVSequencerPlayerChannel *player_channel;
@@ -339,7 +344,7 @@ int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
         if (channels > song->channels) {
             uint16_t channel = channels;
 
-            memset ( order_list + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerOrderList) );
+            memset(order_list + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerOrderList));
 
             while (channel-- != song->channels) {
                 order_list[channel].av_class        = order_list[0].av_class;
@@ -358,10 +363,11 @@ int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
 
 static int set_new_channel_stack(AVSequencerContext *avctx, AVSequencerSong *song,
                                  uint16_t gosub_stack, uint16_t loop_stack,
-                                 uint16_t channels) {
+                                 uint16_t channels)
+{
     AVSequencerPlayerGlobals *player_globals = NULL;
-    uint16_t *new_gosub_stack = NULL;
-    uint16_t *new_loop_stack = NULL;
+    uint16_t *new_gosub_stack                = NULL;
+    uint16_t *new_loop_stack                 = NULL;
 
     if (!gosub_stack)
         gosub_stack = 4;
@@ -468,7 +474,8 @@ static int set_new_channel_stack(AVSequencerContext *avctx, AVSequencerSong *son
 }
 
 int avseq_song_set_stack(AVSequencerContext *avctx, AVSequencerSong *song,
-                         uint32_t gosub_stack, uint32_t loop_stack) {
+                         uint32_t gosub_stack, uint32_t loop_stack)
+{
     if (!(avctx && song))
         return AVERROR_INVALIDDATA;
 

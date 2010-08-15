@@ -45,12 +45,14 @@ static const AVClass avseq_synth_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerSynth *avseq_synth_create(void) {
+AVSequencerSynth *avseq_synth_create(void)
+{
     return av_mallocz(sizeof(AVSequencerSynth) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
-                     uint32_t waveforms, uint32_t samples) {
+                     uint32_t waveforms, uint32_t samples)
+{
     AVSequencerSynth *synth;
     uint32_t i;
     int res;
@@ -95,7 +97,8 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
     return 0;
 }
 
-int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
+int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines)
+{
     AVSequencerSynthCode *code;
 
     if (!synth)
@@ -119,12 +122,14 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines) {
     return 0;
 }
 
-AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void) {
+AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void)
+{
     return av_mallocz(sizeof(AVSequencerSynthSymbolTable) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
-                            const uint8_t *name) {
+                            const uint8_t *name)
+{
     AVSequencerSynthSymbolTable **symbol_list;
     uint16_t symbols;
     int res;
@@ -155,7 +160,8 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
 }
 
 int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
-                              const uint8_t *name) {
+                              const uint8_t *name)
+{
     const uint8_t *check_name;
     uint8_t *target_name;
     uint8_t *tmp_target_name;
@@ -193,8 +199,7 @@ int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTab
         *tmp_target_name++ = tmp_char;
     }
 
-    *tmp_target_name = 0;
-
+    *tmp_target_name    = 0;
     symbol->symbol_name = target_name;
 
     return 0;
@@ -218,11 +223,13 @@ static const AVClass avseq_waveform_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerSynthWave *avseq_synth_waveform_create(void) {
+AVSequencerSynthWave *avseq_synth_waveform_create(void)
+{
     return av_mallocz(sizeof(AVSequencerSynthWave) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
+int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples)
+{
     AVSequencerSynthWave *waveform;
     AVSequencerSynthWave **waveform_list;
     uint16_t waveforms;
@@ -261,7 +268,8 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples) {
     return 0;
 }
 
-int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples) {
+int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples)
+{
     uint32_t size;
     int16_t *data;
 
@@ -278,9 +286,9 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
         return AVERROR(ENOMEM);
     }
 
-    waveform->data       = data;
-    waveform->size       = size;
-    waveform->samples    = samples;
+    waveform->data    = data;
+    waveform->size    = size;
+    waveform->samples = samples;
 
     return 0;
 }

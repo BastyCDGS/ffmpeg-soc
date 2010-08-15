@@ -46,11 +46,13 @@ static const AVClass avseq_module_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerModule *avseq_module_create(void) {
+AVSequencerModule *avseq_module_create(void)
+{
     return av_mallocz(sizeof(AVSequencerModule) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
+int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module)
+{
     AVSequencerModule **module_list;
     uint16_t modules;
 
@@ -81,15 +83,16 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module) {
 
 int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
                       AVSequencerModule *module, AVSequencerSong *song,
-                      const char *args, void *opaque, uint32_t mode) {
+                      const char *args, void *opaque, uint32_t mode)
+{
     AVSequencerPlayerGlobals *player_globals;
     AVSequencerPlayerHostChannel *player_host_channel;
     AVSequencerPlayerChannel *player_channel;
     AVSequencerMixerData *mixer_data;
-    uint16_t *gosub_stack = NULL;
-    uint16_t *loop_stack = NULL;
+    uint16_t *gosub_stack     = NULL;
+    uint16_t *loop_stack      = NULL;
     uint16_t *new_gosub_stack = NULL;
-    uint16_t *new_loop_stack = NULL;
+    uint16_t *new_loop_stack  = NULL;
     uint64_t volume_boost;
     uint32_t tempo;
 
@@ -124,30 +127,30 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
         gosub_stack = player_globals->gosub_stack;
         loop_stack  = player_globals->loop_stack;
     } else {
-        memset ( player_globals, 0, sizeof(AVSequencerPlayerGlobals) );
+        memset(player_globals, 0, sizeof(AVSequencerPlayerGlobals));
     }
 
     if (!avctx->player_host_channel) {
         if (avctx->player_globals) {
             if (song->channels > player_globals->stack_channels)
-                memset ( player_host_channel + player_globals->stack_channels, 0, (song->channels - player_globals->stack_channels) * sizeof(AVSequencerPlayerHostChannel) );
+                memset(player_host_channel + player_globals->stack_channels, 0, (song->channels - player_globals->stack_channels) * sizeof(AVSequencerPlayerHostChannel));
         } else {
-            memset ( player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel) );
+            memset(player_host_channel, 0, song->channels * sizeof(AVSequencerPlayerHostChannel));
         }
     }
 
     if (!avctx->player_channel) {
         if (avctx->player_globals) {
             if (module->channels > player_globals->virtual_channels)
-                memset ( player_channel + player_globals->virtual_channels, 0, (module->channels - player_globals->virtual_channels) * sizeof(AVSequencerPlayerChannel) );
+                memset(player_channel + player_globals->virtual_channels, 0, (module->channels - player_globals->virtual_channels) * sizeof(AVSequencerPlayerChannel));
         } else {
-            memset ( player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel) );
+            memset(player_channel, 0, module->channels * sizeof(AVSequencerPlayerChannel));
         }
     }
 
     if (!gosub_stack || (player_globals->stack_channels != song->channels) || (player_globals->gosub_stack_size != song->gosub_stack_size)) {
         if (!(new_gosub_stack = av_mallocz((song->channels * song->gosub_stack_size << 2) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-            avseq_mixer_uninit ( avctx, mixer_data );
+            avseq_mixer_uninit(avctx, mixer_data);
             av_free(player_channel);
             av_free(player_host_channel);
             av_free(player_globals);
@@ -157,7 +160,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
     } else if (!loop_stack || (player_globals->stack_channels != song->channels) || (player_globals->loop_stack_size != song->loop_stack_size)) {
         if (!(new_loop_stack = av_mallocz((song->channels * song->loop_stack_size << 2) + FF_INPUT_BUFFER_PADDING_SIZE))) {
             av_free(new_gosub_stack);
-            avseq_mixer_uninit ( avctx, mixer_data );
+            avseq_mixer_uninit(avctx, mixer_data);
             av_free(player_channel);
             av_free(player_host_channel);
             av_free(player_globals);
@@ -252,7 +255,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
     else
         player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE;
 
-    player_globals->play_type      = AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG;
+    player_globals->play_type = AVSEQ_PLAYER_GLOBALS_PLAY_TYPE_SONG;
 
     if (!player_globals->relative_speed)
         player_globals->relative_speed = 0x10000;
@@ -264,14 +267,15 @@ int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx
     volume_boost                   = ((uint64_t) module->channels * 65536*125/1000) + (65536*75/100);
     mixer_data->flags             |= AVSEQ_MIXER_DATA_FLAG_MIXING;
 
-    avseq_mixer_set_rate ( mixer_data, mixctx->frequency );
-    avseq_mixer_set_tempo ( mixer_data, tempo );
-    avseq_mixer_set_volume ( mixer_data, volume_boost, 256, 256, module->channels );
+    avseq_mixer_set_rate(mixer_data, mixctx->frequency);
+    avseq_mixer_set_tempo(mixer_data, tempo);
+    avseq_mixer_set_volume(mixer_data, volume_boost, 256, 256, module->channels);
 
     return 0;
 }
-int avseq_module_set_channels (AVSequencerContext *avctx, AVSequencerModule *module,
-                               uint32_t channels) {
+int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *module,
+                              uint32_t channels)
+{
     if (!(avctx && module))
         return AVERROR_INVALIDDATA;
 

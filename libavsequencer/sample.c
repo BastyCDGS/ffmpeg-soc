@@ -45,12 +45,14 @@ static const AVClass avseq_sample_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerSample *avseq_sample_create(void) {
+AVSequencerSample *avseq_sample_create(void)
+{
     return av_mallocz(sizeof(AVSequencerSample) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *sample,
-                      int16_t *data, uint32_t length) {
+                      int16_t *data, uint32_t length)
+{
     AVSequencerSample **sample_list;
     uint8_t samples;
     int res;
@@ -88,7 +90,8 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
     return 0;
 }
 
-int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples) {
+int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples)
+{
     uint32_t size;
 
     if (!sample)
@@ -110,16 +113,17 @@ int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t sa
     return 0;
 }
 
-static void decrunch_sample_8  ( int8_t *data, uint32_t length );
-static void decrunch_sample_16 ( int16_t *data, uint32_t length );
-static void decrunch_sample_32 ( int32_t *data, uint32_t length );
-static void decrunch_sample_x  ( int32_t *data, uint32_t samples, const uint8_t bits_per_sample );
+static void decrunch_sample_8 (int8_t *data, uint32_t length);
+static void decrunch_sample_16(int16_t *data, uint32_t length);
+static void decrunch_sample_32(int32_t *data, uint32_t length);
+static void decrunch_sample_x (int32_t *data, uint32_t samples, const uint8_t bits_per_sample);
 
-int avseq_sample_decrunch ( AVSequencerModule *module, AVSequencerSample *sample,
-                            uint8_t delta_bits_per_sample ) {
+int avseq_sample_decrunch(AVSequencerModule *module, AVSequencerSample *sample,
+                          uint8_t delta_bits_per_sample)
+{
     int16_t *data;
 
-    if (!(sample = avseq_sample_find_origin ( module, sample )))
+    if (!(sample = avseq_sample_find_origin(module, sample)))
         return AVERROR_INVALIDDATA;
 
     if (!((data = sample->data) && sample->samples && sample->size)) {
@@ -132,19 +136,19 @@ int avseq_sample_decrunch ( AVSequencerModule *module, AVSequencerSample *sample
 
     switch (delta_bits_per_sample) {
     case 8 :
-        decrunch_sample_8  ( (int8_t *) data, FFALIGN(sample->size, 8) >> 3 );
+        decrunch_sample_8((int8_t *) data, FFALIGN(sample->size, 8) >> 3);
 
         break;
     case 16 :
-        decrunch_sample_16 ( data, FFALIGN(sample->size, 8) >> 3 );
+        decrunch_sample_16(data, FFALIGN(sample->size, 8) >> 3);
 
         break;
     case 32 :
-        decrunch_sample_32 ( (int32_t *) data, FFALIGN(sample->size, 8) >> 3 );
+        decrunch_sample_32((int32_t *) data, FFALIGN(sample->size, 8) >> 3);
 
         break;
     default :
-        decrunch_sample_x  ( (int32_t *) data, sample->samples, delta_bits_per_sample );
+        decrunch_sample_x((int32_t *) data, sample->samples, delta_bits_per_sample);
 
         break;
     }
@@ -152,7 +156,8 @@ int avseq_sample_decrunch ( AVSequencerModule *module, AVSequencerSample *sample
     return 0;
 }
 
-static void decrunch_sample_8 ( int8_t *data, uint32_t length ) {
+static void decrunch_sample_8(int8_t *data, uint32_t length)
+{
     int8_t sample = 0;
 
     do {
@@ -175,7 +180,8 @@ static void decrunch_sample_8 ( int8_t *data, uint32_t length ) {
     } while (--length);
 }
 
-static void decrunch_sample_16 ( int16_t *data, uint32_t length ) {
+static void decrunch_sample_16(int16_t *data, uint32_t length)
+{
     int16_t sample = 0;
 
     do {
@@ -190,7 +196,8 @@ static void decrunch_sample_16 ( int16_t *data, uint32_t length ) {
     } while (--length);
 }
 
-static void decrunch_sample_32 ( int32_t *data, uint32_t length ) {
+static void decrunch_sample_32(int32_t *data, uint32_t length)
+{
     int32_t sample = 0;
 
     do {
@@ -201,7 +208,8 @@ static void decrunch_sample_32 ( int32_t *data, uint32_t length ) {
     } while (--length);
 }
 
-static void decrunch_sample_x ( int32_t *data, uint32_t samples, const uint8_t bits_per_sample ) {
+static void decrunch_sample_x(int32_t *data, uint32_t samples, const uint8_t bits_per_sample)
+{
     uint32_t bit = 0;
     uint32_t sample = 0, tmp_sample;
 
@@ -233,7 +241,8 @@ static void decrunch_sample_x ( int32_t *data, uint32_t samples, const uint8_t b
     } while (--samples);
 }
 
-AVSequencerSample *avseq_sample_find_origin ( AVSequencerModule *module, AVSequencerSample *sample ) {
+AVSequencerSample *avseq_sample_find_origin(AVSequencerModule *module, AVSequencerSample *sample)
+{
     AVSequencerSample *origin_sample = sample;
 
     if (sample) {

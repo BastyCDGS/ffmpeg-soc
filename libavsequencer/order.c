@@ -45,7 +45,8 @@ static const AVClass avseq_order_list_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-int avseq_order_open(AVSequencerSong *song) {
+int avseq_order_open(AVSequencerSong *song)
+{
     AVSequencerOrderList *order_list;
     uint16_t channels;
 
@@ -62,7 +63,7 @@ int avseq_order_open(AVSequencerSong *song) {
         return AVERROR(ENOMEM);
     }
 
-    memset ( order_list, 0, channels * sizeof(AVSequencerOrderList) );
+    memset(order_list, 0, channels * sizeof(AVSequencerOrderList));
 
     while (channels--) {
         order_list[channels].av_class        = &avseq_order_list_class;
@@ -76,7 +77,8 @@ int avseq_order_open(AVSequencerSong *song) {
     return 0;
 }
 
-static const char *order_data_name(void *p) {
+static const char *order_data_name(void *p)
+{
     AVSequencerOrderData *order_data = p;
     AVMetadataTag *tag               = av_metadata_get(order_data->metadata, "title", NULL, AV_METADATA_IGNORE_SUFFIX);
 
@@ -97,7 +99,8 @@ AVSequencerOrderData *avseq_order_data_create(void) {
     return av_mallocz(sizeof(AVSequencerOrderData) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data) {
+int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data)
+{
     AVSequencerOrderData **order_data_list;
     uint16_t orders;
 
@@ -125,7 +128,8 @@ int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData
     return 0;
 }
 
-AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t channel, uint32_t order) {
+AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t channel, uint32_t order)
+{
     AVSequencerOrderList *order_list;
     if (!(song && order))
         return NULL;

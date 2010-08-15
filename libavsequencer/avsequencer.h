@@ -175,9 +175,9 @@ void avsequencer_register_all(void);
  */
 int avseq_mixer_register(AVSequencerMixerContext *mixctx);
 
-/** Gets a mixer by it's title metadata (name).
+/** Gets a mixer by it's name.
  *
- * @param name the title of the mixer to get
+ * @param name the name of the mixer to get
  * @return pointer to mixer context on success, NULL otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.

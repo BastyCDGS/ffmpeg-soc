@@ -45,12 +45,14 @@ static const AVClass avseq_instrument_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerInstrument *avseq_instrument_create(void) {
+AVSequencerInstrument *avseq_instrument_create(void)
+{
     return av_mallocz(sizeof(AVSequencerInstrument) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument,
-                          uint32_t samples) {
+                          uint32_t samples)
+{
     AVSequencerSample *sample;
     AVSequencerInstrument **instrument_list;
     uint32_t i;
@@ -123,12 +125,12 @@ static const AVClass avseq_envelope_class = {
 };
 
 #define CREATE_ENVELOPE(env_type) \
-    static void create_##env_type##_envelope ( AVSequencerContext *avctx, \
-                                               int16_t *data, \
-                                               uint32_t points, \
-                                               uint32_t scale, \
-                                               uint32_t scale_type, \
-                                               uint32_t y_offset )
+    static void create_##env_type##_envelope (AVSequencerContext *avctx,  \
+                                              int16_t *data,              \
+                                              uint32_t points,            \
+                                              uint32_t scale,             \
+                                              uint32_t scale_type,        \
+                                              uint32_t y_offset)
 
 CREATE_ENVELOPE(empty);
 CREATE_ENVELOPE(sine);
@@ -148,14 +150,16 @@ static const void *create_env_lut[] = {
     create_sawtooth_envelope
 };
 
-AVSequencerEnvelope *avseq_envelope_create(void) {
+AVSequencerEnvelope *avseq_envelope_create(void)
+{
     return av_mallocz(sizeof(AVSequencerEnvelope) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
                         AVSequencerEnvelope *envelope, uint32_t points,
                         uint32_t type, uint32_t scale,
-                        uint32_t y_offset, uint32_t nodes) {
+                        uint32_t y_offset, uint32_t nodes)
+{
     AVSequencerEnvelope **envelope_list;
     uint16_t envelopes;
     int res;
@@ -192,9 +196,10 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
 
 int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *envelope,
                              uint32_t points, uint32_t type, uint32_t scale,
-                             uint32_t y_offset, uint32_t nodes) {
+                             uint32_t y_offset, uint32_t nodes)
+{
     uint32_t scale_type;
-    void (**create_env_func)( AVSequencerContext *avctx, int16_t *data, uint32_t points, uint32_t scale, uint32_t scale_type, uint32_t y_offset );
+    void (**create_env_func)(AVSequencerContext *avctx, int16_t *data, uint32_t points, uint32_t scale, uint32_t scale_type, uint32_t y_offset);
     int16_t *data;
 
     if (!envelope)
@@ -223,7 +228,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
         type = 0;
 
     create_env_func = (void *) &(create_env_lut);
-    create_env_func[type] ( avctx, data, points, scale, scale_type, y_offset );
+    create_env_func[type](avctx, data, points, scale, scale_type, y_offset);
 
     if (nodes) {
         uint32_t node_div, node_mod, value = 0, count = 0, i;
@@ -276,7 +281,8 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
     return 0;
 }
 
-AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope) {
+AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope)
+{
     if (!(module && envelope))
         return NULL;
 
@@ -286,7 +292,8 @@ AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint3
     return module->envelope_list[--envelope];
 }
 
-CREATE_ENVELOPE(empty) {
+CREATE_ENVELOPE(empty)
+{
     uint32_t i;
 
     for (i = points; i > 0; i--) {
@@ -322,7 +329,8 @@ static const int16_t sine_lut[] = {
      -4560,  -3993,  -3425,  -2855,  -2285,  -1714,  -1143,   -571
 };
 
-CREATE_ENVELOPE(sine) {
+CREATE_ENVELOPE(sine)
+{
     uint32_t i, sine_div, sine_mod, pos = 0, count = 0;
     int32_t value = 0;
     const int16_t *const lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
@@ -351,7 +359,8 @@ CREATE_ENVELOPE(sine) {
     }
 }
 
-CREATE_ENVELOPE(cosine) {
+CREATE_ENVELOPE(cosine)
+{
     uint32_t i, sine_div, sine_mod, count = 0;
     int32_t pos = 90, value = 0;
     const int16_t *const lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
@@ -385,7 +394,8 @@ CREATE_ENVELOPE(cosine) {
     }
 }
 
-CREATE_ENVELOPE(ramp) {
+CREATE_ENVELOPE(ramp)
+{
     uint32_t i, start_scale = -scale, ramp_points, scale_div, scale_mod, scale_count = 0, value;
 
     if (!(ramp_points = points >> 1))
@@ -412,7 +422,8 @@ CREATE_ENVELOPE(ramp) {
     }
 }
 
-CREATE_ENVELOPE(square) {
+CREATE_ENVELOPE(square)
+{
     unsigned i;
     uint32_t j, value;
 
@@ -429,7 +440,8 @@ CREATE_ENVELOPE(square) {
     }
 }
 
-CREATE_ENVELOPE(triangle) {
+CREATE_ENVELOPE(triangle)
+{
     uint32_t i, value, pos = 0, down_pos, triangle_points, scale_div, scale_mod, scale_count = 0;
 
     if (!(triangle_points = points >> 2))
@@ -479,7 +491,8 @@ CREATE_ENVELOPE(triangle) {
     }
 }
 
-CREATE_ENVELOPE(sawtooth) {
+CREATE_ENVELOPE(sawtooth)
+{
     uint32_t i, value, pos = scale, down_pos, sawtooth_points, scale_div, scale_mod, scale_count = 0;
 
     down_pos = points >> 1;
@@ -524,11 +537,13 @@ CREATE_ENVELOPE(sawtooth) {
     }
 }
 
-AVSequencerKeyboard *avseq_keyboard_create(void) {
+AVSequencerKeyboard *avseq_keyboard_create(void)
+{
     return av_mallocz(sizeof(AVSequencerKeyboard) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
-int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard) {
+int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard)
+{
     AVSequencerKeyboard **keyboard_list;
     uint16_t keyboards;
     unsigned i;
@@ -559,7 +574,8 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     return 0;
 }
 
-AVSequencerKeyboard *avseq_keyboard_get_address(AVSequencerModule *module, uint32_t keyboard) {
+AVSequencerKeyboard *avseq_keyboard_get_address(AVSequencerModule *module, uint32_t keyboard)
+{
     if (!(module && keyboard))
         return NULL;
 
@@ -587,12 +603,14 @@ static const AVClass avseq_arpeggio_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-AVSequencerArpeggio *avseq_arpeggio_create(void) {
+AVSequencerArpeggio *avseq_arpeggio_create(void)
+{
     return av_mallocz(sizeof(AVSequencerArpeggio) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
 int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
-                        uint32_t entries) {
+                        uint32_t entries)
+{
     AVSequencerArpeggio **arpeggio_list;
     uint16_t arpeggios;
     int res;
@@ -624,7 +642,8 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
     return 0;
 }
 
-int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries) {
+int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries)
+{
     AVSequencerArpeggioData *data;
 
     if (!arpeggio)
@@ -648,7 +667,8 @@ int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries) {
     return 0;
 }
 
-AVSequencerArpeggio *avseq_arpeggio_get_address(AVSequencerModule *module, uint32_t arpeggio) {
+AVSequencerArpeggio *avseq_arpeggio_get_address(AVSequencerModule *module, uint32_t arpeggio)
+{
     if (!(module && arpeggio))
         return NULL;
 

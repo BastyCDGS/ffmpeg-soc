@@ -1092,6 +1092,7 @@ int avseq_playback_handler ( AVSequencerMixerData *mixer_data ) {
     channel = 0;
 
     do {
+//        av_log(NULL, AV_LOG_WARNING, "channel: %02d, playing track: %08x, tempo counter: %d/%d, row: %02d!\n", channel, player_host_channel->track, player_host_channel->tempo_counter, player_host_channel->tempo, player_host_channel->row);
         player_channel = avctx->player_channel + player_host_channel->virtual_channel;
 
         if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) &&
