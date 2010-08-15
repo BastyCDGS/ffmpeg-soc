@@ -138,7 +138,8 @@ void avsequencer_destroy(AVSequencerContext *avctx)
     av_freep(&avctx->module_list);
 
     for (i = 0; i < avctx->mixers; ++i) {
-        avseq_mixer_uninit(avctx, avctx->mixer_list[i]);
+    // TODO: actual mixer list destroy
+//        avseq_mixer_uninit(avctx, avctx->mixer_list[i]);
     }
 
     av_freep(&avctx->mixer_list);
@@ -196,7 +197,7 @@ uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix
     return mixer_data->rate;
 }
 
-uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo
+uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo)
 {
     AVSequencerMixerContext *mixctx;
 
