@@ -901,6 +901,9 @@ static int matroska_decode_buffer(uint8_t** buf, int* buf_size,
     int result = 0;
     int olen;
 
+    if (pkt_size >= 10000000)
+        return -1;
+
     switch (encodings[0].compression.algo) {
     case MATROSKA_TRACK_ENCODING_COMP_HEADERSTRIP:
         return encodings[0].compression.settings.size;
@@ -1731,7 +1734,7 @@ static int matroska_parse_block(MatroskaDemuxContext *matroska, uint8_t *data,
                 int offset = 0, pkt_size = lace_size[n];
                 uint8_t *pkt_data = data;
 
-                if (lace_size[n] > size) {
+                if (pkt_size > size) {
                     av_log(matroska->ctx, AV_LOG_ERROR, "Invalid packet size\n");
                     break;
                 }

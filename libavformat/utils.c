@@ -457,7 +457,7 @@ int av_open_input_stream(AVFormatContext **ic_ptr,
     if (pb && !ic->data_offset)
         ic->data_offset = url_ftell(ic->pb);
 
-#if LIBAVFORMAT_VERSION_MAJOR < 53
+#if FF_API_OLD_METADATA
     ff_metadata_demux_compat(ic);
 #endif
 
@@ -2460,14 +2460,14 @@ void av_close_input_stream(AVFormatContext *s)
         av_free(st->index_entries);
         av_free(st->codec->extradata);
         av_free(st->codec);
-#if LIBAVFORMAT_VERSION_INT < (53<<16)
+#if FF_API_OLD_METADATA
         av_free(st->filename);
 #endif
         av_free(st->priv_data);
         av_free(st);
     }
     for(i=s->nb_programs-1; i>=0; i--) {
-#if LIBAVFORMAT_VERSION_INT < (53<<16)
+#if FF_API_OLD_METADATA
         av_freep(&s->programs[i]->provider_name);
         av_freep(&s->programs[i]->name);
 #endif
@@ -2479,7 +2479,7 @@ void av_close_input_stream(AVFormatContext *s)
     flush_packet_queue(s);
     av_freep(&s->priv_data);
     while(s->nb_chapters--) {
-#if LIBAVFORMAT_VERSION_INT < (53<<16)
+#if FF_API_OLD_METADATA
         av_free(s->chapters[s->nb_chapters]->title);
 #endif
         av_metadata_free(&s->chapters[s->nb_chapters]->metadata);
@@ -2582,7 +2582,7 @@ AVChapter *ff_new_chapter(AVFormatContext *s, int id, AVRational time_base, int6
             return NULL;
         dynarray_add(&s->chapters, &s->nb_chapters, chapter);
     }
-#if LIBAVFORMAT_VERSION_INT < (53<<16)
+#if FF_API_OLD_METADATA
     av_free(chapter->title);
 #endif
     av_metadata_set2(&chapter->metadata, "title", title, 0);
@@ -2718,7 +2718,7 @@ int av_write_header(AVFormatContext *s)
             return AVERROR(ENOMEM);
     }
 
-#if LIBAVFORMAT_VERSION_MAJOR < 53
+#if FF_API_OLD_METADATA
     ff_metadata_mux_compat(s);
 #endif
 
@@ -3705,5 +3705,59 @@ int ff_write_chained(AVFormatContext *dst, int dst_stream, AVPacket *pkt,
                                      src->streams[pkt->stream_index]->time_base,
                                      dst->streams[dst_stream]->time_base);
     return av_write_frame(dst, &local_pkt);
+}
+
+void ff_parse_key_value(const char *str, ff_parse_key_val_cb callback_get_buf,
+                        void *context)
+{
+    const char *ptr = str;
+
+    /* Parse key=value pairs. */
+    for (;;) {
+        const char *key;
+        char *dest = NULL, *dest_end;
+        int key_len, dest_len = 0;
+
+        /* Skip whitespace and potential commas. */
+        while (*ptr && (isspace(*ptr) || *ptr == ','))
+            ptr++;
+        if (!*ptr)
+            break;
+
+        key = ptr;
+
+        if (!(ptr = strchr(key, '=')))
+            break;
+        ptr++;
+        key_len = ptr - key;
+
+        callback_get_buf(context, key, key_len, &dest, &dest_len);
+        dest_end = dest + dest_len - 1;
+
+        if (*ptr == '\"') {
+            ptr++;
+            while (*ptr && *ptr != '\"') {
+                if (*ptr == '\\') {
+                    if (!ptr[1])
+                        break;
+                    if (dest && dest < dest_end)
+                        *dest++ = ptr[1];
+                    ptr += 2;
+                } else {
+                    if (dest && dest < dest_end)
+                        *dest++ = *ptr;
+                    ptr++;
+                }
+            }
+            if (*ptr == '\"')
+                ptr++;
+        } else {
+            for (; *ptr && !(isspace(*ptr) || *ptr == ','); ptr++)
+                if (dest && dest < dest_end)
+                    *dest++ = *ptr;
+        }
+        if (dest)
+            *dest = 0;
+    }
 }
 
