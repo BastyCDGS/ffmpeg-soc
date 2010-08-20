@@ -100,7 +100,7 @@ typedef struct AVSequencerContext {
 
     /** Current mixing engine used by current playback handler
        or NULL if there is no module and sub-song being processed.  */
-    AVSequencerMixerData *player_mixer_data;
+    AVMixerData *player_mixer_data;
 
     /** Pointer to sine table for very fast sine calculation. Value
        is sin(x)*32767 with one element being one degree or NULL to
@@ -142,7 +142,7 @@ typedef struct AVSequencerContext {
 
     /** Array of pointers containing every mixing engine which is
        registered and ready for access to the sequencer.  */
-    AVSequencerMixerContext **mixer_list;
+    AVMixerContext **mixer_list;
 
     /** Total amount of mixers registered to the sequencer.  */
     uint16_t mixers;
@@ -153,7 +153,7 @@ typedef struct AVSequencerContext {
     uint32_t seed;
 
     /** Executes one tick of the playback handler.  */
-    int (*playback_handler)( AVSequencerMixerData *mixer_data );
+    int (*playback_handler)( AVMixerData *mixer_data );
 } AVSequencerContext;
 
 /** Registers all mixers to the AVSequencer.
@@ -166,14 +166,14 @@ void avsequencer_register_all(void);
 
 /** Registers a mixer to the AVSequencer.
  *
- * @param mixctx the AVSequencerMixerContext to register
+ * @param mixctx the AVMixerContext to register
  * @return >= 0 on success, a negative error code otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_mixer_register(AVSequencerMixerContext *mixctx);
+int avseq_mixer_register(AVMixerContext *mixctx);
 
 /** Gets a mixer by its name.
  *
@@ -184,18 +184,18 @@ int avseq_mixer_register(AVSequencerMixerContext *mixctx);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVSequencerMixerContext *avseq_mixer_get_by_name(const char *name);
+AVMixerContext *avseq_mixer_get_by_name(const char *name);
 
 /** Gets the pointer to the next mixer context array.
  *
- * @param mixctx the AVSequencerMixerContext array of the next mixer to get
+ * @param mixctx the AVMixerContext array of the next mixer to get
  * @return pointer to next mixer context array on success, NULL otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVSequencerMixerContext **avseq_mixer_next(AVSequencerMixerContext **mixctx);
+AVMixerContext **avseq_mixer_next(AVMixerContext **mixctx);
 
 /** Uninitializes all the mixers registered to the AVSequencer.
  *
@@ -208,7 +208,7 @@ void avsequencer_uninit(void);
 /**
  * Opens and registers a new AVSequencer context.
  *
- * @param mixctx the AVSequencerMixerContext to use as an initial mixer
+ * @param mixctx the AVMixerContext to use as an initial mixer
  * @param inst_name the name of AVSequencerContext instance
  * @return pointer to registered AVSequencerContext, NULL otherwise
  *
@@ -216,7 +216,7 @@ void avsequencer_uninit(void);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVSequencerContext *avsequencer_open(AVSequencerMixerContext *mixctx, const char *inst_name);
+AVSequencerContext *avsequencer_open(AVMixerContext *mixctx, const char *inst_name);
 
 /** Recursively destroys the AVSequencerContext and frees all memory.
  *
@@ -231,7 +231,7 @@ void avsequencer_destroy(AVSequencerContext *avctx);
 /**
  * Opens and initializes a new AVSequencer mixer context.
  *
- * @param mixctx the AVSequencerMixerContext to initialize
+ * @param mixctx the AVMixerContext to initialize
  * @param args   The string of parameters to use when initializing the mixer.
  *               The format and meaning of this string varies by mixer.
  * @param opaque The xtra non-string data needed by the mixer. The meaning
@@ -242,25 +242,25 @@ void avsequencer_destroy(AVSequencerContext *avctx);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVSequencerMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
+AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
                                        const char *args, void *opaque);
 
 /**
  * Closes and uninitializes an AVSequencer mixer data container.
  *
  * @param avctx the AVSequencerContext to uninitialize the mixer from
- * @param mixer_data the AVSequencerMixerData to uninitialize
+ * @param mixer_data the AVMixerData to uninitialize
  * @return >= 0 on success, a negative error code otherwise
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_data);
+int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data);
 
 /**
  * Sets and transfers a new mixing rate to the mixing engine.
  *
- * @param mixer_data the AVSequencerMixerData to set the new mixing rate
+ * @param mixer_data the AVMixerData to set the new mixing rate
  * @param new_mix_rate the new mixing rate in Hz to use for mixing
  * @return the mixing rate in Hz which actually has been set
  *
@@ -268,13 +268,13 @@ int avseq_mixer_uninit(AVSequencerContext *avctx, AVSequencerMixerData *mixer_da
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix_rate);
+uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate);
 
 /**
  * Sets and transfers a new tempo for the playback handler to the
  * mixing engine.
  *
- * @param mixer_data the AVSequencerMixerData to set the new tempo
+ * @param mixer_data the AVMixerData to set the new tempo
  * @param new_tempo the new tempo in AV_TIME_BASE fractional seconds
  *                  to use for mixing
  * @return the tempo in AV_TIME_BASE fractional seconds which actually has been set
@@ -283,13 +283,13 @@ uint32_t avseq_mixer_set_rate(AVSequencerMixerData *mixer_data, uint32_t new_mix
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_tempo);
+uint32_t avseq_mixer_set_tempo(AVMixerData *mixer_data, uint32_t new_tempo);
 
 /**
  * Sets and transfers a new volume boost, left and right volume and
  * number of channels to the mixing engine.
  *
- * @param mixer_data the AVSequencerMixerData to set the volume and channels
+ * @param mixer_data the AVMixerData to set the volume and channels
  * @param amplify the new volume boost where a value of 65536 (=0x10000)
  *                indicates 100%
  * @param left_volume the new left volume where a value of 65536 (=0x10000)
@@ -303,21 +303,21 @@ uint32_t avseq_mixer_set_tempo(AVSequencerMixerData *mixer_data, uint32_t new_te
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_volume(AVSequencerMixerData *mixer_data, uint32_t amplify,
+uint32_t avseq_mixer_set_volume(AVMixerData *mixer_data, uint32_t amplify,
                                 uint32_t left_volume, uint32_t right_volume,
                                 uint32_t channels );
 
 /**
  * Fills the output mixing buffer by calculating all the input channel samples.
  *
- * @param mixer_data the AVSequencerMixerData to do the actual mixing step
+ * @param mixer_data the AVMixerData to do the actual mixing step
  * @param buf the target buffer to mix the output data to
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_do_mix(AVSequencerMixerData *mixer_data, int32_t *buf);
+void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf);
 
 /**
  * Creates a new uninitialized empty module.
@@ -363,7 +363,7 @@ int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *modu
  * Initializes the playback structures for playing back a sub-song in a module.
  *
  * @param avctx the AVSequencerContext to be initialized for playback
- * @param mixctx the AVSequencerMixerContext to be initialized for playback
+ * @param mixctx the AVMixerContext to be initialized for playback
  * @param module the AVSequencerModule to be initialized for playback
  * @param song the AVSequencerSong to be initialized for playback
  * @param args The string of parameters to use when initializing the mixer.
@@ -377,7 +377,7 @@ int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *modu
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
+int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
                       AVSequencerModule *module, AVSequencerSong *song,
                       const char *args, void *opaque, uint32_t mode);
 
@@ -994,13 +994,13 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
  * output buffers. This function might also be called from a hardware
  * and/or software interrupts on some platforms.
  *
- * @param mixer_data the AVSequencerMixerData of which to process the next tick
+ * @param mixer_data the AVMixerData of which to process the next tick
  * @return >= 0 on success, a negative error code otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_playback_handler ( AVSequencerMixerData *mixer_data );
+int avseq_playback_handler ( AVMixerData *mixer_data );
 
 #endif /* AVSEQUENCER_AVSEQUENCER_H */

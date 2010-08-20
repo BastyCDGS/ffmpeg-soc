@@ -27,7 +27,7 @@
 #include "libavsequencer/avsequencer.h"
 
 #define REGISTER_MIXER(X,x) { \
-          extern AVSequencerMixerContext x##_mixer; \
+          extern AVMixerContext x##_mixer; \
           if(CONFIG_##X##_MIXER)  avseq_mixer_register(&x##_mixer); }
 
 void avsequencer_register_all(void)

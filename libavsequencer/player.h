@@ -1526,7 +1526,7 @@ typedef struct AVSequencerPlayerChannel {
     /** Mixer channel data responsible for this virtual channel.
        This will be passed to the actual mixer which calculates
        the final audio data.  */
-    AVSequencerMixerChannel mixer;
+    AVMixerChannel mixer;
 
     /** Pointer to player instrument definition for the current
        virtual channel for obtaining instrument stuff.  */
@@ -1976,24 +1976,24 @@ typedef struct AVSequencerPlayerEffects {
        effect. Can be NULL if this effect number is unused. This
        structure is actually for one effect and there actually
        pointed as an array with size of number of total effects.  */
-    void (*effect_func)( AVSequencerContext *avctx,
+    void (*effect_func)(AVSequencerContext *avctx,
         AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t fx_byte, uint16_t data_word );
+        uint16_t channel, uint16_t fx_byte, uint16_t data_word);
 
     /** Function pointer for pre-pattern evaluation. Some effects
        require a pre-initialization stage. Can be NULL if the effect
        number either is not used or the effect does not require a
        pre-initialization stage.  */
-    void (*pre_pattern_func)( AVSequencerContext *avctx,
+    void (*pre_pattern_func)(AVSequencerContext *avctx,
         AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t data_word );
+        uint16_t channel, uint16_t data_word);
 
     /** Function pointer for parameter checking for an effect. Can
        be NULL if the effect number either is not used or the effect
        does not require pre-checking.  */
-    void (*check_fx_func)( AVSequencerContext *avctx,
+    void (*check_fx_func)(AVSequencerContext *avctx,
         AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel,
-        uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags );
+        uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags);
 
     /** Special flags for this effect, this currently defines if the
        effect is executed during the whole row each tick or just only
@@ -2032,7 +2032,7 @@ typedef struct AVSequencerPlayerHook {
 
     /** The actual hook function to be called which gets passed the
        associated AVSequencerContext.  */
-    void (*hook_func)( AVSequencerContext *avctx, void *hook_data, uint64_t hook_len );
+    void (*hook_func)(AVSequencerContext *avctx, void *hook_data, uint64_t hook_len);
 
     /** The actual hook data to be passed to the hook function which
        also gets passed the associated AVSequencerContext and the

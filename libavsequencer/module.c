@@ -81,14 +81,14 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module)
     return 0;
 }
 
-int avseq_module_play(AVSequencerContext *avctx, AVSequencerMixerContext *mixctx,
+int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
                       AVSequencerModule *module, AVSequencerSong *song,
                       const char *args, void *opaque, uint32_t mode)
 {
     AVSequencerPlayerGlobals *player_globals;
     AVSequencerPlayerHostChannel *player_host_channel;
     AVSequencerPlayerChannel *player_channel;
-    AVSequencerMixerData *mixer_data;
+    AVMixerData *mixer_data;
     uint16_t *gosub_stack     = NULL;
     uint16_t *loop_stack      = NULL;
     uint16_t *new_gosub_stack = NULL;

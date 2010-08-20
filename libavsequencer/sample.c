@@ -92,14 +92,17 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
 
 int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples)
 {
-    uint32_t size;
+    uint64_t size;
 
     if (!sample)
         return AVERROR_INVALIDDATA;
 
-    size = FFALIGN(samples * sample->bits_per_sample, 8) >> 3;
+    size = FFALIGN((uint64_t) samples * sample->bits_per_sample, 8) >> 3;
 
-    if (data) {
+    if (size > UINT64_C(0xFFFFFFFF)) {
+        av_log(sample, AV_LOG_ERROR, "Exceeded maximum number of samples.\n");
+        return AVERROR_INVALIDDATA;
+    } else if (data) {
         sample->flags = AVSEQ_SAMPLE_FLAG_REDIRECT;
     } else if (!(data = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(sample, AV_LOG_ERROR, "Cannot allocate sample data.\n");
@@ -107,7 +110,7 @@ int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t sa
     }
 
     sample->data    = data;
-    sample->size    = size;
+    sample->size    = (uint32_t) size;
     sample->samples = samples;
 
     return 0;

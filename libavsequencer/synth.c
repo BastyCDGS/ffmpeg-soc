@@ -279,7 +279,14 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
     if (!samples)
         samples = 64;
 
-    size = waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT ? samples : samples << 1;
+    if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) {
+        size = samples;
+    } else if (samples > 0x7FFFFFFF) {
+        size = samples << 1;
+    } else {
+        av_log(waveform, AV_LOG_ERROR, "Exceeded maximum number of samples.\n");
+        return AVERROR_INVALIDDATA;
+    }
 
     if (!(data = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(waveform, AV_LOG_ERROR, "Cannot allocate synth sound waveform data.\n");
