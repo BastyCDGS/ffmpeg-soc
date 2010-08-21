@@ -2668,6 +2668,8 @@ static int open_arpg_arpe(AVFormatContext *s, AVSequencerArpeggio *arpeggio, uin
 #endif
 
 static const char *nna_name[] = {"Cut", "Con", "Off", "Fde"};
+static const char *note_name[] = {"--", "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+static const char *spec_note_name[] = {"END", "???", "???", "???", "???", "???", "???", "???", "???", "???", "???", "-\\-", "-|-", "===", "^^-", "^^^"};
 
 static int iff_read_packet(AVFormatContext *s,
                            AVPacket *pkt)
@@ -2681,26 +2683,104 @@ static int iff_read_packet(AVFormatContext *s,
         return AVERROR(EIO);
 #if CONFIG_AVSEQUENCER
     if (iff->avctx) {
-        uint16_t channel = 0;
+        int32_t row;
+        uint16_t channel;
         AVSequencerPlayerGlobals *player_globals = iff->avctx->player_globals;
+        AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel;
         AVSequencerPlayerChannel *player_channel;
         AVMixerData *mixer_data = iff->avctx->player_mixer_data;
         int size = st->codec->channels * mixer_data->mix_buf_size << 2;
 
         avseq_mixer_do_mix(mixer_data, NULL);
 
-        player_channel      = iff->avctx->player_channel;
+        av_log(NULL, AV_LOG_INFO, "\n\n Row  ");
+
+        for (channel = 0; channel < iff->avctx->player_song->channels; ++channel) {
+            av_log(NULL, AV_LOG_INFO, "%3d ", channel + 1);
+        }
+
+        av_log(NULL, AV_LOG_INFO, "\n");
+
+        for (row = FFMAX(FFMIN((int32_t) player_host_channel->row - 11, (int32_t) player_host_channel->max_row - 24), 0); row <= FFMIN(FFMAX((int32_t) player_host_channel->row + 12, 23), (int32_t) player_host_channel->max_row - 1); ++row) {
+            if (row == player_host_channel->row)
+                av_log(NULL, AV_LOG_INFO, ">%04X ", row);
+            else
+                av_log(NULL, AV_LOG_INFO, " %04X ", row);
+
+            channel             = 0;
+
+            do {
+                if (player_host_channel->track) {
+                    AVSequencerTrackRow *track_row = player_host_channel->track->data + row;
+
+                    switch (track_row->note) {
+                        case AVSEQ_TRACK_DATA_NOTE_NONE:
+                            if (track_row->effects) {
+                                AVSequencerTrackEffect *fx = track_row->effects_data[0];
+
+                                if (fx->command || fx->data)
+                                    av_log(NULL, AV_LOG_INFO, "\02X%02X", fx->command, fx->data >> 8 ? fx->data >> 8 : fx->data & 0xFF);
+                                else
+                                    av_log(NULL, AV_LOG_INFO, "... ");
+                            } else {
+                                av_log(NULL, AV_LOG_INFO, "... ");
+                            }
+
+                            break;
+                        case AVSEQ_TRACK_DATA_NOTE_C:
+                        case AVSEQ_TRACK_DATA_NOTE_C_SHARP:
+                        case AVSEQ_TRACK_DATA_NOTE_D:
+                        case AVSEQ_TRACK_DATA_NOTE_D_SHARP:
+                        case AVSEQ_TRACK_DATA_NOTE_E:
+                        case AVSEQ_TRACK_DATA_NOTE_F:
+                        case AVSEQ_TRACK_DATA_NOTE_F_SHARP:
+                        case AVSEQ_TRACK_DATA_NOTE_G:
+                        case AVSEQ_TRACK_DATA_NOTE_G_SHARP:
+                        case AVSEQ_TRACK_DATA_NOTE_A:
+                        case AVSEQ_TRACK_DATA_NOTE_A_SHARP:
+                        case AVSEQ_TRACK_DATA_NOTE_B:
+                            av_log(NULL, AV_LOG_INFO, "%2s%1d ", note_name[track_row->note], track_row->octave);
+
+                            break;
+                        case AVSEQ_TRACK_DATA_NOTE_KILL:
+                        case AVSEQ_TRACK_DATA_NOTE_OFF:
+                        case AVSEQ_TRACK_DATA_NOTE_KEYOFF:
+                        case AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY:
+                        case AVSEQ_TRACK_DATA_NOTE_FADE:
+                        case AVSEQ_TRACK_DATA_NOTE_END:
+                            av_log(NULL, AV_LOG_INFO, "%3s ", spec_note_name[track_row->note - 0xF0]);
+
+                            break;
+                        default:
+                            av_log(NULL, AV_LOG_INFO, "??? ");
+
+                            break;
+
+                    }
+                } else {
+                    av_log(NULL, AV_LOG_INFO, "...");
+                }
+
+                player_host_channel++;
+            } while (++channel < iff->avctx->player_song->channels);
+
+            av_log(NULL, AV_LOG_INFO, "\n");
+
+            player_host_channel = iff->avctx->player_host_channel;
+        }
 
         av_log(NULL, AV_LOG_INFO, "\n\nVch Frequency Position  Ch  Row  Tick Tm FVl Vl CV SV VE Fade Pn PE  NNA Tot\n");
 
+        player_channel = iff->avctx->player_channel;
+        channel        = 0;
         do {
             AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel + player_channel->host_channel;
 
             if (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
                 if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND)
-                    av_log(NULL, AV_LOG_INFO, "%3d %9d %8d %3d  %04x %04x %02x %3d %02x %02x %02x %02x %04x Su %02x  %s %3d\n", channel + 1, player_channel->mixer.rate, player_channel->mixer.pos, player_channel->host_channel, player_host_channel->row, player_host_channel->tempo_counter, player_host_channel->tempo, player_channel->final_volume, player_channel->volume, player_host_channel->track_volume, player_channel->instr_volume / 255, (uint16_t) player_channel->vol_env.value / 256, player_channel->fade_out_count, (player_channel->pan_env.value >> 8) + 128, nna_name[player_host_channel->nna], player_host_channel->virtual_channels);
+                    av_log(NULL, AV_LOG_INFO, "%3d %9d %8d %3d  %04X %04X %02X %3d %02X %02X %02X %02X %04X Su %02X  %s %3d\n", channel + 1, player_channel->mixer.rate, player_channel->mixer.pos, player_channel->host_channel, player_host_channel->row, player_host_channel->tempo_counter, player_host_channel->tempo, player_channel->final_volume, player_channel->volume, player_host_channel->track_volume, player_channel->instr_volume / 255, (uint16_t) player_channel->vol_env.value / 256, player_channel->fade_out_count, (player_channel->pan_env.value >> 8) + 128, nna_name[player_host_channel->nna], player_host_channel->virtual_channels);
                 else
-                    av_log(NULL, AV_LOG_INFO, "%3d %9d %8d %3d  %04x %04x %02x %3d %02x %02x %02x %02x %04x %02x %02x  %s %3d\n", channel + 1, player_channel->mixer.rate, player_channel->mixer.pos, player_channel->host_channel, player_host_channel->row, player_host_channel->tempo_counter, player_host_channel->tempo, player_channel->final_volume, player_channel->volume, player_host_channel->track_volume, player_channel->instr_volume / 255, (uint16_t) player_channel->vol_env.value / 256, player_channel->fade_out_count, (uint8_t) player_channel->final_panning, (player_channel->pan_env.value >> 8) + 128, nna_name[player_host_channel->nna], player_host_channel->virtual_channels);
+                    av_log(NULL, AV_LOG_INFO, "%3d %9d %8d %3d  %04X %04X %02X %3d %02X %02X %02X %02X %04X %02X %02X  %s %3d\n", channel + 1, player_channel->mixer.rate, player_channel->mixer.pos, player_channel->host_channel, player_host_channel->row, player_host_channel->tempo_counter, player_host_channel->tempo, player_channel->final_volume, player_channel->volume, player_host_channel->track_volume, player_channel->instr_volume / 255, (uint16_t) player_channel->vol_env.value / 256, player_channel->fade_out_count, (uint8_t) player_channel->final_panning, (player_channel->pan_env.value >> 8) + 128, nna_name[player_host_channel->nna], player_host_channel->virtual_channels);
             } else {
                 av_log(NULL, AV_LOG_INFO, "%3d                                                                  ---   0\n", channel + 1);
             }
@@ -2731,9 +2811,11 @@ static int iff_read_packet(AVFormatContext *s,
         if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND)
             av_log(NULL, AV_LOG_INFO, "\n  Global Volume: %3d        Global Panning: Su", player_globals->global_volume);
         else
-            av_log(NULL, AV_LOG_INFO, "\n  Global Volume: %3d        Global Panning: %02x", player_globals->global_volume, (uint8_t) player_globals->global_panning);
+            av_log(NULL, AV_LOG_INFO, "\n  Global Volume: %3d        Global Panning: %02X", player_globals->global_volume, (uint8_t) player_globals->global_panning);
 
-        av_log(NULL, AV_LOG_INFO, "\n\033[%dA", iff->avctx->player_module->channels + 6);
+        player_host_channel = iff->avctx->player_host_channel;
+
+        av_log(NULL, AV_LOG_INFO, "\n\033[%dA", iff->avctx->player_module->channels + 33);
         fflush(stderr);
 
         if ((ret = av_new_packet(pkt, size)) < 0) {
