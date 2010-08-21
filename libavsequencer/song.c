@@ -251,7 +251,7 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
             player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ;
 
         player_host_channel->ch_control_type   = AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_TYPE_GLOBAL;
-        player_host_channel->ch_control_affect = AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_AFFECT_NOTES;
+        player_host_channel->ch_control_affect = AVSEQ_PLAYER_HOST_CHANNEL_CH_CONTROL_AFFECT_NON_NOTES;
 
         for (order = 0; order < order_list->orders; ++order) {
             AVSequencerOrderData *order_data = order_list->order_data[order];

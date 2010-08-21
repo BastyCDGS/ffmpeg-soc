@@ -1126,7 +1126,7 @@ static void set_sample_mix_rate(AV_LQMixerData *mixer_data, AV_LQMixerChannelInf
 static void set_mix_functions(AV_LQMixerData *mixer_data, AV_LQMixerChannelInfo *channel_info)
 {
     void **mix_func;
-    void (*init_mixer_func)( AV_LQMixerData *mixer_data, AV_LQMixerChannelInfo *channel_info, uint16_t volume, uint16_t panning );
+    void (*init_mixer_func)(AV_LQMixerData *mixer_data, AV_LQMixerChannelInfo *channel_info, uint16_t volume, uint16_t panning);
     uint16_t panning = 0x80;
 
     if ((channel_info->current.bits_per_sample <= 8) || (mixer_data->real_16_bit_mode == 0)) {

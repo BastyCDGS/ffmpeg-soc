@@ -36,6 +36,7 @@
 #if CONFIG_AVSEQUENCER
 #include "libavutil/avstring.h"
 #include "libavsequencer/avsequencer.h"
+#include "libavsequencer/player.h"
 
 static const char *const metadata_tag_list[] = {
     "artist",
@@ -227,7 +228,7 @@ static int iff_read_header(AVFormatContext *s,
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
     uint8_t buf[24];
-    const char *args = "stereo=true; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
+    const char *args = "stereo=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
@@ -338,7 +339,8 @@ static int iff_read_header(AVFormatContext *s,
             envelopes               = get_be16(pb);
             keyboards               = get_be16(pb);
             arpeggios               = get_be16(pb);
-            module->channels        = get_be16(pb);
+
+            avseq_module_set_channels(iff->avctx, module, get_be16(pb));
 
             if (get_be16(pb)) // compatibility flags and flags
                 return AVERROR_INVALIDDATA;
@@ -2665,6 +2667,8 @@ static int open_arpg_arpe(AVFormatContext *s, AVSequencerArpeggio *arpeggio, uin
 }
 #endif
 
+static const char *nna_name[] = {"Cut", "Con", "Off", "Fde"};
+
 static int iff_read_packet(AVFormatContext *s,
                            AVPacket *pkt)
 {
@@ -2677,10 +2681,60 @@ static int iff_read_packet(AVFormatContext *s,
         return AVERROR(EIO);
 #if CONFIG_AVSEQUENCER
     if (iff->avctx) {
+        uint16_t channel = 0;
+        AVSequencerPlayerGlobals *player_globals = iff->avctx->player_globals;
+        AVSequencerPlayerChannel *player_channel;
         AVMixerData *mixer_data = iff->avctx->player_mixer_data;
         int size = st->codec->channels * mixer_data->mix_buf_size << 2;
 
         avseq_mixer_do_mix(mixer_data, NULL);
+
+        player_channel      = iff->avctx->player_channel;
+
+        if (iff->sent_bytes)
+            av_log(NULL, AV_LOG_WARNING, "\033[%dA", iff->avctx->player_module->channels + 4);
+
+        av_log(NULL, AV_LOG_WARNING, "Vch Frequency Position  Ch  Row  Tick Tm FVl Vl CV SV VE Fade Pn PE  NNA Tot\n" );
+
+        do {
+            AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel + player_channel->host_channel;
+
+            if (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
+                if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND)
+                    av_log(NULL, AV_LOG_WARNING, "%3d %9d %8d %3d  %04x %04x %02x %3d %02x %02x %02x %02x %04x Su %02x  %s %3d\n", channel + 1, player_channel->mixer.rate, player_channel->mixer.pos, player_channel->host_channel, player_host_channel->row, player_host_channel->tempo_counter, player_host_channel->tempo, player_channel->final_volume, player_channel->volume, player_host_channel->track_volume, player_channel->instr_volume / 255, (uint16_t) player_channel->vol_env.value / 256, player_channel->fade_out_count, ((uint16_t) player_channel->pan_env.value >> 8) + 128, nna_name[player_host_channel->nna], player_host_channel->virtual_channels);
+                else
+                    av_log(NULL, AV_LOG_WARNING, "%3d %9d %8d %3d  %04x %04x %02x %3d %02x %02x %02x %02x %04x %02x %02x  %s %3d\n", channel + 1, player_channel->mixer.rate, player_channel->mixer.pos, player_channel->host_channel, player_host_channel->row, player_host_channel->tempo_counter, player_host_channel->tempo, player_channel->final_volume, player_channel->volume, player_host_channel->track_volume, player_channel->instr_volume / 255, (uint16_t) player_channel->vol_env.value / 256, player_channel->fade_out_count, (uint8_t) player_channel->final_panning, ((uint16_t) player_channel->pan_env.value >> 8) + 128, nna_name[player_host_channel->nna], player_host_channel->virtual_channels);
+            } else {
+                av_log(NULL, AV_LOG_WARNING, "%3d                                                                  ---   0\n", channel + 1);
+            }
+
+            player_channel++;
+        } while (++channel < iff->avctx->player_module->channels);
+
+        if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING) {
+            uint8_t buf[14];
+
+            snprintf(buf, 14, "%d (%d)", player_globals->channels, player_globals->max_channels);
+
+            if (player_globals->speed_mul < 2 && player_globals->speed_div < 2)
+                av_log(NULL, AV_LOG_WARNING, "\nActive Channels: %-13s       Speed: %d (SPD)", buf, player_globals->spd_speed);
+            else
+                av_log(NULL, AV_LOG_WARNING, "\nActive Channels: %-13s       Speed: %d (%d/%d SPD)", buf, player_globals->spd_speed, player_globals->speed_mul, player_globals->speed_div);
+        } else {
+            uint8_t buf[14];
+
+            snprintf(buf, 14, "%d (%d)", player_globals->channels, player_globals->max_channels);
+
+            if (player_globals->speed_mul < 2 && player_globals->speed_div < 2)
+                av_log(NULL, AV_LOG_WARNING, "\nActive Channels: %-13s       Speed: %d/%d (BpM)", buf, player_globals->bpm_speed, player_globals->bpm_tempo);
+            else
+                av_log(NULL, AV_LOG_WARNING, "\nActive Channels: %-13s       Speed: %d/%d (%d/%d BpM)", buf, player_globals->bpm_speed, player_globals->bpm_tempo, player_globals->speed_mul, player_globals->speed_div);
+        }
+
+        if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND)
+            av_log(NULL, AV_LOG_WARNING, "\n  Global Volume: %3d        Global Panning: Su\n", player_globals->global_volume);
+        else
+            av_log(NULL, AV_LOG_WARNING, "\n  Global Volume: %3d        Global Panning: %02x\n", player_globals->global_volume, (uint8_t) player_globals->global_panning);
 
         if ((ret = av_new_packet(pkt, size)) < 0) {
             av_log(s, AV_LOG_ERROR, "Cannot allocate packet!\n");

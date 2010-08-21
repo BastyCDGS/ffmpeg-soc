@@ -980,7 +980,7 @@ typedef struct AVSequencerPlayerHostChannel {
 
     /** Current panning slide to speed or 0 if the panning slide to
        effect was not used yet during playback.  */
-    int8_t panning_slide_to;
+    uint8_t panning_slide_to;
 
     /** Current track panning slide to speed or 0 if the track panning
        slide to effect was not used yet during playback.  */

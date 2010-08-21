@@ -1087,13 +1087,12 @@ int avseq_playback_handler(AVMixerData *mixer_data)
         if (player_globals->play_tics_frac < play_time_fraction)
             play_time_advance++;
 
-        player_globals->play_tics      += play_time_advance;
+        player_globals->play_tics += play_time_advance;
     }
 
     channel = 0;
 
     do {
-        av_log(NULL, AV_LOG_WARNING, "channel: %02d, playing track: %08x, row: %02d!\n", channel, player_host_channel->track, player_host_channel->row);
         player_channel = avctx->player_channel + player_host_channel->virtual_channel;
 
         if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) &&
@@ -1372,7 +1371,7 @@ rescan_row:
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_FADING) {
                 int32_t fade_out = (uint32_t) player_channel->fade_out_count;
 
-                if ((fade_out -= player_channel->fade_out) <= 0)
+                if ((fade_out -= (int32_t) player_channel->fade_out) <= 0)
                     goto turn_note_off;
 
                 player_channel->fade_out_count = fade_out;
@@ -1484,10 +1483,10 @@ turn_note_off:
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                 flags = AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
 
-            panning = player_channel->panning;
+            panning = (uint8_t) player_channel->panning;
 
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN) {
-                panning = player_host_channel->track_panning;
+                panning = (uint8_t) player_host_channel->track_panning;
                 flags   = 0;
 
                 if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN) || (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHANNEL_SUR_PAN))
@@ -1514,7 +1513,7 @@ turn_note_off:
                 panning++;
 
             panning     = 128 - (((panning * abs_panning) >> 7) + panning_envelope_value);
-            abs_panning = (uint16_t) player_host_channel->channel_panning;
+            abs_panning = (uint8_t) player_host_channel->channel_panning;
 
             if (abs_panning == 255)
                 abs_panning++;
@@ -1533,7 +1532,7 @@ turn_note_off:
                     player_channel->mixer.flags |= AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
 
                 panning    -= abs_panning;
-                abs_panning = (uint16_t) player_channel->global_panning;
+                abs_panning = (uint8_t) player_channel->global_panning;
 
                 if (abs_panning == 255)
                     abs_panning++;
@@ -1793,11 +1792,13 @@ static void get_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
 {
     AVSequencerTrack *track;
     AVSequencerTrackEffect *track_fx;
-    AVSequencerTrackRow *track_data = track->data + player_host_channel->row;
+    AVSequencerTrackRow *track_data;
     uint32_t fx                     = -1;
 
     if (!(track = player_host_channel->track))
         return;
+
+    track_data = track->data + player_host_channel->row;
 
     if ((track_fx = player_host_channel->effect)) {
         while (++fx < track_data->effects) {
@@ -1807,12 +1808,14 @@ static void get_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
     } else if (track_data->effects) {
         fx       = 0;
         track_fx = track_data->effects_data[0];
+    } else {
+        track_fx = NULL;
     }
 
     player_host_channel->effect = track_fx;
 
     if ((fx < track_data->effects) && track_data->effects_data[fx]) {
-        for (;;) {
+        do {
             const uint8_t fx_byte = track_fx->command & 0x7F;
 
             if (fx_byte == AVSEQ_TRACK_EFFECT_CMD_EXECUTE_FX) {
@@ -1822,12 +1825,8 @@ static void get_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
                 if (player_host_channel->tempo_counter < player_host_channel->exec_fx)
                     break;
             }
+        } while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx])));
 
-            fx++;
-
-            if ((fx >= track_data->effects) || (!(track_fx = track_data->effects_data[fx])))
-                break;
-        }
 
         if (player_host_channel->effect != track_fx) {
             player_host_channel->effect = track_fx;
@@ -2435,7 +2434,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         }
     } while (++i < (sizeof (assign_auto_envelope_lut) / sizeof (void *)));
 
-    panning                = player_host_channel->track_note_pan;
+    panning                = (uint8_t) player_host_channel->track_note_pan;
     player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN;
 
     if (sample->flags & AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING) {
@@ -2448,7 +2447,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         player_channel->sub_pan            = sample->sub_panning;
         player_host_channel->pannolo_slide = 0;
 
-        panning = player_channel->panning;
+        panning = (uint8_t) player_channel->panning;
 
         if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
             player_host_channel->track_panning      = player_channel->panning;
@@ -2486,7 +2485,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         }
 
         player_host_channel->pannolo_slide = 0;
-        panning                            = player_channel->panning;
+        panning                            = (uint8_t) player_channel->panning;
 
         if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
             player_host_channel->track_panning = player_channel->panning;
@@ -3441,21 +3440,16 @@ static void run_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
             uint16_t fx_byte, data_word, flags;
             uint8_t channel_ctrl_type;
 
-            if (player_host_channel->effect == track_fx)
-                break;
-
             fx_byte     = track_fx->command & 0x7F;
             effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
             data_word   = track_fx->data;
             flags       = effects_lut->flags;
 
-            av_log(NULL, AV_LOG_WARNING, "Checking effect: %02x, data: %04x...", fx_byte, data_word);
             if ((check_func = effects_lut->check_fx_func)) {
                 check_func(avctx, player_host_channel, player_channel, channel, &fx_byte, &data_word, &flags);
 
                 effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
             }
-            av_log(NULL, AV_LOG_WARNING, "done! New effect: %02x, data: %04x!\n", fx_byte, data_word);
 
             if (flags & AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW)
                 continue;
@@ -3471,7 +3465,6 @@ static void run_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
             if (player_host_channel->effects_used[(fx_byte >> 3)] & (1 << (7 - (fx_byte & 7))))
                 continue;
 
-            av_log(NULL, AV_LOG_WARNING, "Executing effect: %02x, data: %04x...", fx_byte, data_word);
             effects_lut->effect_func(avctx, player_host_channel, player_channel, channel, fx_byte, data_word);
 
             if ((channel_ctrl_type = player_host_channel->ch_control_type)) {
@@ -3547,6 +3540,9 @@ static void run_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
                     }
                 }
             }
+
+            if (player_host_channel->effect == track_fx)
+                break;
         }
 
         fx = -1;
@@ -3556,9 +3552,6 @@ static void run_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
             void (*check_func)(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint16_t *fx_byte, uint16_t *data_word, uint16_t *flags);
             uint16_t fx_byte, data_word, flags;
             uint8_t channel_ctrl_type;
-
-            if (player_host_channel->effect == track_fx)
-                break;
 
             fx_byte     = track_fx->command & 0x7F;
             effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
@@ -3668,6 +3661,9 @@ static void run_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel 
                     }
                 }
             }
+
+            if (player_host_channel->effect == track_fx)
+                break;
         }
     }
 }
@@ -4189,7 +4185,7 @@ static void do_track_volume_slide_down(AVSequencerContext *avctx, AVSequencerPla
 static void do_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel)
 {
     if (player_channel->host_channel == channel) {
-        uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+        uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
         if (panning < data_word)
             data_word = panning;
@@ -4199,7 +4195,7 @@ static void do_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerHostCha
         player_host_channel->track_panning = player_channel->panning = panning >> 8;
         player_host_channel->track_sub_pan = player_channel->sub_pan = panning;
     } else {
-        uint16_t track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
 
         if (track_panning < data_word)
             data_word = track_panning;
@@ -4216,7 +4212,7 @@ static void do_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerHostCha
 static void do_panning_slide_right(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel)
 {
     if (player_channel->host_channel == channel) {
-        uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+        uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
         if ((panning += data_word) < data_word)
             panning = 0xFFFF;
@@ -4224,7 +4220,7 @@ static void do_panning_slide_right(AVSequencerContext *avctx, AVSequencerPlayerH
         player_host_channel->track_panning = player_channel->panning = panning >> 8;
         player_host_channel->track_sub_pan = player_channel->sub_pan = panning;
     } else {
-        uint16_t track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
 
         if ((track_panning += data_word) < data_word)
             track_panning = 0xFFFF;
@@ -4239,7 +4235,7 @@ static void do_panning_slide_right(AVSequencerContext *avctx, AVSequencerPlayerH
 
 static void do_track_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word)
 {
-    uint16_t channel_panning = (player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
+    uint16_t channel_panning = ((uint8_t) player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
 
     if (channel_panning < data_word)
         data_word = channel_panning;
@@ -4252,7 +4248,7 @@ static void do_track_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerH
 
 static void do_track_panning_slide_right(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word)
 {
-    uint16_t channel_panning = (player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
+    uint16_t channel_panning = ((uint8_t) player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
 
     if ((channel_panning += data_word) < data_word)
         channel_panning = 0xFFFF;
@@ -4461,7 +4457,7 @@ static void do_global_volume_slide_down(AVSequencerContext *avctx, AVSequencerPl
 
 static void do_global_panning_slide(AVSequencerPlayerGlobals *player_globals, uint16_t data_word)
 {
-    uint16_t global_panning = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+    uint16_t global_panning = ((uint8_t) player_globals->global_panning << 8) + player_globals->global_sub_panning;
 
     player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
 
@@ -4474,7 +4470,7 @@ static void do_global_panning_slide(AVSequencerPlayerGlobals *player_globals, ui
 
 static void do_global_panning_slide_right(AVSequencerPlayerGlobals *player_globals, uint16_t data_word)
 {
-    uint16_t global_panning = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+    uint16_t global_panning = ((uint8_t) player_globals->global_panning << 8) + player_globals->global_sub_panning;
 
     player_globals->flags &= ~AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
 
@@ -4612,7 +4608,7 @@ CHECK_EFFECT(volume_slide)
 
 CHECK_EFFECT(volume_slide_to)
 {
-    if ((*data_word >> 8U) == 0xFF)
+    if ((*data_word >> 8) == 0xFF)
         *flags &= ~AVSEQ_PLAYER_EFFECTS_FLAG_EXEC_WHOLE_ROW;
 }
 
@@ -6131,7 +6127,7 @@ EXECUTE_EFFECT(track_tremolo)
 
 EXECUTE_EFFECT(set_panning)
 {
-    uint8_t panning = data_word >> 8U;
+    uint8_t panning = data_word >> 8;
 
     if (player_channel->host_channel == channel) {
         player_channel->panning = panning;
@@ -6296,13 +6292,13 @@ EXECUTE_EFFECT(panning_slide_to)
     if (panning_slide_to_panning && (panning_slide_to_panning < 0xFF)) {
         player_host_channel->panning_slide_to_panning = panning_slide_to_panning;
     } else if (panning_slide_to_panning && (player_channel->host_channel == channel)) {
-        uint16_t panning_slide_target = (panning_slide_to_panning << 8) + player_host_channel->panning_slide_to_sub_pan;
-        uint16_t panning              = (player_channel->panning << 8) + player_channel->sub_pan;
+        uint16_t panning_slide_target = ((uint8_t) panning_slide_to_panning << 8) + player_host_channel->panning_slide_to_sub_pan;
+        uint16_t panning              = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
         if (panning < panning_slide_target) {
             do_panning_slide_right(avctx, player_host_channel, player_channel, player_host_channel->panning_slide_to_slide, channel);
 
-            panning = (player_channel->panning << 8) + player_channel->sub_pan;
+            panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
             if (panning_slide_target <= panning) {
                 player_channel->panning = panning_slide_target >> 8;
@@ -6315,7 +6311,7 @@ EXECUTE_EFFECT(panning_slide_to)
         } else {
             do_panning_slide(avctx, player_host_channel, player_channel, player_host_channel->panning_slide_to_slide, channel);
 
-            panning = (player_channel->panning << 8) + player_channel->sub_pan;
+            panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
             if (panning_slide_target >= panning) {
                 player_channel->panning = panning_slide_target >> 8;
@@ -6348,7 +6344,7 @@ EXECUTE_EFFECT(pannolo)
     pannolo_slide_value = (-pannolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
 
     if (player_channel->host_channel == channel) {
-        uint16_t panning     = player_channel->panning;
+        uint16_t panning     = (uint8_t) player_channel->panning;
         pannolo_slide_value -= player_host_channel->pannolo_slide;
 
         if ((pannolo_slide_value += panning) < 0)
@@ -6524,13 +6520,13 @@ EXECUTE_EFFECT(track_panning_slide_to)
     if (track_panning_slide_to_panning && (track_panning_slide_to_panning < 0xFF)) {
         player_host_channel->track_pan_slide_to_panning = track_panning_slide_to_panning;
     } else if (track_panning_slide_to_panning) {
-        uint16_t track_panning_slide_to_target = (track_panning_slide_to_panning << 8) + player_host_channel->track_pan_slide_to_sub_pan;
-        uint16_t track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+        uint16_t track_panning_slide_to_target = ((uint8_t) track_panning_slide_to_panning << 8) + player_host_channel->track_pan_slide_to_sub_pan;
+        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
 
         if (track_panning < track_panning_slide_to_target) {
             do_track_panning_slide_right(avctx, player_host_channel, player_host_channel->track_pan_slide_to_slide);
 
-            track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+            track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
 
             if (track_panning_slide_to_target <= track_panning) {
                 player_host_channel->track_panning = track_panning_slide_to_target >> 8;
@@ -6539,7 +6535,7 @@ EXECUTE_EFFECT(track_panning_slide_to)
         } else {
             do_track_panning_slide(avctx, player_host_channel, player_host_channel->track_pan_slide_to_slide);
 
-            track_panning = (player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+            track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
 
             if (track_panning_slide_to_target >= track_panning) {
                 player_host_channel->track_panning = track_panning_slide_to_target >> 8;
@@ -6567,7 +6563,7 @@ EXECUTE_EFFECT(track_pannolo)
     player_host_channel->track_pan_depth = track_pannolo_depth;
     track_pannolo_slide_value            = (-track_pannolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
 
-    track_panning              = player_host_channel->track_panning;
+    track_panning              = (uint8_t) player_host_channel->track_panning;
     track_pannolo_slide_value -= player_host_channel->track_pan_slide;
 
     if ((track_pannolo_slide_value += track_panning) < 0)
@@ -7700,13 +7696,13 @@ EXECUTE_EFFECT(global_panning_slide_to)
     if (global_pan_slide_to_panning && (global_pan_slide_to_panning < 0xFF)) {
         player_globals->global_pan_slide_to_panning = global_pan_slide_to_panning;
     } else if (global_pan_slide_to_panning) {
-        uint16_t global_panning_slide_target = (global_pan_slide_to_panning << 8) + player_globals->global_pan_slide_to_sub_pan;
-        uint16_t global_panning              = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+        uint16_t global_panning_slide_target = ((uint8_t) global_pan_slide_to_panning << 8) + player_globals->global_pan_slide_to_sub_pan;
+        uint16_t global_panning              = ((uint8_t) player_globals->global_panning << 8) + player_globals->global_sub_panning;
 
         if (global_panning < global_panning_slide_target) {
             do_global_panning_slide_right(player_globals, player_globals->global_pan_slide_to_slide);
 
-            global_panning = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+            global_panning = ((uint8_t) player_globals->global_panning << 8) + player_globals->global_sub_panning;
 
             if (global_panning_slide_target <= global_panning) {
                 player_globals->global_panning     = global_panning_slide_target >> 8;
@@ -7715,7 +7711,7 @@ EXECUTE_EFFECT(global_panning_slide_to)
         } else {
             do_global_panning_slide(player_globals, player_globals->global_pan_slide_to_slide);
 
-            global_panning = (player_globals->global_panning << 8) + player_globals->global_sub_panning;
+            global_panning = ((uint8_t) player_globals->global_panning << 8) + player_globals->global_sub_panning;
 
             if (global_panning_slide_target >= global_panning) {
                 player_globals->global_panning     = global_panning_slide_target >> 8;
@@ -7743,7 +7739,7 @@ EXECUTE_EFFECT(global_pannolo)
 
     player_globals->pannolo_depth = global_pannolo_depth;
     global_pannolo_slide_value    = (-global_pannolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
-    global_panning                = player_globals->global_panning;
+    global_panning                = (uint8_t) player_globals->global_panning;
     global_pannolo_slide_value   -= player_globals->pannolo_slide;
 
     if ((global_pannolo_slide_value += global_panning) < 0)
@@ -7922,7 +7918,7 @@ static void se_tremolo_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *p
 
 static void se_pannolo_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t pannolo_slide_value)
 {
-    uint16_t panning = player_channel->panning;
+    uint16_t panning = (uint8_t) player_channel->panning;
 
     pannolo_slide_value -= player_channel->pannolo_slide;
 
@@ -10193,7 +10189,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(trmval)
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(panleft)
 {
-    uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+    uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->pan_sl_left;
@@ -10213,7 +10209,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(panleft)
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(panrght)
 {
-    uint16_t panning = (player_channel->panning << 8) + player_channel->sub_pan;
+    uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->pan_sl_right;
