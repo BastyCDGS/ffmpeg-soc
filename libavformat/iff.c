@@ -957,7 +957,7 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
     ByteIOContext *pb = s->pb;
     AVSequencerTrack *track;
     uint8_t *buf = NULL;
-    uint32_t len = 0, iff_size = 4;
+    uint32_t last_row = 0, len = 0, iff_size = 4;
     int res;
 
     if (data_size < 4)
@@ -984,7 +984,7 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
 
         switch(chunk_id) {
         case ID_THDR:
-            track->last_row     = get_be16(pb);
+            last_row            = get_be16(pb);
             track->volume       = get_byte(pb);
             track->sub_volume   = get_byte(pb);
             track->panning      = get_byte(pb);
@@ -1002,7 +1002,7 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
             break;
         case ID_BODY:
             len = iff_size;
-            buf = av_malloc(iff_size + 1);
+            buf = av_malloc(iff_size + 1 + FF_INPUT_BUFFER_PADDING_SIZE);
 
             if (!buf)
                 return AVERROR(ENOMEM);
@@ -1055,7 +1055,7 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
         iff_size += 8;
     }
 
-    if ((res = avseq_track_data_open(track, track->last_row + 1)) < 0) {
+    if ((res = avseq_track_data_open(track, last_row + 1)) < 0) {
         av_freep(&buf);
         return res;
     }
@@ -1951,10 +1951,8 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
 
     data_size += data_size & 1;
 
-    if ((res = avseq_synth_waveform_open(synth, 1)) < 0) {
-        av_free(waveform);
+    if ((res = avseq_synth_waveform_open(synth, 1)) < 0)
         return res;
-    }
 
     waveform = synth->waveform_list[synth->waveforms - 1];
 

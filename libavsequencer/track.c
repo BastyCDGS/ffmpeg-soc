@@ -115,7 +115,7 @@ int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows) {
     }
 
     track->data     = data;
-    track->last_row = (uint16_t) (last_row - 1);
+    track->last_row = (uint16_t) (rows - 1);
 
     return 0;
 }
@@ -179,7 +179,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
         uint8_t tmp_pack_byte;
 
         if (last_pack_row > track->last_row) {
-            av_log(track, AV_LOG_ERROR, "Cannot unpack track data, track has too few rows.\n");
+            av_log(track, AV_LOG_ERROR, "Cannot unpack track data, track has too few rows (expected: %d, got: %d).\n", track->last_row + 1, last_pack_row + 1);
             return AVERROR_INVALIDDATA;
         }
 
