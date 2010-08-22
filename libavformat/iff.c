@@ -1682,13 +1682,13 @@ static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSeque
                 unsigned i       = FFALIGN(sample->samples, 4) >> 2;
 
                 do {
-                    int16_t v = AV_RB16(buf);
+                    int16_t v = AV_RB16(tmp_buf);
                     *data++   = v;
-                    v         = AV_RB16(buf + 2);
+                    v         = AV_RB16(tmp_buf + 2);
                     *data++   = v;
-                    v         = AV_RB16(buf + 4);
+                    v         = AV_RB16(tmp_buf + 4);
                     *data++   = v;
-                    v         = AV_RB16(buf + 6);
+                    v         = AV_RB16(tmp_buf + 6);
                     *data++   = v;
                     tmp_buf   += 8;
                 } while (--i);
@@ -1698,9 +1698,9 @@ static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSeque
                 unsigned i       = FFALIGN(sample->samples, 2) >> 1;
 
                 do {
-                    int32_t v = AV_RB32(buf);
+                    int32_t v = AV_RB32(tmp_buf);
                     *data++   = v;
-                    v         = AV_RB32(buf + 4);
+                    v         = AV_RB32(tmp_buf + 4);
                     *data++   = v;
                     tmp_buf  += 8;
                 } while (--i);
@@ -2056,15 +2056,15 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
         unsigned i       = FFALIGN(waveform->samples, 4) >> 2;
 
         do {
-            uint32_t v = AV_RB16(buf);
-            *data++    = v;
-            v          = AV_RB16(buf + 2);
-            *data++    = v;
-            v          = AV_RB16(buf + 4);
-            *data++    = v;
-            v          = AV_RB16(buf + 6);
-            *data++    = v;
-            tmp_buf   += 8;
+            int16_t v = AV_RB16(tmp_buf);
+            *data++   = v;
+            v         = AV_RB16(tmp_buf + 2);
+            *data++   = v;
+            v         = AV_RB16(tmp_buf + 4);
+            *data++   = v;
+            v         = AV_RB16(tmp_buf + 6);
+            *data++   = v;
+            tmp_buf  += 8;
         } while (--i);
     }
 #endif
@@ -2370,13 +2370,13 @@ static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
         unsigned i       = FFALIGN(envelope->points, 4) >> 2;
 
         do {
-            int16_t v = AV_RB16(buf);
+            int16_t v = AV_RB16(tmp_buf);
             *data++   = v;
-            v         = AV_RB16(buf + 2);
+            v         = AV_RB16(tmp_buf + 2);
             *data++   = v;
-            v         = AV_RB16(buf + 4);
+            v         = AV_RB16(tmp_buf + 4);
             *data++   = v;
-            v         = AV_RB16(buf + 6);
+            v         = AV_RB16(tmp_buf + 6);
             *data++   = v;
             tmp_buf  += 8;
         } while (--i);
@@ -2386,13 +2386,13 @@ static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
         i       = FFALIGN(envelope->nodes, 4) >> 2;
 
         do {
-            int16_t v = AV_RB16(buf);
+            int16_t v = AV_RB16(tmp_buf);
             *data++   = v;
-            v         = AV_RB16(buf + 2);
+            v         = AV_RB16(tmp_buf + 2);
             *data++   = v;
-            v         = AV_RB16(buf + 4);
+            v         = AV_RB16(tmp_buf + 4);
             *data++   = v;
-            v         = AV_RB16(buf + 6);
+            v         = AV_RB16(tmp_buf + 6);
             *data++   = v;
             tmp_buf  += 8;
         } while (--i);
@@ -2688,24 +2688,26 @@ static int iff_read_packet(AVFormatContext *s,
         AVSequencerPlayerGlobals *player_globals = iff->avctx->player_globals;
         AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel;
         AVSequencerPlayerChannel *player_channel;
+        char *buf;
         AVMixerData *mixer_data = iff->avctx->player_mixer_data;
         int size = st->codec->channels * mixer_data->mix_buf_size << 2;
 
         avseq_mixer_do_mix(mixer_data, NULL);
 
-        av_log(NULL, AV_LOG_INFO, "\n\n Row  ");
+        buf = av_malloc(16 * iff->avctx->player_song->channels);
+        snprintf(buf, 16 * iff->avctx->player_song->channels, "Row  ");
 
         for (channel = 0; channel < iff->avctx->player_song->channels; ++channel) {
-            av_log(NULL, AV_LOG_INFO, "%3d ", channel + 1);
+            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "%3d ", channel + 1);
         }
 
-        av_log(NULL, AV_LOG_INFO, "\n");
+        av_log(NULL, AV_LOG_INFO, "\n\n\n %s\n", buf);
 
         for (row = FFMAX(FFMIN((int32_t) player_host_channel->row - 11, (int32_t) player_host_channel->max_row - 24), 0); row <= FFMIN(FFMAX((int32_t) player_host_channel->row + 12, 23), (int32_t) player_host_channel->max_row - 1); ++row) {
             if (row == player_host_channel->row)
-                av_log(NULL, AV_LOG_INFO, ">%04X ", row);
+                snprintf(buf, 16 * iff->avctx->player_song->channels, ">%04X", row);
             else
-                av_log(NULL, AV_LOG_INFO, " %04X ", row);
+                snprintf(buf, 16 * iff->avctx->player_song->channels, " %04X", row);
 
             channel             = 0;
 
@@ -2719,11 +2721,11 @@ static int iff_read_packet(AVFormatContext *s,
                                 AVSequencerTrackEffect *fx = track_row->effects_data[0];
 
                                 if (fx->command || fx->data)
-                                    av_log(NULL, AV_LOG_INFO, "\02X%02X", fx->command, fx->data >> 8 ? fx->data >> 8 : fx->data & 0xFF);
+                                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "%02X%02X", fx->command, fx->data >> 8 ? fx->data >> 8 : fx->data & 0xFF);
                                 else
-                                    av_log(NULL, AV_LOG_INFO, "... ");
+                                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ...");
                             } else {
-                                av_log(NULL, AV_LOG_INFO, "... ");
+                                snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ...");
                             }
 
                             break;
@@ -2739,7 +2741,7 @@ static int iff_read_packet(AVFormatContext *s,
                         case AVSEQ_TRACK_DATA_NOTE_A:
                         case AVSEQ_TRACK_DATA_NOTE_A_SHARP:
                         case AVSEQ_TRACK_DATA_NOTE_B:
-                            av_log(NULL, AV_LOG_INFO, "%2s%1d ", note_name[track_row->note], track_row->octave);
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " %2s%1d", note_name[track_row->note], track_row->octave);
 
                             break;
                         case AVSEQ_TRACK_DATA_NOTE_KILL:
@@ -2748,28 +2750,28 @@ static int iff_read_packet(AVFormatContext *s,
                         case AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY:
                         case AVSEQ_TRACK_DATA_NOTE_FADE:
                         case AVSEQ_TRACK_DATA_NOTE_END:
-                            av_log(NULL, AV_LOG_INFO, "%3s ", spec_note_name[track_row->note - 0xF0]);
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " %3s", spec_note_name[track_row->note - 0xF0]);
 
                             break;
                         default:
-                            av_log(NULL, AV_LOG_INFO, "??? ");
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ???");
 
                             break;
 
                     }
                 } else {
-                    av_log(NULL, AV_LOG_INFO, "...");
+                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ...");
                 }
 
                 player_host_channel++;
             } while (++channel < iff->avctx->player_song->channels);
 
-            av_log(NULL, AV_LOG_INFO, "\n");
+            av_log(NULL, AV_LOG_INFO, "%s\n", buf);
 
             player_host_channel = iff->avctx->player_host_channel;
         }
 
-        av_log(NULL, AV_LOG_INFO, "\n\nVch Frequency Position  Ch  Row  Tick Tm FVl Vl CV SV VE Fade Pn PE  NNA Tot\n");
+        av_log(NULL, AV_LOG_INFO, "\nVch Frequency Position  Ch  Row  Tick Tm FVl Vl CV SV VE Fade Pn PE  NNA Tot\n");
 
         player_channel = iff->avctx->player_channel;
         channel        = 0;
@@ -2786,37 +2788,33 @@ static int iff_read_packet(AVFormatContext *s,
             }
 
             player_channel++;
-        } while (++channel < iff->avctx->player_module->channels);
+        } while (++channel < FFMIN(iff->avctx->player_module->channels, 24));
 
         if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING) {
-            uint8_t buf[14];
-
             snprintf(buf, 14, "%d (%d)", player_globals->channels, player_globals->max_channels);
 
             if (player_globals->speed_mul < 2 && player_globals->speed_div < 2)
-                av_log(NULL, AV_LOG_INFO, "\nActive Channels: %-13s       Speed: %d (SPD)", buf, player_globals->spd_speed);
+                 av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d (SPD)\n", buf, player_globals->spd_speed);
             else
-                av_log(NULL, AV_LOG_INFO, "\nActive Channels: %-13s       Speed: %d (%d/%d SPD)", buf, player_globals->spd_speed, player_globals->speed_mul, player_globals->speed_div);
+                 av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d (%d/%d SPD)\n", buf, player_globals->spd_speed, player_globals->speed_mul, player_globals->speed_div);
         } else {
-            uint8_t buf[14];
-
             snprintf(buf, 14, "%d (%d)", player_globals->channels, player_globals->max_channels);
 
             if (player_globals->speed_mul < 2 && player_globals->speed_div < 2)
-                av_log(NULL, AV_LOG_INFO, "\nActive Channels: %-13s       Speed: %d/%d (BpM)", buf, player_globals->bpm_speed, player_globals->bpm_tempo);
+                 av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d/%d (BpM)\n", buf, player_globals->bpm_speed, player_globals->bpm_tempo);
             else
-                av_log(NULL, AV_LOG_INFO, "\nActive Channels: %-13s       Speed: %d/%d (%d/%d BpM)", buf, player_globals->bpm_speed, player_globals->bpm_tempo, player_globals->speed_mul, player_globals->speed_div);
+                av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d/%d (%d/%d BpM)\n", buf, player_globals->bpm_speed, player_globals->bpm_tempo, player_globals->speed_mul, player_globals->speed_div);
         }
 
         if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND)
-            av_log(NULL, AV_LOG_INFO, "\n  Global Volume: %3d        Global Panning: Su", player_globals->global_volume);
+             av_log(NULL, AV_LOG_INFO, "  Global Volume: %3d        Global Panning: Su\n", player_globals->global_volume);
         else
-            av_log(NULL, AV_LOG_INFO, "\n  Global Volume: %3d        Global Panning: %02X", player_globals->global_volume, (uint8_t) player_globals->global_panning);
+             av_log(NULL, AV_LOG_INFO, "  Global Volume: %3d        Global Panning: %02X\n", player_globals->global_volume, (uint8_t) player_globals->global_panning);
 
         player_host_channel = iff->avctx->player_host_channel;
 
-        av_log(NULL, AV_LOG_INFO, "\n\033[%dA", iff->avctx->player_module->channels + 33);
-        fflush(stderr);
+        av_log(NULL, AV_LOG_INFO, "\033[%dA\n", FFMIN(iff->avctx->player_module->channels, 24) + 33);
+        av_free(buf);
 
         if ((ret = av_new_packet(pkt, size)) < 0) {
             av_log(s, AV_LOG_ERROR, "Cannot allocate packet!\n");
