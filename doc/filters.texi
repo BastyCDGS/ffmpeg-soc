@@ -1,3 +1,19 @@
+@chapter Audio Filters
+@c man begin AUDIO FILTERS
+
+When you configure your FFmpeg build, you can disable any of the
+existing filters using --disable-filters.
+The configure output will show the audio filters included in your
+build.
+
+Below is a description of the currently available audio filters.
+
+@section anull
+
+Pass the audio source unchanged to the output.
+
+@c man end AUDIO FILTERS
+
 @chapter Video Filters
 @c man begin VIDEO FILTERS
 
@@ -85,7 +101,7 @@ input to the vflip filter.
 
 @section null
 
-Pass the source unchanged to the output.
+Pass the video source unchanged to the output.
 
 @section pad
 

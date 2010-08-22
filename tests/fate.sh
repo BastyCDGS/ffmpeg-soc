@@ -9,7 +9,7 @@ die(){
 
 test -r "$config"  || die "usage: fate.sh <config>"
 
-workdir=$(dirname $config)
+workdir=$(cd $(dirname $config) && pwd)
 make=make
 tar='tar c'
 
@@ -94,7 +94,6 @@ cd ${workdir}       || die "cd ${workdir} failed"
 src=${workdir}/src
 build=${workdir}/build
 inst=${workdir}/install
-report=tests/data/fate/report
 
 test -d "$src" && update || checkout || die "Error fetching source"
 
