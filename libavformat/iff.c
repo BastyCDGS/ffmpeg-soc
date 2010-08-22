@@ -2694,7 +2694,11 @@ static int iff_read_packet(AVFormatContext *s,
 
         avseq_mixer_do_mix(mixer_data, NULL);
 
-        buf = av_malloc(16 * iff->avctx->player_song->channels);
+        if (!(buf = av_malloc(16 * iff->avctx->player_song->channels))) {
+            av_log(s, AV_LOG_ERROR, "Cannot allocate pattern display buffer!\n");
+            return AVERROR(ENOMEM);
+        }
+
         snprintf(buf, 16 * iff->avctx->player_song->channels, "Row  ");
 
         for (channel = 0; channel < iff->avctx->player_song->channels; ++channel) {
@@ -2750,7 +2754,7 @@ static int iff_read_packet(AVFormatContext *s,
                         case AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY:
                         case AVSEQ_TRACK_DATA_NOTE_FADE:
                         case AVSEQ_TRACK_DATA_NOTE_END:
-                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " %3s", spec_note_name[track_row->note - 0xF0]);
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " %3s", spec_note_name[(uint8_t) track_row->note - 0xF0]);
 
                             break;
                         default:
@@ -2775,6 +2779,7 @@ static int iff_read_packet(AVFormatContext *s,
 
         player_channel = iff->avctx->player_channel;
         channel        = 0;
+
         do {
             AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel + player_channel->host_channel;
 
@@ -2791,20 +2796,22 @@ static int iff_read_packet(AVFormatContext *s,
         } while (++channel < FFMIN(iff->avctx->player_module->channels, 24));
 
         if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING) {
-            snprintf(buf, 14, "%d (%d)", player_globals->channels, player_globals->max_channels);
+            snprintf(buf, 16, "%d (%d)", player_globals->channels, player_globals->max_channels);
 
             if (player_globals->speed_mul < 2 && player_globals->speed_div < 2)
                  av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d (SPD)\n", buf, player_globals->spd_speed);
             else
                  av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d (%d/%d SPD)\n", buf, player_globals->spd_speed, player_globals->speed_mul, player_globals->speed_div);
         } else {
-            snprintf(buf, 14, "%d (%d)", player_globals->channels, player_globals->max_channels);
+            snprintf(buf, 16, "%d (%d)", player_globals->channels, player_globals->max_channels);
 
             if (player_globals->speed_mul < 2 && player_globals->speed_div < 2)
                  av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d/%d (BpM)\n", buf, player_globals->bpm_speed, player_globals->bpm_tempo);
             else
                 av_log(NULL, AV_LOG_INFO, "Active Channels: %-13s       Speed: %d/%d (%d/%d BpM)\n", buf, player_globals->bpm_speed, player_globals->bpm_tempo, player_globals->speed_mul, player_globals->speed_div);
         }
+
+        av_free(buf);
 
         if (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND)
              av_log(NULL, AV_LOG_INFO, "  Global Volume: %3d        Global Panning: Su\n", player_globals->global_volume);
@@ -2814,7 +2821,6 @@ static int iff_read_packet(AVFormatContext *s,
         player_host_channel = iff->avctx->player_host_channel;
 
         av_log(NULL, AV_LOG_INFO, "\033[%dA\n", FFMIN(iff->avctx->player_module->channels, 24) + 33);
-        av_free(buf);
 
         if ((ret = av_new_packet(pkt, size)) < 0) {
             av_log(s, AV_LOG_ERROR, "Cannot allocate packet!\n");
