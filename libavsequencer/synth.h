@@ -1290,7 +1290,8 @@ typedef struct AVSequencerSynth {
     AVSequencerSynthWave **waveform_list;
 
     /** Number of waveforms. Can be 0 if this is a hybrid, the normal
-       sample data is used in that case. Default is one waveform.  */
+       sample data is used in that case. Default is one waveform
+       (defaults to 0).  */
     uint16_t waveforms;
 
     /** Array (of size symbols) of pointers containing named symbols

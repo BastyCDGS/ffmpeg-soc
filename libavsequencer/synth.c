@@ -60,9 +60,6 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
     if (!lines)
         lines = 1;
 
-    if (!waveforms)
-        waveforms = 1;
-
     if (!samples)
         samples = 64;
 
@@ -83,10 +80,10 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
     for (i = 0; i < waveforms; ++i) {
         if ((res = avseq_synth_waveform_open(synth, samples)) < 0) {
             while (i--) {
-                av_free(synth->waveform_list[i]);
+                av_freep(&synth->waveform_list[i]);
             }
 
-            av_free(synth->code);
+            av_freep(&synth->code);
             av_free(synth);
             return res;
         }
@@ -114,6 +111,10 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines)
     } else if (!(code = av_realloc(code, (lines * sizeof(AVSequencerSynthCode)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound code.\n");
         return AVERROR(ENOMEM);
+    } else if (lines > synth->size) {
+        memset(code + synth->size, 0, (lines - synth->size) * sizeof(AVSequencerSynthCode));
+    } else if (!synth->code) {
+        memset(code, 0, lines * sizeof(AVSequencerSynthCode));
     }
 
     synth->code = code;
@@ -172,7 +173,7 @@ int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTab
 
     target_name = symbol->symbol_name;
 
-    if (!(target_name = av_realloc(target_name, strlen(name) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    if (!(target_name = av_realloc(target_name, strlen(name) + 1 + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(synth, AV_LOG_ERROR, "Cannot allocate synth sound symbol name.\n");
         return AVERROR(ENOMEM);
     }
@@ -180,7 +181,7 @@ int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTab
     check_name      = name;
     tmp_char        = *check_name++;
 
-    if ((tmp_char == 0) || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char != '.') && (tmp_char < '@'))) {
+    if ((tmp_char == '\0') || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char != '.') && (tmp_char < '@'))) {
         av_free(target_name);
         av_log(synth, AV_LOG_ERROR, "Invalid symbol name: '%s'\n", name);
         return AVERROR_INVALIDDATA;
@@ -189,7 +190,7 @@ int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTab
     tmp_target_name    = target_name;
     *tmp_target_name++ = tmp_char;
 
-    while ((tmp_char = *check_name++) != 0) {
+    while ((tmp_char = *check_name++) != '\0') {
         if (((tmp_char < '0') && (tmp_char != '.')) || (tmp_char > 'z') || ((tmp_char > 'Z') && (tmp_char != '_') && (tmp_char < 'a')) || ((tmp_char > '9') && (tmp_char < '@'))) {
             av_free(target_name);
             av_log(synth, AV_LOG_ERROR, "Invalid symbol name: '%s'\n", name);
@@ -271,29 +272,35 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples)
 int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples)
 {
     uint32_t size;
-    int16_t *data;
+    int8_t *data;
 
     if (!waveform)
         return AVERROR_INVALIDDATA;
+
+    data = (int8_t *) waveform->data;
 
     if (!samples)
         samples = 64;
 
     if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) {
         size = samples;
-    } else if (samples > 0x7FFFFFFF) {
+    } else if (samples <= (0x7FFFFFFF - FF_INPUT_BUFFER_PADDING_SIZE)) {
         size = samples << 1;
     } else {
         av_log(waveform, AV_LOG_ERROR, "Exceeded maximum number of samples.\n");
         return AVERROR_INVALIDDATA;
     }
 
-    if (!(data = av_mallocz(size + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    if (!(data = av_realloc(data, size + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(waveform, AV_LOG_ERROR, "Cannot allocate synth sound waveform data.\n");
         return AVERROR(ENOMEM);
+    } else if (size > waveform->size) {
+        memset(data + waveform->size, 0, size - waveform->size);
+    } else if (!waveform->data) {
+        memset(data, 0, size);
     }
 
-    waveform->data    = data;
+    waveform->data    = (int16_t *) data;
     waveform->size    = size;
     waveform->samples = samples;
 

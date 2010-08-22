@@ -546,13 +546,14 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track);
  * Opens and registers a new array of track data to a track.
  *
  * @param track the AVSequencerTrack structure to store the initialized track data
+ * @param rows the number of rows to use for the initialized track data
  * @return >= 0 on success, a negative error code otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_track_data_open(AVSequencerTrack *track);
+int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows);
 
 /**
  * Creates a new uninitialized empty track effect.
@@ -650,13 +651,14 @@ AVSequencerEnvelope *avseq_envelope_create(void);
  * @param module the AVSequencerModule structure to add the new envelope to
  * @param envelope the AVSequencerEnvelope to be added to the module
  * @param points the number of data points to be used in the envelope data
- * @param type the type of envelope data to initialize: 0 = create empty envelope,
- *                                                      1 = create sine envelope,
- *                                                      2 = create cosine envelope,
- *                                                      3 = create ramp envelope,
- *                                                      4 = create triangle envelope,
- *                                                      5 = create square envelope,
- *                                                      6 = create sawtooth envelope
+ * @param type the type of envelope data to initialize: 0 = create uninitialized envelope,
+ * @param type                                          1 = create empty envelope,
+ *                                                      2 = create sine envelope,
+ *                                                      3 = create cosine envelope,
+ *                                                      4 = create ramp envelope,
+ *                                                      5 = create triangle envelope,
+ *                                                      6 = create square envelope,
+ *                                                      7 = create sawtooth envelope
  * @param scale the scale factor for the envelope data
  * @param y_offset the y offset value to add as absolute value to the envelope data
  * @param nodes the number of dragable nodes with linear connection between data points
@@ -677,13 +679,14 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
  * @param avctx the AVSequencerContext to add the new envelope data and node set to
  * @param envelope the AVSequencerEnvelope to add the new envelope data and node set to
  * @param points the number of data points to be used in the envelope data
- * @param type the type of envelope data to initialize: 0 = create empty envelope,
- *                                                      1 = create sine envelope,
- *                                                      2 = create cosine envelope,
- *                                                      3 = create ramp envelope,
- *                                                      4 = create triangle envelope,
- *                                                      5 = create square envelope,
- *                                                      6 = create sawtooth envelope
+ * @param type the type of envelope data to initialize: 0 = just resize envelope
+                                                        1 = create empty envelope,
+ *                                                      2 = create sine envelope,
+ *                                                      3 = create cosine envelope,
+ *                                                      4 = create ramp envelope,
+ *                                                      5 = create triangle envelope,
+ *                                                      6 = create square envelope,
+ *                                                      7 = create sawtooth envelope
  * @param scale the scale factor for the envelope data
  * @param y_offset the y offset value to add as absolute value to the envelope data
  * @param nodes the number of dragable nodes with linear connection between data points

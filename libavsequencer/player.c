@@ -9666,7 +9666,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(vibrato)
             vibrato_slide_value = waveform->data[waveform_pos];
 
         vibrato_slide_value        *= -vibrato_depth;
-        vibrato_slide_value       >>= (7 - 2);
+        vibrato_slide_value       >>= 7 - 2;
         player_channel->vibrato_pos = (waveform_pos + vibrato_rate) % waveform->samples;
 
         se_vibrato_do(avctx, player_channel, vibrato_slide_value);
@@ -9787,7 +9787,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwave)
 
     while ((++waveform_num < player_channel->synth->waveforms) && waveform_list[waveform_num]) {
         if (waveform_num == instruction_data) {
-            player_channel->vibrato_waveform = waveform_list[waveform_num];
+            player_channel->sample_waveform = waveform = waveform_list[waveform_num];
 
             break;
         }
@@ -9840,7 +9840,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav)
 
     while ((++waveform_num < player_channel->synth->waveforms) && waveform_list[waveform_num]) {
         if (waveform_num == instruction_data) {
-            player_channel->vibrato_waveform = waveform_list[waveform_num];
+            player_channel->sample_waveform = waveform = waveform_list[waveform_num];
 
             break;
         }

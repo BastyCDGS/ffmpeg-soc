@@ -78,7 +78,7 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track)
     track->bpm_tempo = 4;
     track->bpm_speed = 125;
 
-    if ((res = avseq_track_data_open(track)) < 0) {
+    if ((res = avseq_track_data_open(track, track->last_row + 1)) < 0) {
         av_free(track_list);
         return res;
     }
@@ -90,7 +90,7 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track)
     return 0;
 }
 
-int avseq_track_data_open(AVSequencerTrack *track) {
+int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows) {
     AVSequencerTrackRow *data;
     unsigned last_row;
 
@@ -100,12 +100,19 @@ int avseq_track_data_open(AVSequencerTrack *track) {
     data     = track->data;
     last_row = track->last_row + 1;
 
-    if (!(data = av_realloc(data, (last_row * sizeof(AVSequencerTrackRow)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    if (!rows)
+        rows = 64;
+
+    if (!rows || rows >= 0x10000) {
+        return AVERROR_INVALIDDATA;
+    } else if (!(data = av_realloc(data, (rows * sizeof(AVSequencerTrackRow)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(track, AV_LOG_ERROR, "Cannot allocate storage container.\n");
         return AVERROR(ENOMEM);
+    } else if (rows > last_row) {
+        memset(data + last_row, 0, (rows - last_row) * sizeof(AVSequencerTrackRow));
+    } else if (!track->data) {
+        memset(data, 0, rows * sizeof(AVSequencerTrackRow));
     }
-
-    memset(data, 0, last_row * sizeof(AVSequencerTrackRow));
 
     track->data     = data;
     track->last_row = (uint16_t) (last_row - 1);

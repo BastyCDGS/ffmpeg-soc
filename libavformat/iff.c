@@ -228,7 +228,7 @@ static int iff_read_header(AVFormatContext *s,
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
     uint8_t buf[24];
-    const char *args = "stereo=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
+    const char *args = "stereo=true; interpolation=0; real16bit=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
@@ -538,27 +538,27 @@ read_unknown_chunk:
             unsigned i;
 
             if (songs != module->songs) {
-                av_log(module, AV_LOG_ERROR, "Number of attached sub-songs does not match actual reads!\n");
+                av_log(module, AV_LOG_ERROR, "Number of attached sub-songs does not match actual reads (expected: %d, got: %d)!\n", module->songs, songs);
                 return AVERROR_INVALIDDATA;
             }
 
             if (instruments != module->instruments) {
-                av_log(module, AV_LOG_ERROR, "Number of attached instruments does not match actual reads!\n");
+                av_log(module, AV_LOG_ERROR, "Number of attached instruments does not match actual reads (expected: %d, got: %d)!\n", module->instruments, instruments);
                 return AVERROR_INVALIDDATA;
             }
 
             if (envelopes != module->envelopes) {
-                av_log(module, AV_LOG_ERROR, "Number of attached envelopes does not match actual reads!\n");
+                av_log(module, AV_LOG_ERROR, "Number of attached envelopes does not match actual reads (expected: %d, got: %d)!\n", module->envelopes, envelopes);
                 return AVERROR_INVALIDDATA;
             }
 
             if (keyboards != module->keyboards) {
-                av_log(module, AV_LOG_ERROR, "Number of attached keyboard definitions does not match actual reads!\n");
+                av_log(module, AV_LOG_ERROR, "Number of attached keyboard definitions does not match actual reads (expected: %d, got: %d)!\n", module->keyboards, keyboards);
                 return AVERROR_INVALIDDATA;
             }
 
             if (arpeggios != module->arpeggios) {
-                av_log(module, AV_LOG_ERROR, "Number of attached arpeggio structures does not match actual reads!\n");
+                av_log(module, AV_LOG_ERROR, "Number of attached arpeggio structures does not match actual reads (expected: %d, got: %d)!\n", module->arpeggios, arpeggios);
                 return AVERROR_INVALIDDATA;
             }
 
@@ -900,12 +900,12 @@ static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
     }
 
     if (tracks != song->tracks) {
-        av_log(song, AV_LOG_ERROR, "Number of attached tracks does not match actual reads!\n");
+        av_log(song, AV_LOG_ERROR, "Number of attached tracks does not match actual reads (expected: %d, got: %d)!\n", song->tracks, tracks);
         return AVERROR_INVALIDDATA;
     }
 
     if (channels != song->channels) {
-        av_log(song, AV_LOG_ERROR, "Number of attached channels does not match actual reads!\n");
+        av_log(song, AV_LOG_ERROR, "Number of attached channels does not match actual reads (expected: %d, got: %d)!\n", song->channels, channels);
         return AVERROR_INVALIDDATA;
     }
 
@@ -1055,7 +1055,7 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
         iff_size += 8;
     }
 
-    if ((res = avseq_track_data_open(track)) < 0) {
+    if ((res = avseq_track_data_open(track, track->last_row + 1)) < 0) {
         av_freep(&buf);
         return res;
     }
@@ -1467,7 +1467,7 @@ static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, const c
     }
 
     if (samples != instrument->samples) {
-        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads!\n");
+        av_log(instrument, AV_LOG_ERROR, "Number of attached samples does not match actual reads (expected: %d, got: %d)!\n", instrument->samples, samples);
         return AVERROR_INVALIDDATA;
     }
 
@@ -1732,6 +1732,7 @@ static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, const c
     ByteIOContext *pb = s->pb;
     AVSequencerSynth *synth;
     uint8_t *buf = NULL;
+    uint8_t *tmp_buf;
     uint32_t len = 0, iff_size = 4;
     uint16_t i, waveforms = 0;
     int res;
@@ -1756,7 +1757,6 @@ static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, const c
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_YHDR:
             waveforms             = get_be16(pb);
@@ -1871,7 +1871,7 @@ static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, const c
 
     if (waveforms != synth->waveforms) {
         av_freep(&buf);
-        av_log(synth, AV_LOG_ERROR, "Number of attached waveforms does not match actual reads!\n");
+        av_log(synth, AV_LOG_ERROR, "Number of attached waveforms does not match actual reads (expected: %d, got: %d)!\n", synth->waveforms, waveforms);
         return AVERROR_INVALIDDATA;
     }
 
@@ -1879,22 +1879,18 @@ static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, const c
         av_freep(&buf);
         av_log(synth, AV_LOG_ERROR, "No synth sound code read!\n");
         return AVERROR_INVALIDDATA;
-    } else if (!synth->size != (len >> 2)) {
-        av_freep(&buf);
-        av_log(synth, AV_LOG_ERROR, "Number of synth sound code lines does not match actual reads!\n");
-        return AVERROR_INVALIDDATA;
-    }
-
-    if ((res = avseq_synth_code_open(synth, synth->size)) < 0) {
+    } else if ((res = avseq_synth_code_open(synth, len >> 2)) < 0) {
         av_freep(&buf);
         return res;
     }
 
+    tmp_buf = buf;
+
     for (i = 0; i < synth->size; ++i) {
-        synth->code[i].instruction = *buf++;
-        synth->code[i].src_dst_var = *buf++;
-        synth->code[i].data        = AV_WN16A(&(synth->code[i].data), AV_RB16(buf));
-        buf += 2;
+        synth->code[i].instruction = *tmp_buf++;
+        synth->code[i].src_dst_var = *tmp_buf++;
+        synth->code[i].data        = AV_WN16A(&(synth->code[i].data), AV_RB16(tmp_buf));
+        tmp_buf                   += 2;
     }
 
     av_freep(&buf);
@@ -1921,7 +1917,6 @@ static int open_snth_wfrm(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -1956,13 +1951,12 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
 
     data_size += data_size & 1;
 
-    if (!(waveform = avseq_synth_waveform_create ()))
-        return AVERROR(ENOMEM);
-
     if ((res = avseq_synth_waveform_open(synth, 1)) < 0) {
         av_free(waveform);
         return res;
     }
+
+    waveform = synth->waveform_list[synth->waveforms - 1];
 
     while (!url_feof(pb) && (data_size -= iff_size)) {
         uint64_t orig_pos;
@@ -1973,7 +1967,6 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_WHDR:
             waveform->repeat     = get_be32(pb);
@@ -2034,13 +2027,10 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
         iff_size += 8;
     }
 
-    if (!buf && waveform->samples) {
-        av_freep(&buf);
-        av_log(waveform, AV_LOG_ERROR, "No synth sound waveform data found, but non-zero number of samples!\n");
+    if (!buf) {
+        av_log(waveform, AV_LOG_ERROR, "No synth sound waveform data found!\n");
         return AVERROR_INVALIDDATA;
-    }
-
-    if ((res = avseq_synth_waveform_data_open(waveform, waveform->samples)) < 0) {
+    } else if ((res = avseq_synth_waveform_data_open(waveform, (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) ? len : len >> 1)) < 0) {
         av_freep(&buf);
         return res;
     }
@@ -2093,7 +2083,6 @@ static int open_snth_stab(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
         iff_size = get_be32(pb);
         orig_pos = url_ftell(pb);
 
-        av_log(synth, AV_LOG_WARNING, "Reading IFF-chunk: %c%c%c%c with length: %d\n", chunk_id, chunk_id >> 8, chunk_id >> 16, chunk_id >> 24, iff_size );
         switch(chunk_id) {
         case ID_FORM:
             switch (get_le32(pb)) {
@@ -2120,7 +2109,7 @@ static int open_stab_smbl(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
     ByteIOContext *pb = s->pb;
     AVSequencerSynthSymbolTable *symbol;
     uint8_t *buf = NULL;
-    uint32_t len = 0, iff_size = 4;
+    uint32_t iff_size = 4;
     int res;
 
     if (data_size < 4)
@@ -2159,19 +2148,12 @@ static int open_stab_smbl(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
             if (!buf)
                 return AVERROR(ENOMEM);
 
-            len = iff_size;
-
             if (get_buffer(pb, buf, iff_size) < 0) {
                 av_freep(&buf);
                 return AVERROR(EIO);
             }
 
             buf[iff_size] = 0;
-
-            if ((res = avseq_synth_symbol_assign(synth, symbol, buf)) < 0) {
-                av_freep(&buf);
-                return res;
-            }
 
             break;
         default:
@@ -2183,6 +2165,11 @@ static int open_stab_smbl(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
         iff_size += iff_size & 1;
         url_fskip(pb, iff_size - (url_ftell(pb) - orig_pos));
         iff_size += 8;
+    }
+
+    if ((res = avseq_synth_symbol_assign(synth, symbol, buf)) < 0) {
+        av_freep(&buf);
+        return res;
     }
 
     av_freep(&buf);
@@ -2600,7 +2587,7 @@ static int open_arpl_arpg(AVFormatContext *s, AVSequencerModule *module, uint32_
     }
 
     if (entries != arpeggio->entries) {
-        av_log(arpeggio, AV_LOG_ERROR, "Number of attached arpeggio entries does not match actual reads!\n");
+        av_log(arpeggio, AV_LOG_ERROR, "Number of attached arpeggio entries does not match actual reads (expected: %d, got: %d)!\n", arpeggio->entries, entries);
         return AVERROR_INVALIDDATA;
     }
 

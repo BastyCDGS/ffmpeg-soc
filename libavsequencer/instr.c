@@ -218,61 +218,123 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
         return AVERROR(ENOMEM);
     }
 
-    scale_type = scale & 0x80000000;
-    scale     &= 0x7FFFFFFF;
+    if (!type) {
+        if (points > envelope->points)
+            memset(data + envelope->points, 0, (points - envelope->points) * sizeof(int16_t));
 
-    if (scale > 0x7FFF)
-        scale = 0x7FFF;
+        if (nodes) {
+            uint16_t *node;
+            uint16_t old_nodes;
 
-    if (type > 6)
-        type = 0;
+            if (!nodes)
+                nodes = 12;
 
-    create_env_func = (void *) &(create_env_lut);
-    create_env_func[type](avctx, data, points, scale, scale_type, y_offset);
+            if (nodes == 1)
+                nodes++;
 
-    if (nodes) {
-        uint32_t node_div, node_mod, value = 0, count = 0, i;
-        uint16_t *node;
+            if (nodes >= 0x10000)
+                return AVERROR_INVALIDDATA;
 
-        if (!nodes)
-            nodes = 12;
+            old_nodes = envelope->nodes;
+            node      = envelope->node_points;
 
-        if (nodes == 1)
-            nodes++;
+            if (!(node = av_realloc(node, (nodes * sizeof (uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                av_free(data);
+                av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
+                return AVERROR(ENOMEM);
+            }
 
-        if (nodes >= 0x10000)
-            return AVERROR_INVALIDDATA;
+            envelope->node_points = node;
+            envelope->nodes       = nodes;
 
-        node = envelope->node_points;
+            if (nodes > old_nodes) {
+                uint32_t node_div, node_mod, value, count, i;
 
-        if (!(node = av_realloc(node, (nodes * sizeof (uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-            av_free(data);
-            av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
-            return AVERROR(ENOMEM);
-        }
+                value  = node[old_nodes - 1];
+                nodes -= old_nodes;
+                count  = 0;
 
-        envelope->node_points = node;
-        envelope->nodes       = nodes;
+                if (nodes > points)
+                    nodes = points;
 
-        if (nodes > points)
-            nodes = points;
+                node    += old_nodes;
+                node_div = points / nodes;
+                node_mod = points % nodes;
 
-        node_div = points / nodes;
-        node_mod = points % nodes;
+                for (i = nodes; i > 0; i--) {
+                    *node++ = value;
+                    value  += node_div;
+                    count  += node_mod;
 
-        for (i = nodes; i > 0; i--) {
-            *node++ = value;
+                    if (count >= nodes) {
+                        count -= nodes;
+                        value++;
+                    }
+                }
 
-            value += node_div;
-            count += node_mod;
-
-            if (count >= nodes) {
-                count -= nodes;
-                value++;
+                *--node = points - 1;
+            } else {
+                node[nodes - 1] = points - 1;
             }
         }
+    } else {
+        if (type > 7)
+            type = 0;
+        else
+            type--;
 
-        *--node = points - 1;
+        scale_type = scale & 0x80000000;
+        scale     &= 0x7FFFFFFF;
+
+        if (scale > 0x7FFF)
+            scale = 0x7FFF;
+
+        create_env_func = (void *) &(create_env_lut);
+        create_env_func[type](avctx, data, points, scale, scale_type, y_offset);
+
+        if (nodes) {
+            uint32_t node_div, node_mod, value = 0, count = 0, i;
+            uint16_t *node;
+
+            if (!nodes)
+                nodes = 12;
+
+            if (nodes == 1)
+                nodes++;
+
+            if (nodes >= 0x10000)
+                return AVERROR_INVALIDDATA;
+
+            node = envelope->node_points;
+
+            if (!(node = av_realloc(node, (nodes * sizeof (uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                av_free(data);
+                av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
+                return AVERROR(ENOMEM);
+            }
+
+            envelope->node_points = node;
+            envelope->nodes       = nodes;
+
+            if (nodes > points)
+                nodes = points;
+
+            node_div = points / nodes;
+            node_mod = points % nodes;
+
+            for (i = nodes; i > 0; i--) {
+                *node++ = value;
+                value  += node_div;
+                count  += node_mod;
+
+                if (count >= nodes) {
+                    count -= nodes;
+                    value++;
+                }
+            }
+
+            *--node = points - 1;
+        }
     }
 
     envelope->data   = data;
@@ -659,6 +721,10 @@ int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries)
     } else if (!(data = av_realloc(data, (entries * sizeof(AVSequencerArpeggioData)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(arpeggio, AV_LOG_ERROR, "Cannot allocate arpeggio structure data.\n");
         return AVERROR(ENOMEM);
+    } else if (entries > arpeggio->entries) {
+        memset(data + arpeggio->entries, 0, (entries - arpeggio->entries) * sizeof(AVSequencerArpeggioData));
+    } else if (!arpeggio->data) {
+        memset(data, 0, entries * sizeof(AVSequencerArpeggioData));
     }
 
     arpeggio->data    = data;
