@@ -269,7 +269,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
 
     avseq_mixer_set_rate(mixer_data, mixctx->frequency);
     avseq_mixer_set_tempo(mixer_data, tempo);
-    avseq_mixer_set_volume(mixer_data, volume_boost, 256, 256, module->channels);
+    avseq_mixer_set_volume(mixer_data, volume_boost, 65536, 65536, module->channels);
 
     return 0;
 }

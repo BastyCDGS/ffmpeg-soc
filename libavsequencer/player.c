@@ -1475,7 +1475,7 @@ turn_note_off:
 
             host_volume                        *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
             virtual_volume                      = (((uint16_t) player_channel->vol_env.value >> 8) * (uint16_t) player_channel->global_volume) * (uint16_t) player_channel->fade_out_count;
-            player_channel->mixer.volume        = player_channel->final_volume = ((uint64_t) host_volume * virtual_volume) / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL);
+            player_channel->mixer.volume        = player_channel->final_volume = ((uint64_t) host_volume * virtual_volume) / UINT64_C(70660093200890625); /* / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL) */
             flags                               = 0;
             player_channel->flags              &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND;
             player_channel->mixer.flags        &= ~AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
@@ -8697,8 +8697,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(ashl)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }
@@ -8726,8 +8726,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(ashr)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }
@@ -8755,8 +8755,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(lshl)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }
@@ -8784,8 +8784,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(lshr)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }
@@ -8816,7 +8816,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(rol)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
+    player_channel->variable[dst_var]    = shift_value;
     player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
@@ -8848,8 +8848,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(ror)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }
@@ -8889,8 +8889,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(rolx)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }
@@ -8928,8 +8928,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(rorx)
     if (!shift_value)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
-    player_channel->variable[dst_var]             = shift_value;
-    player_channel->cond_var[synth_type]          = flags;
+    player_channel->variable[dst_var]    = shift_value;
+    player_channel->cond_var[synth_type] = flags;
 
     return synth_code_line;
 }

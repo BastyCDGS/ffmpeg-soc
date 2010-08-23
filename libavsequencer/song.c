@@ -123,7 +123,7 @@ uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song)
         player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SPD_TIMING;
 
         if ((speed = song->spd_speed) > 10) {
-            tempo = (uint64_t) 989156 * speed;
+            tempo = UINT64_C(989156) * speed;
 
             if ((speed_mul = song->speed_mul))
                 tempo *= speed_mul;
@@ -149,11 +149,11 @@ uint32_t avseq_song_calc_speed(AVSequencerContext *avctx, AVSequencerSong *song)
     player_globals->spd_speed = song->spd_speed;
     player_globals->bpm_tempo = song->bpm_tempo;
     player_globals->bpm_speed = song->bpm_speed;
-    player_globals->tempo     = (tempo <= 0xFFFFFFFF) ? (uint32_t) tempo : 0;
+    player_globals->tempo     = (tempo <= UINT64_C(0xFFFFFFFF)) ? (uint32_t) tempo : 0;
     tempo                    *= player_globals->relative_speed;
     tempo                   >>= 16;
 
-    return (tempo <= 0xFFFFFFFF) ? (uint32_t) tempo : 0;
+    return (tempo <= UINT64_C(0xFFFFFFFF)) ? (uint32_t) tempo : 0;
 }
 
 int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)

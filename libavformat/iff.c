@@ -2684,19 +2684,19 @@ static int iff_read_packet(AVFormatContext *s,
             return AVERROR(ENOMEM);
         }
 
-        snprintf(buf, 16 * iff->avctx->player_song->channels, "Row  ");
+        snprintf(buf, 16 * iff->avctx->player_song->channels, " Row  ");
 
         for (channel = 0; channel < iff->avctx->player_song->channels; ++channel) {
             snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "%3d ", channel + 1);
         }
 
-        av_log(NULL, AV_LOG_INFO, "\n\n\n %s\n", buf);
+        av_log(NULL, AV_LOG_INFO, "\n\n\n%s \n", buf);
 
         for (row = FFMAX(FFMIN((int32_t) player_host_channel->row - 11, (int32_t) player_host_channel->max_row - 24), 0); row <= FFMIN(FFMAX((int32_t) player_host_channel->row + 12, 23), (int32_t) player_host_channel->max_row - 1); ++row) {
             if (row == player_host_channel->row)
-                snprintf(buf, 16 * iff->avctx->player_song->channels, ">%04X", row);
+                snprintf(buf, 16 * iff->avctx->player_song->channels, ">%04X ", row);
             else
-                snprintf(buf, 16 * iff->avctx->player_song->channels, " %04X", row);
+                snprintf(buf, 16 * iff->avctx->player_song->channels, " %04X ", row);
 
             channel             = 0;
 
@@ -2712,9 +2712,9 @@ static int iff_read_packet(AVFormatContext *s,
                                 if (fx->command || fx->data)
                                     snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "%02X%02X", fx->command, fx->data >> 8 ? fx->data >> 8 : fx->data & 0xFF);
                                 else
-                                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ...");
+                                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "... ");
                             } else {
-                                snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ...");
+                                snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "... ");
                             }
 
                             break;
@@ -2730,7 +2730,7 @@ static int iff_read_packet(AVFormatContext *s,
                         case AVSEQ_TRACK_DATA_NOTE_A:
                         case AVSEQ_TRACK_DATA_NOTE_A_SHARP:
                         case AVSEQ_TRACK_DATA_NOTE_B:
-                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " %2s%1d", note_name[track_row->note], track_row->octave);
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "%2s%1d ", note_name[track_row->note], track_row->octave);
 
                             break;
                         case AVSEQ_TRACK_DATA_NOTE_KILL:
@@ -2739,17 +2739,17 @@ static int iff_read_packet(AVFormatContext *s,
                         case AVSEQ_TRACK_DATA_NOTE_HOLD_DELAY:
                         case AVSEQ_TRACK_DATA_NOTE_FADE:
                         case AVSEQ_TRACK_DATA_NOTE_END:
-                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " %3s", spec_note_name[(uint8_t) track_row->note - 0xF0]);
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "%3s ", spec_note_name[(uint8_t) track_row->note - 0xF0]);
 
                             break;
                         default:
-                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ???");
+                            snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "??? ");
 
                             break;
 
                     }
                 } else {
-                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), " ...");
+                    snprintf(buf + strlen(buf), 16 * iff->avctx->player_song->channels - strlen(buf), "... ");
                 }
 
                 player_host_channel++;
