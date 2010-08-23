@@ -305,7 +305,7 @@ int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
             AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
             uint16_t i;
 
-            if (!(player_host_channel = av_realloc(player_host_channel, (song->channels * sizeof (AVSequencerPlayerHostChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            if (!(player_host_channel = av_realloc(player_host_channel, (song->channels * sizeof(AVSequencerPlayerHostChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
                 av_free(order_list);
                 av_log(song, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
                 return AVERROR(ENOMEM);

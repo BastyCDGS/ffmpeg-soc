@@ -238,7 +238,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
             old_nodes = envelope->nodes;
             node      = envelope->node_points;
 
-            if (!(node = av_realloc(node, (nodes * sizeof (uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            if (!(node = av_realloc(node, (nodes * sizeof(uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
                 av_free(data);
                 av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
                 return AVERROR(ENOMEM);
@@ -307,7 +307,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
 
             node = envelope->node_points;
 
-            if (!(node = av_realloc(node, (nodes * sizeof (uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            if (!(node = av_realloc(node, (nodes * sizeof(uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
                 av_free(data);
                 av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
                 return AVERROR(ENOMEM);

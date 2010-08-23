@@ -63,7 +63,7 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
     if (!samples)
         samples = 64;
 
-    if (!sample || !lines >= 0x10000 || waveforms >= 0x10000) {
+    if (!sample || lines >= 0x10000 || waveforms >= 0x10000) {
         return AVERROR_INVALIDDATA;
     } else if (!(synth = avseq_synth_create())) {
         av_log(sample, AV_LOG_ERROR, "Cannot allocate synth sound container.\n");

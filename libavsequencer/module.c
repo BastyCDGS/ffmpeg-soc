@@ -104,14 +104,14 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
     player_channel      = avctx->player_channel;
     mixer_data          = avctx->player_mixer_data;
 
-    if (!(player_globals = av_realloc(player_globals, sizeof (AVSequencerPlayerGlobals) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    if (!(player_globals = av_realloc(player_globals, sizeof(AVSequencerPlayerGlobals) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate player globals storage container.\n");
         return AVERROR(ENOMEM);
-    } else if (!(player_host_channel = av_realloc(player_host_channel, (song->channels * sizeof (AVSequencerPlayerHostChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    } else if (!(player_host_channel = av_realloc(player_host_channel, (song->channels * sizeof(AVSequencerPlayerHostChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_free(player_globals);
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
         return AVERROR(ENOMEM);
-    } else if (!(player_channel = av_realloc(player_channel, (module->channels * sizeof (AVSequencerPlayerChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+    } else if (!(player_channel = av_realloc(player_channel, (module->channels * sizeof(AVSequencerPlayerChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_free(player_host_channel);
         av_free(player_globals);
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
@@ -263,7 +263,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
     if (!player_globals->relative_pitch)
         player_globals->relative_pitch = player_globals->relative_speed;
 
-    tempo                          = avseq_song_calc_speed ( avctx, song );
+    tempo                          = avseq_song_calc_speed(avctx, song);
     volume_boost                   = ((uint64_t) module->channels * 65536*125/1000) + (65536*75/100);
     mixer_data->flags             |= AVSEQ_MIXER_DATA_FLAG_MIXING;
 
@@ -273,6 +273,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
 
     return 0;
 }
+
 int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *module,
                               uint32_t channels)
 {
@@ -292,7 +293,7 @@ int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *modu
         if ((player_channel = avctx->player_channel)) {
             AVSequencerSong *song;
 
-            if (!(player_channel = av_realloc(player_channel, (module->channels * sizeof (AVSequencerPlayerChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            if (!(player_channel = av_realloc(player_channel, (module->channels * sizeof(AVSequencerPlayerChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
                 av_log(avctx, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
                 return AVERROR(ENOMEM);
             }
