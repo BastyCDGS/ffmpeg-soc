@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 
 static const char *track_name(void *p)
@@ -48,6 +49,14 @@ static const AVClass avseq_track_class = {
 AVSequencerTrack *avseq_track_create(void)
 {
     return av_mallocz(sizeof(AVSequencerTrack) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_track_destroy(AVSequencerTrack *track)
+{
+    if (track)
+        av_metadata_free(&track->metadata);
+
+    av_free(track);
 }
 
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track)
@@ -90,7 +99,84 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track)
     return 0;
 }
 
-int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows) {
+void avseq_track_close(AVSequencerSong *song, AVSequencerTrack *track)
+{
+    AVSequencerTrack **track_list;
+    uint16_t tracks, i;
+
+    if (!(song && track))
+        return;
+
+    track_list = song->track_list;
+    tracks     = song->tracks;
+
+    for (i = 0; i < tracks; ++i) {
+        if (track_list[i] == track)
+            break;
+    }
+
+    if (tracks && (i != tracks)) {
+        AVSequencerOrderList *order_list;
+        AVSequencerTrack *last_track = track_list[--tracks];
+
+        if ((order_list = song->order_list)) {
+            uint16_t channel;
+
+            for (channel = 0; channel < song->channels; ++channel) {
+                uint16_t order;
+
+                for (order = 0; order < order_list->orders; ++order) {
+                    AVSequencerOrderData *order_data = order_list->order_data[order];
+
+                    if (order_data->track == track) {
+                        if (last_track != track)
+                            order_data->track = track_list[i + 1];
+                        else if (i)
+                            order_data->track = track_list[i - 1];
+                        else
+                            order_data->track = NULL;
+                    }
+                }
+
+                order_list++;
+            }
+        }
+
+        if (!tracks) {
+            av_freep(&song->track_list);
+
+            song->tracks = 0;
+        } else if (!(track_list = av_realloc(track_list, (tracks * sizeof(AVSequencerTrack *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_tracks = i + 1;
+
+            track_list = song->track_list;
+
+            if (copy_tracks < tracks)
+                memmove(track_list + i, track_list + copy_tracks, (tracks - copy_tracks) * sizeof(AVSequencerTrack *));
+
+            track_list[tracks - 1] = NULL;
+        } else {
+            const unsigned copy_tracks = i + 1;
+
+            if (copy_tracks < tracks) {
+                memmove(track_list + i, track_list + copy_tracks, (tracks - copy_tracks) * sizeof(AVSequencerTrack *));
+
+                track_list[tracks - 1] = last_track;
+            }
+
+            song->track_list = track_list;
+            song->tracks     = tracks;
+        }
+    }
+
+    avseq_track_data_close(track);
+    av_freep(&track->data);
+
+    track->last_row = 0;
+}
+
+int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows)
+{
     AVSequencerTrackRow *data;
     unsigned last_row;
 
@@ -120,9 +206,42 @@ int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows) {
     return 0;
 }
 
+void avseq_track_data_close(AVSequencerTrack *track)
+{
+    if (track) {
+        AVSequencerTrackRow *track_data;
+
+        if ((track_data = track->data)) {
+            int i = track->last_row;
+
+            do {
+                int j = track_data->effects;
+
+                track_data->instrument = 0;
+                track_data->octave     = 0;
+                track_data->note       = 0;
+
+                while (j--) {
+                    AVSequencerTrackEffect *effect = track_data->effects_data[j];
+
+                    avseq_track_effect_close(track_data, effect);
+                    avseq_track_effect_destroy(effect);
+                }
+
+                track_data++;
+            } while (i--);
+        }
+    }
+}
+
 AVSequencerTrackEffect *avseq_track_effect_create(void)
 {
     return av_mallocz(sizeof(AVSequencerTrackEffect));
+}
+
+void avseq_track_effect_destroy(AVSequencerTrackEffect *effect)
+{
+    av_free(effect);
 }
 
 int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, AVSequencerTrackEffect *effect)
@@ -148,6 +267,53 @@ int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, 
     data->effects        = effects;
 
     return 0;
+}
+
+void avseq_track_effect_close(AVSequencerTrackRow *track_data, AVSequencerTrackEffect *effect)
+{
+    AVSequencerTrackEffect **fx_list;
+    uint16_t effects, i;
+
+    if (!(track_data && effect))
+        return;
+
+    fx_list = track_data->effects_data;
+    effects = track_data->effects;
+
+    for (i = 0; i < effects; ++i) {
+        if (fx_list[i] == effect)
+            break;
+    }
+
+    if (effects && (i != effects)) {
+        AVSequencerTrackEffect *last_effect = fx_list[--effects];
+
+        if (!effects) {
+            av_freep(&track_data->effects_data);
+
+            track_data->effects = 0;
+        } else if (!(fx_list = av_realloc(fx_list, (effects * sizeof(AVSequencerTrackEffect *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_effects = i + 1;
+
+            fx_list = track_data->effects_data;
+
+            if (copy_effects < effects)
+                memmove(fx_list + i, fx_list + copy_effects, (effects - copy_effects) * sizeof(AVSequencerTrackEffect *));
+
+            fx_list[effects - 1] = NULL;
+        } else {
+            const unsigned copy_effects = i + 1;
+
+            if (copy_effects < effects) {
+                memmove(fx_list + i, fx_list + copy_effects, (effects - copy_effects) * sizeof(AVSequencerTrackEffect *));
+
+                fx_list[effects - 1] = last_effect;
+            }
+
+            track_data->effects_data = fx_list;
+            track_data->effects      = effects;
+        }
+    }
 }
 
 AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track)
@@ -283,14 +449,17 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
                     tmp_pack_word |= *buf++;
                 }
 
-                if (!(fx = avseq_track_effect_create ()))
+                if (!(fx = avseq_track_effect_create()))
                     return AVERROR(ENOMEM);
 
                 fx->command = tmp_pack_byte;
                 fx->data    = tmp_pack_word;
 
-                if ((res = avseq_track_effect_open ( track, data, fx )) < 0)
+                if ((res = avseq_track_effect_open(track, data, fx)) < 0) {
+                    avseq_track_effect_destroy(fx);
+
                     return res;
+                }
 
                 pack_type = 0xFF;
             } while ((int8_t) tmp_pack_byte < 0);

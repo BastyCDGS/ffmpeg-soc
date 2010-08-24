@@ -99,29 +99,21 @@ static const AVClass avsequencer_class = {
 };
 
 AVSequencerContext *avsequencer_open(AVMixerContext *mixctx,
-                                     const char *inst_name)
+                                     const char *args, void *opaque)
 {
     AVSequencerContext *avctx;
-    int i;
 
-    avctx                   = av_mallocz(sizeof(AVSequencerContext));
-    avctx->av_class         = &avsequencer_class;
-    avctx->playback_handler = avseq_playback_handler;
-
-    if (!(avctx->mixer_list = av_malloc(next_registered_mixer_idx * sizeof(AVMixerContext *))))
+    if (!(avctx = av_mallocz(sizeof(AVSequencerContext) + FF_INPUT_BUFFER_PADDING_SIZE)))
         return NULL;
 
-    for (i = 0; i < next_registered_mixer_idx; ++i) {
-        avctx->mixer_list[i] = registered_mixers[i];
-    }
+    avctx->av_class         = &avsequencer_class;
+    avctx->playback_handler = avseq_playback_handler;
+    avctx->seed             = av_get_random_seed();
 
-    avsequencer_register_all ();
-
-    avctx->mixers            = next_registered_mixer_idx;
-    avctx->seed              = av_get_random_seed ();
+    avsequencer_register_all();
 
     if (mixctx)
-        avctx->player_mixer_data = avseq_mixer_init(avctx, mixctx, NULL, NULL);
+        avctx->player_mixer_data = avseq_mixer_init(avctx, mixctx, args, opaque);
 
     return avctx;
 }
@@ -130,24 +122,32 @@ void avsequencer_destroy(AVSequencerContext *avctx)
 {
     int i;
 
-    for (i = 0; i < avctx->modules; ++i) {
-    // TODO: actual module list destroy
-//        avseq_module_destroy(avctx->module_list[i]);
+    if (avctx) {
+        avseq_module_stop(avctx, 1);
+
+        i = avctx->mixers;
+
+        while (i--) {
+            AVMixerData *mixer_data = avctx->mixer_data_list[i];
+
+            avseq_mixer_uninit(avctx, mixer_data);
+        }
+
+        i = avctx->modules;
+
+        while (i--) {
+            AVSequencerModule *module = avctx->module_list[i];
+
+            avseq_module_close(avctx, module);
+            avseq_module_destroy(module);
+        }
+
+        av_free(avctx);
     }
-
-    av_freep(&avctx->module_list);
-
-    for (i = 0; i < avctx->mixers; ++i) {
-    // TODO: actual mixer list destroy
-//        avseq_mixer_uninit(avctx, avctx->mixer_list[i]);
-    }
-
-    av_freep(&avctx->mixer_list);
-    av_free(avctx);
 }
 
 AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
-                                       const char *args, void *opaque)
+                              const char *args, void *opaque)
 {
     AVMixerData *mixer_data = NULL;
 
@@ -155,8 +155,25 @@ AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
         mixer_data = mixctx->init(mixctx, args, opaque);
 
         if (mixer_data) {
+            AVMixerData **mixer_data_list = avctx->mixer_data_list;
+            uint16_t mixers               = avctx->mixers;
+
             mixer_data->opaque       = (void *) avctx;
             mixer_data->handler      = avctx->playback_handler;
+
+            if (!++mixers) {
+                avseq_mixer_uninit(avctx, mixer_data);
+                av_log(avctx, AV_LOG_ERROR, "Too many mixer data instances.\n");
+                return NULL;
+            } else if (!(mixer_data_list = av_realloc(mixer_data_list, (mixers * sizeof(AVMixerData *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                avseq_mixer_uninit(avctx, mixer_data);
+                av_log(avctx, AV_LOG_ERROR, "Cannot allocate mixer data storage container.\n");
+                return NULL;
+            }
+
+            mixer_data_list[mixers - 1] = mixer_data;
+            avctx->mixer_data_list      = mixer_data_list;
+            avctx->mixers               = mixers;
         }
     }
 
@@ -173,8 +190,48 @@ int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data)
     mixctx = mixer_data->mixctx;
 
     if (mixctx && mixctx->uninit) {
-        if (avctx->player_mixer_data == mixer_data)
+        AVMixerData **mixer_data_list = avctx->mixer_data_list;
+        uint16_t mixers               = avctx->mixers, i;
+
+        if (avctx->player_mixer_data == mixer_data) {
             avctx->player_mixer_data = NULL;
+
+            avseq_module_stop(avctx, 0);
+        }
+
+        for (i = 0; i < mixers; ++i) {
+            if (mixer_data_list[i] == mixer_data)
+                break;
+        }
+
+        if (mixers && (i != mixers)) {
+            AVMixerData *last_mixer_data = mixer_data_list[--mixers];
+
+            if (!mixers) {
+                av_freep(&avctx->mixer_data_list);
+                avctx->mixers = 0;
+            } else if (!(mixer_data_list = av_realloc(mixer_data_list, (mixers * sizeof(AVMixerData *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                const unsigned copy_mixers = i + 1;
+
+                mixer_data_list = avctx->mixer_data_list;
+
+                if (copy_mixers < mixers)
+                    memmove(mixer_data_list + i, mixer_data_list + copy_mixers, (mixers - copy_mixers) * sizeof(AVMixerData *));
+
+                mixer_data_list[mixers - 1] = NULL;
+            } else {
+                const unsigned copy_mixers = i + 1;
+
+                if (copy_mixers < mixers) {
+                    memmove(mixer_data_list + i, mixer_data_list + copy_mixers, (mixers - copy_mixers) * sizeof(AVMixerData *));
+
+                    mixer_data_list[mixers - 1] = last_mixer_data;
+                }
+
+                avctx->mixer_data_list = mixer_data_list;
+                avctx->mixers          = mixers;
+            }
+        }
 
         return mixctx->uninit(mixer_data);
     }

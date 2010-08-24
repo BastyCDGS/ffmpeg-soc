@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 
 static const char *synth_name(void *p)
@@ -48,6 +49,14 @@ static const AVClass avseq_synth_class = {
 AVSequencerSynth *avseq_synth_create(void)
 {
     return av_mallocz(sizeof(AVSequencerSynth) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_synth_destroy(AVSequencerSynth *synth)
+{
+    if (synth)
+        av_metadata_free(&synth->metadata);
+
+    av_free(synth);
 }
 
 int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
@@ -94,6 +103,39 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
     return 0;
 }
 
+void avseq_synth_close(AVSequencerSample *sample)
+{
+    if (sample) {
+        AVSequencerSynth *synth;
+
+        if ((synth = sample->synth)) {
+            int i;
+
+            avseq_synth_code_close(synth);
+
+            i = synth->waveforms;
+
+            while (i--) {
+                AVSequencerSynthWave *waveform = synth->waveform_list[i];
+
+                avseq_synth_waveform_close(synth, waveform);
+                avseq_synth_waveform_destroy(waveform);
+            }
+
+            i = synth->symbols;
+
+            while (i--) {
+                AVSequencerSynthSymbolTable *symbol = synth->symbol_list[i];
+
+                avseq_synth_symbol_close(synth, symbol);
+                avseq_synth_symbol_destroy(symbol);
+            }
+
+            av_metadata_free(&synth->metadata);
+        }
+    }
+}
+
 int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines)
 {
     AVSequencerSynthCode *code;
@@ -123,9 +165,22 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines)
     return 0;
 }
 
+void avseq_synth_code_close(AVSequencerSynth *synth)
+{
+    av_freep(&synth->code);
+
+    synth->size = 0;
+}
+
 AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void)
 {
     return av_mallocz(sizeof(AVSequencerSynthSymbolTable) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_synth_symbol_destroy(AVSequencerSynthSymbolTable *symbol)
+{
+    av_free(symbol->symbol_name);
+    av_free(symbol);
 }
 
 int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
@@ -158,6 +213,53 @@ int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable
     synth->symbols           = symbols;
 
     return 0;
+}
+
+void avseq_synth_symbol_close(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol)
+{
+    AVSequencerSynthSymbolTable **symbol_list;
+    uint16_t symbols, i;
+
+    if (!(synth && symbol))
+        return;
+
+    symbol_list = synth->symbol_list;
+    symbols     = synth->symbols;
+
+    for (i = 0; i < symbols; ++i) {
+        if (symbol_list[i] == symbol)
+            break;
+    }
+
+    if (symbols && (i != symbols)) {
+        AVSequencerSynthSymbolTable *last_symbol = symbol_list[--symbols];
+
+        if (!symbols) {
+            av_freep(&synth->symbol_list);
+
+            synth->symbols = 0;
+        } else if (!(symbol_list = av_realloc(symbol_list, (symbols * sizeof(AVSequencerSynthSymbolTable *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_symbols = i + 1;
+
+            symbol_list = synth->symbol_list;
+
+            if (copy_symbols < symbols)
+                memmove(symbol_list + i, symbol_list + copy_symbols, (symbols - copy_symbols) * sizeof(AVSequencerSynthSymbolTable *));
+
+            symbol_list[symbols - 1] = NULL;
+        } else {
+            const unsigned copy_symbols = i + 1;
+
+            if (copy_symbols < symbols) {
+                memmove(symbol_list + i, symbol_list + copy_symbols, (symbols - copy_symbols) * sizeof(AVSequencerSynthSymbolTable *));
+
+                symbol_list[symbols - 1] = last_symbol;
+            }
+
+            synth->symbol_list = symbol_list;
+            synth->symbols     = symbols;
+        }
+    }
 }
 
 int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
@@ -229,6 +331,14 @@ AVSequencerSynthWave *avseq_synth_waveform_create(void)
     return av_mallocz(sizeof(AVSequencerSynthWave) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
+void avseq_synth_waveform_destroy(AVSequencerSynthWave *waveform)
+{
+    if (waveform)
+        av_metadata_free(&waveform->metadata);
+
+    av_free(waveform);
+}
+
 int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples)
 {
     AVSequencerSynthWave *waveform;
@@ -269,6 +379,55 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples)
     return 0;
 }
 
+void avseq_synth_waveform_close(AVSequencerSynth *synth, AVSequencerSynthWave *waveform)
+{
+    AVSequencerSynthWave **waveform_list;
+    uint16_t waveforms, i;
+
+    if (!(synth && waveform))
+        return;
+
+    waveform_list = synth->waveform_list;
+    waveforms     = synth->waveforms;
+
+    for (i = 0; i < waveforms; ++i) {
+        if (waveform_list[i] == waveform)
+            break;
+    }
+
+    if (waveforms && (i != waveforms)) {
+        AVSequencerSynthWave *last_waveform = waveform_list[--waveforms];
+
+        if (!waveforms) {
+            av_freep(&synth->waveform_list);
+
+            synth->waveforms = 0;
+        } else if (!(waveform_list = av_realloc(waveform_list, (waveforms * sizeof(AVSequencerSynthWave *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_waveforms = i + 1;
+
+            waveform_list = synth->waveform_list;
+
+            if (copy_waveforms < waveforms)
+                memmove(waveform_list + i, waveform_list + copy_waveforms, (waveforms - copy_waveforms) * sizeof(AVSequencerSynthWave *));
+
+            waveform_list[waveforms - 1] = NULL;
+        } else {
+            const unsigned copy_waveforms = i + 1;
+
+            if (copy_waveforms < waveforms) {
+                memmove(waveform_list + i, waveform_list + copy_waveforms, (waveforms - copy_waveforms) * sizeof(AVSequencerSynthWave *));
+
+                waveform_list[waveforms - 1] = last_waveform;
+            }
+
+            synth->waveform_list = waveform_list;
+            synth->waveforms     = waveforms;
+        }
+    }
+
+    avseq_synth_waveform_data_close(waveform);
+}
+
 int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples)
 {
     uint32_t size;
@@ -305,4 +464,16 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
     waveform->samples = samples;
 
     return 0;
+}
+
+void avseq_synth_waveform_data_close(AVSequencerSynthWave *waveform)
+{
+    if (waveform) {
+        av_freep(&waveform->data);
+
+        waveform->size       = 0;
+        waveform->samples    = 0;
+        waveform->repeat     = 0;
+        waveform->repeat_len = 0;
+    }
 }

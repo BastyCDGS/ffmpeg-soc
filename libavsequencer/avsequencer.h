@@ -140,11 +140,12 @@ typedef struct AVSequencerContext {
     /** Total amount of modules registered to the sequencer.  */
     uint16_t modules;
 
-    /** Array of pointers containing every mixing engine which is
-       registered and ready for access to the sequencer.  */
-    AVMixerContext **mixer_list;
+    /** Array of pointers containing every mixing engine instance
+       which is registered and ready for access to the sequencer.  */
+    AVMixerData **mixer_data_list;
 
-    /** Total amount of mixers registered to the sequencer.  */
+    /** Total amount of mixer instances registered to the
+       sequencer.  */
     uint16_t mixers;
 
     /** Current randomization seed value for a very fast randomize
@@ -153,7 +154,7 @@ typedef struct AVSequencerContext {
     uint32_t seed;
 
     /** Executes one tick of the playback handler.  */
-    int (*playback_handler)( AVMixerData *mixer_data );
+    int (*playback_handler)(AVMixerData *mixer_data);
 } AVSequencerContext;
 
 /** Registers all mixers to the AVSequencer.
@@ -208,15 +209,19 @@ void avsequencer_uninit(void);
 /**
  * Opens and registers a new AVSequencer context.
  *
- * @param mixctx the AVMixerContext to use as an initial mixer
- * @param inst_name the name of AVSequencerContext instance
+ * @param mixctx the AVMixerContext to use as an initial mixer or NULL for none
+ * @param args The string of parameters to use when initializing the mixer.
+ *             The format and meaning of this string varies by mixer.
+ * @param opaque The xtra non-string data needed by the mixer. The meaning
+ *               of this parameter varies by mixer.
  * @return pointer to registered AVSequencerContext, NULL otherwise
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVSequencerContext *avsequencer_open(AVMixerContext *mixctx, const char *inst_name);
+AVSequencerContext *avsequencer_open(AVMixerContext *mixctx,
+                                     const char *args, void *opaque);
 
 /** Recursively destroys the AVSequencerContext and frees all memory.
  *
@@ -331,7 +336,18 @@ void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf);
 AVSequencerModule *avseq_module_create(void);
 
 /**
- * Opens and registers module to the AVSequencer.
+ * Destroys a module by freeing its occupied memory.
+ *
+ * @param module the AVSequencerModule to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_module_destroy(AVSequencerModule *module);
+
+/**
+ * Opens and registers a module to the AVSequencer.
  *
  * @param avctx the AVSequencerContext to store the opened module into
  * @param module the AVSequencerModule which has been opened to be registered
@@ -342,6 +358,18 @@ AVSequencerModule *avseq_module_create(void);
  *       ABI compatibility yet!
  */
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module);
+
+/**
+ * Closes and unregisters module from the AVSequencer.
+ *
+ * @param avctx the AVSequencerContext to remove the module reference
+ * @param module the AVSequencerModule which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_module_close(AVSequencerContext *avctx, AVSequencerModule *module);
 
 /**
  * Changes module virtual channels to new number of channels specified.
@@ -382,6 +410,18 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
                       const char *args, void *opaque, uint32_t mode);
 
 /**
+ * Uninitializes the playback structures of sub-song of a module playback.
+ *
+ * @param avctx the AVSequencerContext to be uninitialized for playback
+ * @param mode the uninitialize mode to use, 0 is mixer only (pause) and 1 is all (stop)
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_module_stop(AVSequencerContext *avctx, uint32_t mode);
+
+/**
  * Creates a new uninitialized empty sub-song.
  *
  * @return pointer to freshly allocated AVSequencerSong, NULL if allocation failed
@@ -391,6 +431,17 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
  *       ABI compatibility yet!
  */
 AVSequencerSong *avseq_song_create(void);
+
+/**
+ * Destroys a sub-song by freeing its occupied memory.
+ *
+ * @param song the AVSequencerSong to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_song_destroy(AVSequencerSong *song);
 
 /**
  * Opens and registers a new sub-song to a module.
@@ -404,6 +455,18 @@ AVSequencerSong *avseq_song_create(void);
  *       ABI compatibility yet!
  */
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song);
+
+/**
+ * Closes and unregisters a sub-song from a module.
+ *
+ * @param module the AVSequencerModule to remove the sub-song reference
+ * @param song the AVSequencerSong which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_song_close(AVSequencerModule *module, AVSequencerSong *song);
 
 /**
  * Calculates the speed of a sub-song and fills the player globals structure.
@@ -481,6 +544,19 @@ int avseq_song_set_stack(AVSequencerContext *avctx, AVSequencerSong *song,
 int avseq_order_open(AVSequencerSong *song);
 
 /**
+ * Closes and unregisters an array of order data from the order list
+ * of a sub-song.
+ *
+ * @param song the AVSequencerSong of which the order list's data has
+ *             been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_order_close(AVSequencerSong *song);
+
+/**
  * Creates a new uninitialized empty order list data entry.
  *
  * @return pointer to freshly allocated AVSequencerOrderData, NULL if allocation failed
@@ -490,6 +566,17 @@ int avseq_order_open(AVSequencerSong *song);
  *       ABI compatibility yet!
  */
 AVSequencerOrderData *avseq_order_data_create(void);
+
+/**
+ * Destroys an order data entry by freeing its occupied memory.
+ *
+ * @param track the AVSequencerOrderData to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_order_data_destroy(AVSequencerOrderData *order_data);
 
 /**
  * Opens and registers a new order list data entry to an order list.
@@ -503,6 +590,20 @@ AVSequencerOrderData *avseq_order_data_create(void);
  *       ABI compatibility yet!
  */
 int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data);
+
+/**
+ * Closes and unregisters an order list data entry from from a order list channel.
+ *
+ * @param song the AVSequencerSong to remove the order list data entry references
+ * @param order_list the AVSequencerOrderList to remove the order list data entry reference
+ * @param order_data the AVSequencerOrderData which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_order_data_close(AVSequencerSong *song, AVSequencerOrderList *order_list,
+                            AVSequencerOrderData *order_data);
 
 /**
  * Gets the address of the order data entry represented by an integer value.
@@ -530,6 +631,17 @@ AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t ch
 AVSequencerTrack *avseq_track_create(void);
 
 /**
+ * Destroys a track by freeing its occupied memory.
+ *
+ * @param track the AVSequencerTrack to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_track_destroy(AVSequencerTrack *track);
+
+/**
  * Opens and registers a new track to a sub-song.
  *
  * @param song the AVSequencerSong structure to add the new track to
@@ -541,6 +653,18 @@ AVSequencerTrack *avseq_track_create(void);
  *       ABI compatibility yet!
  */
 int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track);
+
+/**
+ * Closes and unregisters a track from a sub-song.
+ *
+ * @param song the AVSequencerSong to remove the track reference
+ * @param track the AVSequencerTrack which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_track_close(AVSequencerSong *song, AVSequencerTrack *track);
 
 /**
  * Opens and registers a new array of track data to a track.
@@ -556,6 +680,18 @@ int avseq_track_open(AVSequencerSong *song, AVSequencerTrack *track);
 int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows);
 
 /**
+ * Closes and unregisters an array of track data from a track.
+ *
+ * @param track the AVSequencerTrack of which the track data has been
+ *              opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_track_data_close(AVSequencerTrack *track);
+
+/**
  * Creates a new uninitialized empty track effect.
  *
  * @return pointer to freshly allocated AVSequencerTrackEffect, NULL if allocation failed
@@ -565,6 +701,17 @@ int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows);
  *       ABI compatibility yet!
  */
 AVSequencerTrackEffect *avseq_track_effect_create(void);
+
+/**
+ * Destroys a track effect by freeing its occupied memory.
+ *
+ * @param track the AVSequencerTrackEffect to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_track_effect_destroy(AVSequencerTrackEffect *effect);
 
 /**
  * Opens and registers a new track data effect to track data.
@@ -579,6 +726,18 @@ AVSequencerTrackEffect *avseq_track_effect_create(void);
  *       ABI compatibility yet!
  */
 int avseq_track_effect_open(AVSequencerTrack *track, AVSequencerTrackRow *data, AVSequencerTrackEffect *effect);
+
+/**
+ * Closes and unregisters a track effect from a row of track data.
+ *
+ * @param track_data the AVSequencerTrackRow to remove the track effect reference
+ * @param effect the AVSequencerTrackEffect which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_track_effect_close(AVSequencerTrackRow *track_data, AVSequencerTrackEffect *effect);
 
 /**
  * Gets the address of the track represented by an integer value.
@@ -619,6 +778,17 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
 AVSequencerInstrument *avseq_instrument_create(void);
 
 /**
+ * Destroys an instrument by freeing its occupied memory.
+ *
+ * @param instrument the AVSequencerInstrument to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_instrument_destroy(AVSequencerInstrument *instrument);
+
+/**
  * Opens and registers a new instrument to a module.
  *
  * @param module the AVSequencerModule structure to add the new instrument to
@@ -634,6 +804,18 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
                           uint32_t samples);
 
 /**
+ * Closes and unregisters an instrument from a module.
+ *
+ * @param module the AVSequencerModule to remove the instrument reference
+ * @param instrument the AVSequencerInstrument which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_instrument_close(AVSequencerModule *module, AVSequencerInstrument *instrument);
+
+/**
  * Creates a new uninitialized empty envelope.
  *
  * @return pointer to freshly allocated AVSequencerEnvelope, NULL if allocation failed
@@ -643,6 +825,17 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
  *       ABI compatibility yet!
  */
 AVSequencerEnvelope *avseq_envelope_create(void);
+
+/**
+ * Destroys an envelope by freeing its occupied memory.
+ *
+ * @param envelope the AVSequencerEnvelope to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_envelope_destroy(AVSequencerEnvelope *envelope);
 
 /**
  * Opens and registers a new envelope to a module.
@@ -674,6 +867,18 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
                         uint32_t y_offset, uint32_t nodes);
 
 /**
+ * Closes and unregisters an envelope from a module.
+ *
+ * @param module the AVSequencerModule to remove the envelope reference
+ * @param envelope the AVSequencerEnvelope which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_envelope_close(AVSequencerModule *module, AVSequencerEnvelope *envelope);
+
+/**
  * Opens and registers a new envelope data and node set to an envelope.
  *
  * @param avctx the AVSequencerContext to add the new envelope data and node set to
@@ -701,6 +906,18 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
                              uint32_t y_offset, uint32_t nodes);
 
 /**
+ * Closes and unregisters an array of envelope data from an envelope.
+ *
+ * @param envelope the AVSequencerEnvelope of which the envelope data
+ *                 has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_envelope_data_close(AVSequencerEnvelope *envelope);
+
+/**
  * Gets the address of the envelope represented by an integer value.
  *
  * @param module the AVSequencerModule structure to get the envelope address from
@@ -725,6 +942,17 @@ AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint3
 AVSequencerKeyboard *avseq_keyboard_create(void);
 
 /**
+ * Destroys a keyboard definition by freeing its occupied memory.
+ *
+ * @param keyboard the AVSequencerKeyboard to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_keyboard_destroy(AVSequencerKeyboard *keyboard);
+
+/**
  * Opens and registers a new keyboard definition to a module.
  *
  * @param module the AVSequencerModule structure to add the new keyboard definition to
@@ -736,6 +964,18 @@ AVSequencerKeyboard *avseq_keyboard_create(void);
  *       ABI compatibility yet!
  */
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard);
+
+/**
+ * Closes and unregisters a keyboard definition from a module.
+ *
+ * @param module the AVSequencerModule to remove the keyboard definition reference
+ * @param keyboard the AVSequencerKeyboard which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_keyboard_close(AVSequencerModule *module, AVSequencerKeyboard *keyboard);
 
 /**
  * Gets the address of the keyboard definition represented by an integer value.
@@ -762,6 +1002,17 @@ AVSequencerKeyboard *avseq_keyboard_get_address(AVSequencerModule *module, uint3
 AVSequencerArpeggio *avseq_arpeggio_create(void);
 
 /**
+ * Destroys an arpeggio structure by freeing its occupied memory.
+ *
+ * @param arpeggio the AVSequencerArpeggio to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_arpeggio_destroy(AVSequencerArpeggio *arpeggio);
+
+/**
  * Opens and registers a new arpeggio structure to a module.
  *
  * @param module the AVSequencerModule structure to add the new arpeggio to
@@ -777,6 +1028,18 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
                         uint32_t entries);
 
 /**
+ * Closes and unregisters an arpeggio structure from a module.
+ *
+ * @param module the AVSequencerModule to remove the arpeggio structure reference
+ * @param arpeggio the AVSequencerArpeggio which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_arpeggio_close(AVSequencerModule *module, AVSequencerArpeggio *arpeggio);
+
+/**
  * Opens and registers a new arpeggio data set to an arpeggio structure.
  *
  * @param arpeggio the AVSequencerArpeggio to add the new arpeggio data set to
@@ -788,6 +1051,18 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
  *       ABI compatibility yet!
  */
 int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries);
+
+/**
+ * Closes and unregisters an array of arpeggio data from an arpeggio structure.
+ *
+ * @param arpeggio the AVSequencerArpeggio of which the arpeggio structure data
+ *                 has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_arpeggio_data_close(AVSequencerArpeggio *arpeggio);
 
 /**
  * Gets the address of the arpeggio structure represented by an integer value.
@@ -814,6 +1089,17 @@ AVSequencerArpeggio *avseq_arpeggio_get_address(AVSequencerModule *module, uint3
 AVSequencerSample *avseq_sample_create(void);
 
 /**
+ * Destroys a sample by freeing its occupied memory.
+ *
+ * @param sample the AVSequencerSample to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_sample_destroy(AVSequencerSample *sample);
+
+/**
  * Opens and registers a new audio sample to an instrument.
  *
  * @param instrument the AVSequencerInstrument structure to add the new sample to
@@ -830,7 +1116,19 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
                       int16_t *data, uint32_t length);
 
 /**
- * Opens and registers audio sample PCM data stream to an sample.
+ * Closes and unregisters an audio sample from an instrument.
+ *
+ * @param instrument the AVSequencerInstrument to remove the audio sample reference
+ * @param sample the AVSequencerSample which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_sample_close(AVSequencerInstrument *instrument, AVSequencerSample *sample);
+
+/**
+ * Opens and registers audio sample PCM data stream to a sample.
  *
  * @param sample the AVSequencerSample to add the sample PCM data stream to
  * @param data the original sample data to create a redirection sample or NULL for a new one
@@ -842,6 +1140,18 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
  *       ABI compatibility yet!
  */
 int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples);
+
+/**
+ * Closes and unregisters an audio sample PCM data stream from a sample.
+ *
+ * @param sample the AVSequencerSample of which the sample PCM data
+ *               stream has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_sample_data_close(AVSequencerSample *sample);
 
 /**
  * Decrunches a AVSequencerSample by using delta compression algorithm.
@@ -883,6 +1193,17 @@ AVSequencerSample *avseq_sample_find_origin(AVSequencerModule *module, AVSequenc
 AVSequencerSynth *avseq_synth_create(void);
 
 /**
+ * Destroys a synth sound by freeing its occupied memory.
+ *
+ * @param synth the AVSequencerSynth to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_destroy(AVSequencerSynth *synth);
+
+/**
  * Opens and registers a synth sound to a sample.
  *
  * @param sample the AVSequencerSample structure to attach the new synth sound to
@@ -899,6 +1220,18 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
                      uint32_t waveforms, uint32_t samples);
 
 /**
+ * Closes and unregisters a synth sound from a sample.
+ *
+ * @param sample the AVSequencerSample of which the synth sound has
+ *               been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_close(AVSequencerSample *sample);
+
+/**
  * Creates a new uninitialized empty synth sound symbol.
  *
  * @return pointer to freshly allocated AVSequencerSynthSymbolTable, NULL if allocation failed
@@ -908,6 +1241,17 @@ int avseq_synth_open(AVSequencerSample *sample, uint32_t lines,
  *       ABI compatibility yet!
  */
 AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void);
+
+/**
+ * Destroys a synth sound symbol by freeing its occupied memory.
+ *
+ * @param symbol the AVSequencerSynthSymbol to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_symbol_destroy(AVSequencerSynthSymbolTable *symbol);
 
 /**
  * Opens and registers a synth sound symbol to a synth sound.
@@ -923,6 +1267,18 @@ AVSequencerSynthSymbolTable *avseq_synth_symbol_create(void);
  */
 int avseq_synth_symbol_open(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol,
                             const uint8_t *name);
+
+/**
+ * Closes and unregisters a synth sound symbol from a synth sound.
+ *
+ * @param synth the AVSequencerSynth to remove the synth sound symbol reference
+ * @param symbol the AVSequencerSynthSymbolTable which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_symbol_close(AVSequencerSynth *synth, AVSequencerSynthSymbolTable *symbol);
 
 /**
  * Assigns a new symbol name to a synth sound symbol.
@@ -951,6 +1307,17 @@ int avseq_synth_symbol_assign(AVSequencerSynth *synth, AVSequencerSynthSymbolTab
 AVSequencerSynthWave *avseq_synth_waveform_create(void);
 
 /**
+ * Destroys a synth sound waveform by freeing its occupied memory.
+ *
+ * @param waveform the AVSequencerSynthWave to be destroyed
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_waveform_destroy(AVSequencerSynthWave *waveform);
+
+/**
  * Opens and registers a synth sound waveform to a synth sound.
  *
  * @param synth the AVSequencerSynth structure to add the new synth sound waveform to
@@ -962,6 +1329,18 @@ AVSequencerSynthWave *avseq_synth_waveform_create(void);
  *       ABI compatibility yet!
  */
 int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples);
+
+/**
+ * Closes and unregisters a synth sound waveform from a synth sound.
+ *
+ * @param synth the AVSequencerSynth to remove the synth sound waveform reference
+ * @param waveform the AVSequencerSynthWave which has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_waveform_close(AVSequencerSynth *synth, AVSequencerSynthWave *waveform);
 
 /**
  * Opens and registers synth sound waveform data to a synth sound waveform.
@@ -977,6 +1356,18 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples);
 int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samples);
 
 /**
+ * Closes and unregisters synth sound waveform data from a synth sound waveform.
+ *
+ * @param waveform the AVSequencerSynthWave of which the synth sound
+ *                 waveform data has been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_waveform_data_close(AVSequencerSynthWave *waveform);
+
+/**
  * Opens and registers a synth sound code to a synth sound.
  *
  * @param synth the AVSequencerSynth structure to attach the new synth sound code to
@@ -988,6 +1379,18 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
  *       ABI compatibility yet!
  */
 int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
+
+/**
+ * Closes and unregisters a synth sound code from a synth sound.
+ *
+ * @param synth the AVSequencerSynth of which the synth sound code has
+ *              been opened to be unregistered
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_synth_code_close(AVSequencerSynth *synth);
 
 /**
  * Executes one tick of the playback handler, calculating everything
@@ -1004,6 +1407,6 @@ int avseq_synth_code_open(AVSequencerSynth *synth, uint32_t lines);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_playback_handler ( AVMixerData *mixer_data );
+int avseq_playback_handler(AVMixerData *mixer_data);
 
 #endif /* AVSEQUENCER_AVSEQUENCER_H */

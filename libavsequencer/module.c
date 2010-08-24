@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/player.h"
 
@@ -49,6 +50,14 @@ static const AVClass avseq_module_class = {
 AVSequencerModule *avseq_module_create(void)
 {
     return av_mallocz(sizeof(AVSequencerModule) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_module_destroy(AVSequencerModule *module)
+{
+    if (module)
+        av_metadata_free(&module->metadata);
+
+    av_free(module);
 }
 
 int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module)
@@ -79,6 +88,98 @@ int avseq_module_open(AVSequencerContext *avctx, AVSequencerModule *module)
     avctx->modules           = modules;
 
     return 0;
+}
+
+void avseq_module_close(AVSequencerContext *avctx, AVSequencerModule *module)
+{
+    AVSequencerModule **module_list;
+    uint16_t modules, i;
+
+    if (!(avctx && module))
+        return;
+
+    module_list = avctx->module_list;
+    modules     = avctx->modules;
+
+    for (i = 0; i < modules; ++i) {
+        if (module_list[i] == module)
+            break;
+    }
+
+    if (modules && (i != modules)) {
+        AVSequencerModule *last_module = module_list[--modules];
+
+        if (!modules) {
+            av_freep(&avctx->module_list);
+
+            avctx->modules = 0;
+        } else if (!(module_list = av_realloc(module_list, (modules * sizeof(AVSequencerModule *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_modules = i + 1;
+
+            module_list = avctx->module_list;
+
+            if (copy_modules < modules)
+                memmove(module_list + i, module_list + copy_modules, (modules - copy_modules) * sizeof(AVSequencerModule *));
+
+            module_list[modules - 1] = NULL;
+        } else {
+            const unsigned copy_modules = i + 1;
+
+            if (copy_modules < modules) {
+                memmove(module_list + i, module_list + copy_modules, (modules - copy_modules) * sizeof(AVSequencerModule *));
+
+                module_list[modules - 1] = last_module;
+            }
+
+            avctx->module_list = module_list;
+            avctx->modules     = modules;
+        }
+    }
+
+    i = module->songs;
+
+    while (i--) {
+        AVSequencerSong *song = module->song_list[i];
+
+        avseq_song_close(module, song);
+        avseq_song_destroy(song);
+    }
+
+    i = module->instruments;
+
+    while (i--) {
+        AVSequencerInstrument *instrument = module->instrument_list[i];
+
+        avseq_instrument_close(module, instrument);
+        avseq_instrument_destroy(instrument);
+    }
+
+    i = module->envelopes;
+
+    while (i--) {
+        AVSequencerEnvelope *envelope = module->envelope_list[i];
+
+        avseq_envelope_close(module, envelope);
+        avseq_envelope_destroy(envelope);
+    }
+
+    i = module->keyboards;
+
+    while (i--) {
+        AVSequencerKeyboard *keyboard = module->keyboard_list[i];
+
+        avseq_keyboard_close(module, keyboard);
+        avseq_keyboard_destroy(keyboard);
+    }
+
+    i = module->arpeggios;
+
+    while (i--) {
+        AVSequencerArpeggio *arpeggio = module->arpeggio_list[i];
+
+        avseq_arpeggio_close(module, arpeggio);
+        avseq_arpeggio_destroy(arpeggio);
+    }
 }
 
 int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
@@ -116,7 +217,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
         av_free(player_globals);
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
         return AVERROR(ENOMEM);
-    } else if (!(mixer_data = avseq_mixer_init ( avctx, mixctx, args, opaque ))) {
+    } else if (!(mixer_data = avseq_mixer_init(avctx, mixctx, args, opaque))) {
         av_free(player_channel);
         av_free(player_host_channel);
         av_free(player_globals);
@@ -272,6 +373,34 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
     avseq_mixer_set_volume(mixer_data, volume_boost, 65536, 65536, module->channels);
 
     return 0;
+}
+
+void avseq_module_stop(AVSequencerContext *avctx, uint32_t mode)
+{
+    if (avctx) {
+        AVMixerData *mixer_data;
+
+        if ((mixer_data = avctx->player_mixer_data)) {
+            avctx->player_mixer_data = NULL;
+
+            avseq_mixer_uninit(avctx, mixer_data);
+        }
+
+        if (mode & 1) {
+            AVSequencerPlayerGlobals *player_globals;
+
+            av_freep(&avctx->player_hook);
+            av_freep(&avctx->player_channel);
+            av_freep(&avctx->player_host_channel);
+
+            if ((player_globals = avctx->player_globals)) {
+                av_free(player_globals->gosub_stack);
+                av_free(player_globals->loop_stack);
+            }
+
+            av_freep(&avctx->player_globals);
+        }
+    }
 }
 
 int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *module,

@@ -248,14 +248,17 @@ static int iff_read_header(AVFormatContext *s,
 
 #if CONFIG_AVSEQUENCER
     if (st->codec->codec_tag == ID_TCM1) {
-        if (!(iff->avctx = avsequencer_open(NULL, "")))
+        if (!(iff->avctx = avsequencer_open(NULL, args, opaque)))
             return AVERROR(ENOMEM);
 
-        if (!(module = avseq_module_create ()))
+        if (!(module = avseq_module_create())) {
+            avsequencer_destroy(iff->avctx);
             return AVERROR(ENOMEM);
+        }
 
         if ((res = avseq_module_open(iff->avctx, module)) < 0) {
-            av_free(module);
+            avseq_module_destroy(module);
+            avsequencer_destroy(iff->avctx);
             return res;
         }
 
@@ -279,6 +282,7 @@ static int iff_read_header(AVFormatContext *s,
                 break;
 
             if ((res = get_byte(pb)) != 1) { // version
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Invalid version: %d.%d\n", res, get_byte(pb));
                 return AVERROR_INVALIDDATA;
             }
@@ -342,8 +346,10 @@ static int iff_read_header(AVFormatContext *s,
 
             avseq_module_set_channels(iff->avctx, module, get_be16(pb));
 
-            if (get_be16(pb)) // compatibility flags and flags
+            if (get_be16(pb)) { // compatibility flags and flags
+                avsequencer_destroy(iff->avctx);
                 return AVERROR_INVALIDDATA;
+            }
 
             break;
         case ID_FORM:
@@ -352,28 +358,38 @@ static int iff_read_header(AVFormatContext *s,
 
             switch (get_le32(pb)) {
             case ID_SONG:
-                if ((res = open_tcm1_song(s, iff->avctx, module, data_size)) < 0)
+                if ((res = open_tcm1_song(s, iff->avctx, module, data_size)) < 0) {
+                    avsequencer_destroy(iff->avctx);
                     return res;
+                }
 
                 break;
             case ID_INSL:
-                if ((res = open_tcm1_insl(s, module, args, opaque, data_size)) < 0)
+                if ((res = open_tcm1_insl(s, module, args, opaque, data_size)) < 0) {
+                    avsequencer_destroy(iff->avctx);
                     return res;
+                }
 
                 break;
             case ID_ENVL:
-                if ((res = open_tcm1_envl(s, iff->avctx, module, data_size)) < 0)
+                if ((res = open_tcm1_envl(s, iff->avctx, module, data_size)) < 0) {
+                    avsequencer_destroy(iff->avctx);
                     return res;
+                }
 
                 break;
             case ID_KEYB:
-                if ((res = open_tcm1_keyb(s, module, data_size)) < 0)
+                if ((res = open_tcm1_keyb(s, module, data_size)) < 0) {
+                    avsequencer_destroy(iff->avctx);
                     return res;
+                }
 
                 break;
             case ID_ARPL:
-                if ((res = open_tcm1_arpl(s, module, data_size)) < 0)
+                if ((res = open_tcm1_arpl(s, module, data_size)) < 0) {
+                    avsequencer_destroy(iff->avctx);
                     return res;
+                }
 
                 break;
             default:
@@ -494,6 +510,9 @@ read_unknown_chunk:
 
         if (metadata_tag) {
             if ((res = get_metadata(s, metadata_tag, data_size)) < 0) {
+#if CONFIG_AVSEQUENCER
+                avsequencer_destroy(iff->avctx);
+#endif
                 av_log(s, AV_LOG_ERROR, "cannot allocate metadata tag %s!\n", metadata_tag);
                 return res;
             }
@@ -538,26 +557,31 @@ read_unknown_chunk:
             unsigned i;
 
             if (songs != module->songs) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached sub-songs does not match actual reads (expected: %d, got: %d)!\n", module->songs, songs);
                 return AVERROR_INVALIDDATA;
             }
 
             if (instruments != module->instruments) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached instruments does not match actual reads (expected: %d, got: %d)!\n", module->instruments, instruments);
                 return AVERROR_INVALIDDATA;
             }
 
             if (envelopes != module->envelopes) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached envelopes does not match actual reads (expected: %d, got: %d)!\n", module->envelopes, envelopes);
                 return AVERROR_INVALIDDATA;
             }
 
             if (keyboards != module->keyboards) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached keyboard definitions does not match actual reads (expected: %d, got: %d)!\n", module->keyboards, keyboards);
                 return AVERROR_INVALIDDATA;
             }
 
             if (arpeggios != module->arpeggios) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached arpeggio structures does not match actual reads (expected: %d, got: %d)!\n", module->arpeggios, arpeggios);
                 return AVERROR_INVALIDDATA;
             }
@@ -585,6 +609,7 @@ read_unknown_chunk:
             }
 
             if (tracks) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached tracks does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
@@ -632,11 +657,13 @@ read_unknown_chunk:
             }
 
             if (samples) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached samples does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
 
             if (synths) {
+                avsequencer_destroy(iff->avctx);
                 av_log(module, AV_LOG_ERROR, "Number of attached synths does not match actual reads!\n");
                 return AVERROR_INVALIDDATA;
             }
@@ -657,6 +684,7 @@ read_unknown_chunk:
 
             if (!(mixctx = avseq_mixer_get_by_name("Low quality mixer"))) {
                 if (!(mixctx = avseq_mixer_get_by_name("Null mixer"))) {
+                    avsequencer_destroy(iff->avctx);
                     av_log(s, AV_LOG_ERROR, "No mixers found!\n");
                     return AVERROR(ENOMEM);
                 }
@@ -666,11 +694,15 @@ read_unknown_chunk:
             st->codec->channels    = ((av_stristr(args, "stereo=true;") || av_stristr(args, "stereo=enabled;") || av_stristr(args, "stereo=1;")) && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
             iff->body_size         = ((uint64_t) s->duration * st->codec->sample_rate * (st->codec->channels << 2)) / AV_TIME_BASE;
 
-            if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0)
+            if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0) {
+                avsequencer_destroy(iff->avctx);
                 return res;
+            }
 
-            if ((res = avseq_song_reset(iff->avctx, module->song_list[0])) < 0)
+            if ((res = avseq_song_reset(iff->avctx, module->song_list[0])) < 0) {
+                avsequencer_destroy(iff->avctx);
                 return res;
+            }
 
             st->codec->bits_per_coded_sample = 32;
 #if AV_HAVE_BIGENDIAN
@@ -739,11 +771,11 @@ static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
 
     data_size += data_size & 1;
 
-    if (!(song = avseq_song_create ()))
+    if (!(song = avseq_song_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_song_open(module, song)) < 0) {
-        av_free(song);
+        avseq_song_destroy(song);
         return res;
     }
 
@@ -965,11 +997,11 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
 
     data_size += data_size & 1;
 
-    if (!(track = avseq_track_create ()))
+    if (!(track = avseq_track_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_track_open(song, track)) < 0) {
-        av_free(track);
+        avseq_track_destroy(track);
         return res;
     }
 
@@ -1238,7 +1270,7 @@ static int open_post_posl(AVFormatContext *s, AVSequencerOrderList *order_list, 
                 return AVERROR(ENOMEM);
 
             if ((res = avseq_order_data_open(order_list, order_data)) < 0) {
-                av_free(order_data);
+                avseq_order_data_destroy(order_data);
                 return res;
             }
 
@@ -1352,11 +1384,11 @@ static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, const c
 
     data_size += data_size & 1;
 
-    if (!(instrument = avseq_instrument_create ()))
+    if (!(instrument = avseq_instrument_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_instrument_open(module, instrument, 0)) < 0) {
-        av_free(instrument);
+        avseq_instrument_destroy(instrument);
         return res;
     }
 
@@ -1527,11 +1559,11 @@ static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSeque
 
     data_size += data_size & 1;
 
-    if (!(sample = avseq_sample_create ()))
+    if (!(sample = avseq_sample_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_sample_open(instrument, sample, NULL, 0)) < 0) {
-        av_free(sample);
+        avseq_sample_destroy(sample);
         return res;
     }
 
@@ -2115,11 +2147,11 @@ static int open_stab_smbl(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
 
     data_size += data_size & 1;
 
-    if (!(symbol = avseq_synth_symbol_create ()))
+    if (!(symbol = avseq_synth_symbol_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_synth_symbol_open(synth, symbol, "UNNAMED")) < 0) {
-        av_free(symbol);
+        avseq_synth_symbol_destroy(symbol);
         return res;
     }
 
@@ -2229,11 +2261,11 @@ static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
 
     data_size += data_size & 1;
 
-    if (!(envelope = avseq_envelope_create ()))
+    if (!(envelope = avseq_envelope_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_envelope_open(avctx, module, envelope, 1, 0, 0, 0, 0)) < 0) {
-        av_free(envelope);
+        avseq_envelope_destroy(envelope);
         return res;
     }
 
@@ -2413,11 +2445,11 @@ static int open_tcm1_keyb(AVFormatContext *s, AVSequencerModule *module, uint32_
 
         switch(chunk_id) {
         case ID_KBRD:
-            if (!(keyboard = avseq_keyboard_create ()))
+            if (!(keyboard = avseq_keyboard_create()))
                 return AVERROR(ENOMEM);
 
             if ((res = avseq_keyboard_open(module, keyboard)) < 0) {
-                av_free(keyboard);
+                avseq_keyboard_destroy(keyboard);
                 return res;
             }
 
@@ -2502,11 +2534,11 @@ static int open_arpl_arpg(AVFormatContext *s, AVSequencerModule *module, uint32_
 
     data_size += data_size & 1;
 
-    if (!(arpeggio = avseq_arpeggio_create ()))
+    if (!(arpeggio = avseq_arpeggio_create()))
         return AVERROR(ENOMEM);
 
     if ((res = avseq_arpeggio_open(module, arpeggio, 1)) < 0) {
-        av_free(arpeggio);
+        avseq_arpeggio_destroy(arpeggio);
         return res;
     }
 
@@ -2664,8 +2696,14 @@ static int iff_read_packet(AVFormatContext *s,
     AVStream *st = s->streams[0];
     int ret;
 
-    if(iff->sent_bytes >= iff->body_size)
+    if(iff->sent_bytes >= iff->body_size) {
+#if CONFIG_AVSEQUENCER
+        avsequencer_destroy(iff->avctx);
+
+        iff->avctx = NULL;
+#endif
         return AVERROR(EIO);
+    }
 #if CONFIG_AVSEQUENCER
     if (iff->avctx) {
         int32_t row;
@@ -2680,6 +2718,7 @@ static int iff_read_packet(AVFormatContext *s,
         avseq_mixer_do_mix(mixer_data, NULL);
 
         if (!(buf = av_malloc(16 * iff->avctx->player_song->channels))) {
+            avsequencer_destroy(iff->avctx);
             av_log(s, AV_LOG_ERROR, "Cannot allocate pattern display buffer!\n");
             return AVERROR(ENOMEM);
         }
@@ -2808,6 +2847,7 @@ static int iff_read_packet(AVFormatContext *s,
         av_log(NULL, AV_LOG_INFO, "\033[%dA\n", FFMIN(iff->avctx->player_module->channels, 24) + 33);
 
         if ((ret = av_new_packet(pkt, size)) < 0) {
+            avsequencer_destroy(iff->avctx);
             av_log(s, AV_LOG_ERROR, "Cannot allocate packet!\n");
 
             return ret;

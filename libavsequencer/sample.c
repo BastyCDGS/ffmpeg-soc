@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 
 static const char *sample_name(void *p)
@@ -48,6 +49,14 @@ static const AVClass avseq_sample_class = {
 AVSequencerSample *avseq_sample_create(void)
 {
     return av_mallocz(sizeof(AVSequencerSample) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_sample_destroy(AVSequencerSample *sample)
+{
+    if (sample)
+        av_metadata_free(&sample->metadata);
+
+    av_free(sample);
 }
 
 int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *sample,
@@ -90,6 +99,56 @@ int avseq_sample_open(AVSequencerInstrument *instrument, AVSequencerSample *samp
     return 0;
 }
 
+void avseq_sample_close(AVSequencerInstrument *instrument, AVSequencerSample *sample)
+{
+    AVSequencerSample **sample_list;
+    uint16_t samples, i;
+
+    if (!(instrument && sample))
+        return;
+
+    sample_list = instrument->sample_list;
+    samples     = instrument->samples;
+
+    for (i = 0; i < samples; ++i) {
+        if (sample_list[i] == sample)
+            break;
+    }
+
+    if (samples && (i != samples)) {
+        AVSequencerSample *last_sample = sample_list[--samples];
+
+        if (!samples) {
+            av_freep(&instrument->sample_list);
+
+            instrument->samples = 0;
+        } else if (!(sample_list = av_realloc(sample_list, (samples * sizeof(AVSequencerSample *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_samples = i + 1;
+
+            sample_list = instrument->sample_list;
+
+            if (copy_samples < samples)
+                memmove(sample_list + i, sample_list + copy_samples, (samples - copy_samples) * sizeof(AVSequencerSample *));
+
+            sample_list[samples - 1] = NULL;
+        } else {
+            const unsigned copy_samples = i + 1;
+
+            if (copy_samples < samples) {
+                memmove(sample_list + i, sample_list + copy_samples, (samples - copy_samples) * sizeof(AVSequencerSample *));
+
+                sample_list[samples - 1] = last_sample;
+            }
+
+            instrument->sample_list = sample_list;
+            instrument->samples     = samples;
+        }
+    }
+
+    avseq_synth_close(sample);
+    avseq_sample_data_close(sample);
+}
+
 int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t samples)
 {
     uint64_t size;
@@ -121,6 +180,20 @@ int avseq_sample_data_open(AVSequencerSample *sample, int16_t *data, uint32_t sa
     sample->samples = samples;
 
     return 0;
+}
+
+void avseq_sample_data_close(AVSequencerSample *sample)
+{
+    if (sample) {
+        av_freep(&sample->data);
+
+        sample->size            = 0;
+        sample->samples         = 0;
+        sample->sustain_repeat  = 0;
+        sample->sustain_rep_len = 0;
+        sample->repeat          = 0;
+        sample->rep_len         = 0;
+    }
 }
 
 static void decrunch_sample_8 (int8_t *data, uint32_t length);

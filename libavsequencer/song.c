@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 #include "libavsequencer/player.h"
 
@@ -49,6 +50,14 @@ static const AVClass avseq_song_class = {
 AVSequencerSong *avseq_song_create(void)
 {
     return av_mallocz(sizeof(AVSequencerSong) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_song_destroy(AVSequencerSong *song)
+{
+    if (song)
+        av_metadata_free(&song->metadata);
+
+    av_free(song);
 }
 
 int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song)
@@ -98,6 +107,65 @@ int avseq_song_open(AVSequencerModule *module, AVSequencerSong *song)
     module->songs        = songs;
 
     return 0;
+}
+
+void avseq_song_close(AVSequencerModule *module, AVSequencerSong *song)
+{
+    AVSequencerSong **song_list;
+    uint16_t songs, i;
+
+    if (!(module && song))
+        return;
+
+    song_list = module->song_list;
+    songs     = module->songs;
+
+    for (i = 0; i < songs; ++i) {
+        if (song_list[i] == song)
+            break;
+    }
+
+    if (songs && (i != songs)) {
+        AVSequencerSong *last_song = song_list[--songs];
+
+        if (!songs) {
+            av_freep(&module->song_list);
+
+            module->songs = 0;
+        } else if (!(song_list = av_realloc(song_list, (songs * sizeof(AVSequencerSong *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_songs = i + 1;
+
+            song_list = module->song_list;
+
+            if (copy_songs < songs)
+                memmove(song_list + i, song_list + copy_songs, (songs - copy_songs) * sizeof(AVSequencerSong *));
+
+            song_list[songs - 1] = NULL;
+        } else {
+            const unsigned copy_songs = i + 1;
+
+            if (copy_songs < songs) {
+                memmove(song_list + i, song_list + copy_songs, (songs - copy_songs) * sizeof(AVSequencerSong *));
+
+                song_list[songs - 1] = last_song;
+            }
+
+            module->song_list = song_list;
+            module->songs     = songs;
+        }
+    }
+
+    avseq_order_close(song);
+    av_freep(&song->order_list);
+
+    i = song->tracks;
+
+    while (i--) {
+        AVSequencerTrack *track = song->track_list[i];
+
+        avseq_track_close(song, track);
+        avseq_track_destroy(track);
+    }
 }
 
 /** Old SoundTracker tempo definition table.  */

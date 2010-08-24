@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 
 static const char *order_list_name(void *p)
@@ -77,6 +78,32 @@ int avseq_order_open(AVSequencerSong *song)
     return 0;
 }
 
+void avseq_order_close(AVSequencerSong *song)
+{
+    if (song) {
+        AVSequencerOrderList *order_list;
+
+        if ((order_list = song->order_list)) {
+            int i = song->channels;
+
+            while (i--) {
+                int j = order_list->orders;
+
+                while (j--) {
+                    AVSequencerOrderData *order_data = order_list->order_data[j];
+
+                    avseq_order_data_close(song, order_list, order_data);
+                    avseq_order_data_destroy(order_data);
+                }
+
+                av_metadata_free(&order_list->metadata);
+
+                order_list++;
+            }
+        }
+    }
+}
+
 static const char *order_data_name(void *p)
 {
     AVSequencerOrderData *order_data = p;
@@ -97,6 +124,14 @@ static const AVClass avseq_order_data_class = {
 
 AVSequencerOrderData *avseq_order_data_create(void) {
     return av_mallocz(sizeof(AVSequencerOrderData) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_order_data_destroy(AVSequencerOrderData *order_data)
+{
+    if (order_data)
+        av_metadata_free(&order_data->metadata);
+
+    av_free(order_data);
 }
 
 int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData *order_data)
@@ -126,6 +161,87 @@ int avseq_order_data_open(AVSequencerOrderList *order_list, AVSequencerOrderData
     order_list->orders          = orders;
 
     return 0;
+}
+
+void avseq_order_data_close(AVSequencerSong *song, AVSequencerOrderList *order_list,
+                            AVSequencerOrderData *order_data)
+{
+    AVSequencerOrderData **order_data_list;
+    uint16_t orders, i;
+
+    if (!(order_list && order_data))
+        return;
+
+    order_data_list = order_list->order_data;
+    orders          = order_list->orders;
+
+    for (i = 0; i < orders; ++i) {
+        if (order_data_list[i] == order_data)
+            break;
+    }
+
+    if (orders && (i != orders)) {
+        AVSequencerOrderList *song_order_list;
+        AVSequencerOrderData *last_order_data = order_data_list[--orders];
+
+        if ((song_order_list = song->order_list)) {
+            uint16_t channel;
+
+            for (channel = 0; channel < song->channels; ++channel) {
+                uint16_t order;
+
+                for (order = 0; order < song_order_list->orders; ++order) {
+                    AVSequencerOrderData *song_order_data = song_order_list->order_data[order];
+
+                    if (song_order_data->next_pos == order_data) {
+                        if (last_order_data != order_data)
+                            song_order_data->next_pos = order_data_list[i + 1];
+                        else if (i)
+                            song_order_data->next_pos = order_data_list[i - 1];
+                        else
+                            song_order_data->next_pos = NULL;
+                    }
+
+                    if (song_order_data->prev_pos == order_data) {
+                        if (last_order_data != order_data)
+                            song_order_data->prev_pos = order_data_list[i + 1];
+                        else if (i)
+                            song_order_data->prev_pos = order_data_list[i - 1];
+                        else
+                            song_order_data->prev_pos = NULL;
+                    }
+                }
+
+                song_order_list++;
+            }
+        }
+
+        if (!orders) {
+            av_freep(&order_list->order_data);
+
+            order_list->orders = 0;
+        } else if (!(order_data_list = av_realloc(order_data_list, (orders * sizeof(AVSequencerOrderData *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_orders = i + 1;
+
+            order_data_list = order_list->order_data;
+
+            if (copy_orders < orders)
+                memmove(order_data_list + i, order_data_list + copy_orders, (orders - copy_orders) * sizeof(AVSequencerOrderData *));
+
+            order_data_list[orders - 1] = NULL;
+        } else {
+            const unsigned copy_orders = i + 1;
+
+            if (copy_orders < orders) {
+                memmove(order_data_list + i, order_data_list + copy_orders, (orders - copy_orders) * sizeof(AVSequencerOrderData *));
+
+                order_data_list[orders - 1] = last_order_data;
+            }
+
+            order_list->order_data = order_data_list;
+            order_list->orders     = orders;
+        }
+    }
 }
 
 AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t channel, uint32_t order)

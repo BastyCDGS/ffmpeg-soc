@@ -25,6 +25,7 @@
  */
 
 #include "libavutil/log.h"
+#include "libavformat/avformat.h"
 #include "libavsequencer/avsequencer.h"
 
 static const char *instrument_name(void *p)
@@ -48,6 +49,14 @@ static const AVClass avseq_instrument_class = {
 AVSequencerInstrument *avseq_instrument_create(void)
 {
     return av_mallocz(sizeof(AVSequencerInstrument) + FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void avseq_instrument_destroy(AVSequencerInstrument *instrument)
+{
+    if (instrument)
+        av_metadata_free(&instrument->metadata);
+
+    av_free(instrument);
 }
 
 int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *instrument,
@@ -106,6 +115,62 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     return 0;
 }
 
+void avseq_instrument_close(AVSequencerModule *module, AVSequencerInstrument *instrument)
+{
+    AVSequencerInstrument **instrument_list;
+    uint16_t instruments, i;
+
+    if (!(module && instrument))
+        return;
+
+    instrument_list = module->instrument_list;
+    instruments     = module->instruments;
+
+    for (i = 0; i < instruments; ++i) {
+        if (instrument_list[i] == instrument)
+            break;
+    }
+
+    if (instruments && (i != instruments)) {
+        AVSequencerInstrument *last_instrument = instrument_list[--instruments];
+
+        if (!instruments) {
+            av_freep(&module->instrument_list);
+
+            module->instruments = 0;
+        } else if (!(instrument_list = av_realloc(instrument_list, (instruments * sizeof(AVSequencerInstrument *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_instruments = i + 1;
+
+            instrument_list = module->instrument_list;
+
+            if (copy_instruments < instruments)
+                memmove(instrument_list + i, instrument_list + copy_instruments, (instruments - copy_instruments) * sizeof(AVSequencerInstrument *));
+
+            instrument_list[instruments - 1] = NULL;
+        } else {
+            const unsigned copy_instruments = i + 1;
+
+            if (copy_instruments < instruments) {
+                memmove(instrument_list + i, instrument_list + copy_instruments, (instruments - copy_instruments) * sizeof(AVSequencerInstrument *));
+
+                instrument_list[instruments - 1] = last_instrument;
+            }
+
+            module->instrument_list = instrument_list;
+            module->instruments     = instruments;
+        }
+    }
+
+    i = instrument->samples;
+
+    while (i--) {
+        AVSequencerSample *sample = instrument->sample_list[i];
+
+        avseq_sample_close(instrument, sample);
+        avseq_sample_destroy(sample);
+    }
+}
+
 static const char *envelope_name(void *p)
 {
     AVSequencerEnvelope *envelope = p;
@@ -155,6 +220,14 @@ AVSequencerEnvelope *avseq_envelope_create(void)
     return av_mallocz(sizeof(AVSequencerEnvelope) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
+void avseq_envelope_destroy(AVSequencerEnvelope *envelope)
+{
+    if (envelope)
+        av_metadata_free(&envelope->metadata);
+
+    av_free(envelope);
+}
+
 int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
                         AVSequencerEnvelope *envelope, uint32_t points,
                         uint32_t type, uint32_t scale,
@@ -192,6 +265,164 @@ int avseq_envelope_open(AVSequencerContext *avctx, AVSequencerModule *module,
     module->envelopes            = envelopes;
 
     return 0;
+}
+
+void avseq_envelope_close(AVSequencerModule *module, AVSequencerEnvelope *envelope)
+{
+    AVSequencerEnvelope **envelope_list;
+    uint16_t envelopes, i;
+
+    if (!(module && envelope))
+        return;
+
+    envelope_list = module->envelope_list;
+    envelopes     = module->envelopes;
+
+    for (i = 0; i < envelopes; ++i) {
+        if (envelope_list[i] == envelope)
+            break;
+    }
+
+    if (envelopes && (i != envelopes)) {
+        AVSequencerEnvelope *last_envelope = envelope_list[--envelopes];
+        uint16_t j;
+
+        for (j = 0; i < module->instruments; ++j) {
+            AVSequencerInstrument *instrument = module->instrument_list[j];
+            unsigned smp;
+
+            if (instrument->volume_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->volume_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->volume_env = envelope_list[j - 1];
+                else
+                    instrument->volume_env = NULL;
+            }
+
+            if (instrument->panning_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->panning_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->panning_env = envelope_list[j - 1];
+                else
+                    instrument->panning_env = NULL;
+            }
+
+            if (instrument->slide_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->slide_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->slide_env = envelope_list[j - 1];
+                else
+                    instrument->slide_env = NULL;
+            }
+
+            if (instrument->vibrato_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->vibrato_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->vibrato_env = envelope_list[j - 1];
+                else
+                    instrument->vibrato_env = NULL;
+            }
+
+            if (instrument->tremolo_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->tremolo_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->tremolo_env = envelope_list[j - 1];
+                else
+                    instrument->tremolo_env = NULL;
+            }
+
+            if (instrument->pannolo_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->pannolo_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->pannolo_env = envelope_list[j - 1];
+                else
+                    instrument->pannolo_env = NULL;
+            }
+
+            if (instrument->channolo_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->channolo_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->channolo_env = envelope_list[j - 1];
+                else
+                    instrument->channolo_env = NULL;
+            }
+
+            if (instrument->spenolo_env == envelope) {
+                if (last_envelope != envelope)
+                    instrument->spenolo_env = envelope_list[j + 1];
+                else if (i)
+                    instrument->spenolo_env = envelope_list[j - 1];
+                else
+                    instrument->spenolo_env = NULL;
+            }
+
+            for (smp = 0; smp < instrument->samples; ++smp) {
+                AVSequencerSample *sample = instrument->sample_list[smp];
+
+                if (sample->auto_vibrato_env == envelope) {
+                    if (last_envelope != envelope)
+                        sample->auto_vibrato_env = envelope_list[i + 1];
+                    else if (i)
+                        sample->auto_vibrato_env = envelope_list[i - 1];
+                    else
+                        sample->auto_vibrato_env = NULL;
+                }
+
+                if (sample->auto_tremolo_env == envelope) {
+                    if (last_envelope != envelope)
+                        sample->auto_tremolo_env = envelope_list[i + 1];
+                    else if (i)
+                        sample->auto_tremolo_env = envelope_list[i - 1];
+                    else
+                        sample->auto_tremolo_env = NULL;
+                }
+
+                if (sample->auto_pannolo_env == envelope) {
+                    if (last_envelope != envelope)
+                        sample->auto_pannolo_env = envelope_list[i + 1];
+                    else if (i)
+                        sample->auto_pannolo_env = envelope_list[i - 1];
+                    else
+                        sample->auto_pannolo_env = NULL;
+                }
+            }
+        }
+
+        if (!envelopes) {
+            av_freep(&module->envelope_list);
+
+            module->envelopes = 0;
+        } else if (!(envelope_list = av_realloc(envelope_list, (envelopes * sizeof(AVSequencerEnvelope *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_envelopes = i + 1;
+
+            envelope_list = module->envelope_list;
+
+            if (copy_envelopes < envelopes)
+                memmove(envelope_list + i, envelope_list + copy_envelopes, (envelopes - copy_envelopes) * sizeof(AVSequencerEnvelope *));
+
+            envelope_list[envelopes - 1] = NULL;
+        } else {
+            const unsigned copy_envelopes = i + 1;
+
+            if (copy_envelopes < envelopes) {
+                memmove(envelope_list + i, envelope_list + copy_envelopes, (envelopes - copy_envelopes) * sizeof(AVSequencerEnvelope *));
+
+                envelope_list[envelopes - 1] = last_envelope;
+            }
+
+            module->envelope_list = envelope_list;
+            module->envelopes     = envelopes;
+        }
+    }
+
+    avseq_envelope_data_close(envelope);
 }
 
 int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *envelope,
@@ -250,7 +481,11 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
             if (nodes > old_nodes) {
                 uint32_t node_div, node_mod, value, count, i;
 
-                value  = node[old_nodes - 1];
+                if (old_nodes)
+                    value = node[old_nodes - 1];
+                else
+                    value = 0;
+
                 nodes -= old_nodes;
                 count  = 0;
 
@@ -341,6 +576,21 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
     envelope->points = points;
 
     return 0;
+}
+
+void avseq_envelope_data_close(AVSequencerEnvelope *envelope)
+{
+    if (envelope) {
+        av_freep(&envelope->node_points);
+        av_freep(&envelope->data);
+
+        envelope->nodes         = 0;
+        envelope->points        = 0;
+        envelope->sustain_start = 0;
+        envelope->sustain_end   = 0;
+        envelope->loop_start    = 0;
+        envelope->loop_end      = 0;
+    }
 }
 
 AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope)
@@ -604,6 +854,11 @@ AVSequencerKeyboard *avseq_keyboard_create(void)
     return av_mallocz(sizeof(AVSequencerKeyboard) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
+void avseq_keyboard_destroy(AVSequencerKeyboard *keyboard)
+{
+    av_free(keyboard);
+}
+
 int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard)
 {
     AVSequencerKeyboard **keyboard_list;
@@ -634,6 +889,53 @@ int avseq_keyboard_open(AVSequencerModule *module, AVSequencerKeyboard *keyboard
     module->keyboards            = keyboards;
 
     return 0;
+}
+
+void avseq_keyboard_close(AVSequencerModule *module, AVSequencerKeyboard *keyboard)
+{
+    AVSequencerKeyboard **keyboard_list;
+    uint16_t keyboards, i;
+
+    if (!(module && keyboard))
+        return;
+
+    keyboard_list = module->keyboard_list;
+    keyboards     = module->keyboards;
+
+    for (i = 0; i < keyboards; ++i) {
+        if (keyboard_list[i] == keyboard)
+            break;
+    }
+
+    if (keyboards && (i != keyboards)) {
+        AVSequencerKeyboard *last_keyboard = keyboard_list[--keyboards];
+
+        if (!keyboards) {
+            av_freep(&module->keyboard_list);
+
+            module->keyboards = 0;
+        } else if (!(keyboard_list = av_realloc(keyboard_list, (keyboards * sizeof(AVSequencerKeyboard *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_keyboards = i + 1;
+
+            keyboard_list = module->keyboard_list;
+
+            if (copy_keyboards < keyboards)
+                memmove(keyboard_list + i, keyboard_list + copy_keyboards, (keyboards - copy_keyboards) * sizeof(AVSequencerKeyboard *));
+
+            keyboard_list[keyboards - 1] = NULL;
+        } else {
+            const unsigned copy_keyboards = i + 1;
+
+            if (copy_keyboards < keyboards) {
+                memmove(keyboard_list + i, keyboard_list + copy_keyboards, (keyboards - copy_keyboards) * sizeof(AVSequencerKeyboard *));
+
+                keyboard_list[keyboards - 1] = last_keyboard;
+            }
+
+            module->keyboard_list = keyboard_list;
+            module->keyboards     = keyboards;
+        }
+    }
 }
 
 AVSequencerKeyboard *avseq_keyboard_get_address(AVSequencerModule *module, uint32_t keyboard)
@@ -670,6 +972,14 @@ AVSequencerArpeggio *avseq_arpeggio_create(void)
     return av_mallocz(sizeof(AVSequencerArpeggio) + FF_INPUT_BUFFER_PADDING_SIZE);
 }
 
+void avseq_arpeggio_destroy(AVSequencerArpeggio *arpeggio)
+{
+    if (arpeggio)
+        av_metadata_free(&arpeggio->metadata);
+
+    av_free(arpeggio);
+}
+
 int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio,
                         uint32_t entries)
 {
@@ -704,6 +1014,55 @@ int avseq_arpeggio_open(AVSequencerModule *module, AVSequencerArpeggio *arpeggio
     return 0;
 }
 
+void avseq_arpeggio_close(AVSequencerModule *module, AVSequencerArpeggio *arpeggio)
+{
+    AVSequencerArpeggio **arpeggio_list;
+    uint16_t arpeggios, i;
+
+    if (!(module && arpeggio))
+        return;
+
+    arpeggio_list = module->arpeggio_list;
+    arpeggios     = module->arpeggios;
+
+    for (i = 0; i < arpeggios; ++i) {
+        if (arpeggio_list[i] == arpeggio)
+            break;
+    }
+
+    if (arpeggios && (i != arpeggios)) {
+        AVSequencerArpeggio *last_arpeggio = arpeggio_list[--arpeggios];
+
+        if (!arpeggios) {
+            av_freep(&module->arpeggio_list);
+
+            module->arpeggios = 0;
+        } else if (!(arpeggio_list = av_realloc(arpeggio_list, (arpeggios * sizeof(AVSequencerEnvelope *)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            const unsigned copy_arpeggios = i + 1;
+
+            arpeggio_list = module->arpeggio_list;
+
+            if (copy_arpeggios < arpeggios)
+                memmove(arpeggio_list + i, arpeggio_list + copy_arpeggios, (arpeggios - copy_arpeggios) * sizeof(AVSequencerArpeggio *));
+
+            arpeggio_list[arpeggios - 1] = NULL;
+        } else {
+            const unsigned copy_arpeggios = i + 1;
+
+            if (copy_arpeggios < arpeggios) {
+                memmove(arpeggio_list + i, arpeggio_list + copy_arpeggios, (arpeggios - copy_arpeggios) * sizeof(AVSequencerArpeggio *));
+
+                arpeggio_list[arpeggios - 1] = last_arpeggio;
+            }
+
+            module->arpeggio_list = arpeggio_list;
+            module->arpeggios     = arpeggios;
+        }
+    }
+
+    avseq_arpeggio_data_close(arpeggio);
+}
+
 int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries)
 {
     AVSequencerArpeggioData *data;
@@ -731,6 +1090,19 @@ int avseq_arpeggio_data_open(AVSequencerArpeggio *arpeggio, uint32_t entries)
     arpeggio->entries = entries;
 
     return 0;
+}
+
+void avseq_arpeggio_data_close(AVSequencerArpeggio *arpeggio)
+{
+    if (arpeggio) {
+        av_freep(&arpeggio->data);
+
+        arpeggio->entries       = 0;
+        arpeggio->sustain_start = 0;
+        arpeggio->sustain_end   = 0;
+        arpeggio->loop_start    = 0;
+        arpeggio->loop_end      = 0;
+    }
 }
 
 AVSequencerArpeggio *avseq_arpeggio_get_address(AVSequencerModule *module, uint32_t arpeggio)
