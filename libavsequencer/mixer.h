@@ -125,7 +125,6 @@ typedef struct AVMixerChannel {
 enum AVMixerDataFlags {
     AVSEQ_MIXER_DATA_FLAG_ALLOCATED = 0x01, ///< The mixer is currently allocated and ready to use
     AVSEQ_MIXER_DATA_FLAG_MIXING    = 0x02, ///< The mixer is currently in actual mixing to output
-    AVSEQ_MIXER_DATA_FLAG_STEREO    = 0x04, ///< The mixer is currently mixing in stereo mode instead of mono
     AVSEQ_MIXER_DATA_FLAG_FROZEN    = 0x08, ///< The mixer has been delayed by some external process like disk I/O writing
 };
 
@@ -175,10 +174,15 @@ typedef struct AVMixerData {
        seconds.  */
     uint32_t tempo;
 
-    /** Current maximum number of allocated channels. The more
+    /** Maximum number of allocated input channels. The more
        channels are used the more CPU power is required to
        calculate the output audio buffer.  */
-    uint16_t channels_max;
+    uint16_t channels_in;
+
+    /** Maximum number of allocated output channels. The more
+       channels are used the more CPU power is required to
+       calculate the data from input audio buffer.  */
+    uint16_t channels_out;
 
     /** Current status flags for this mixer which contain information
        like if the mixer has been allocated, is currently mixing,
@@ -193,7 +197,6 @@ typedef struct AVMixerData {
 
 /** AVMixerContext->flags bitfield.  */
 enum AVMixerContextFlags {
-    AVSEQ_MIXER_CONTEXT_FLAG_STEREO     = 0x08, ///< This mixer supports stereo mixing in addition to mono
     AVSEQ_MIXER_CONTEXT_FLAG_SURROUND   = 0x10, ///< This mixer supports surround panning in addition to stereo panning
     AVSEQ_MIXER_CONTEXT_FLAG_AVFILTER   = 0x20, ///< This mixer supports additional audio filters if FFmpeg is compiled with AVFilter enabled
 };
@@ -247,10 +250,15 @@ typedef struct AVMixerContext {
        means no boost.  */
     uint32_t volume_boost;
 
-    /** Maximum number of channels supported by this mixer, some
-       engines might support less channels than maximum allowed by
-       the sequencer.  */
-    uint16_t channels_max;
+    /** Maximum number of input channels supported by this mixer,
+       some engines might support less channels than maximum allowed
+       by the sequencer.  */
+    uint16_t channels_in;
+
+    /** Maximum number of output channels supported by this mixer,
+       some engines might support less channels than maximum allowed
+       by the sequencer.  */
+    uint16_t channels_out;
 
     /** Special flags indicating supported features by this mixer.  */
     uint8_t flags;
@@ -261,9 +269,10 @@ typedef struct AVMixerContext {
     /** The destruction function to call for the mixer.  */
     int (*uninit)(AVMixerData *mixer_data);
 
-    /** Transfers the new mixing rate in Hz from the AVSequencer to
-       the internal mixer data.  */
-    uint32_t (*set_rate)(AVMixerData *mixer_data, uint32_t new_mix_rate);
+    /** Transfers a new mixing rate in Hz and number of output
+       channels from the AVSequencer to the internal mixer data.  */
+    uint32_t (*set_rate)(AVMixerData *mixer_data, uint32_t new_mix_rate,
+                         uint32_t new_channels);
 
     /** Transfers the new time interval for calling the playback
        handler to the interal mixer, in AV_TIME_BASE fractional

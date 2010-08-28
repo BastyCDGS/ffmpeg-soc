@@ -1440,11 +1440,13 @@ rescan_row:
 
             frequency = player_channel->frequency;
 
-            if (frequency < sample->rate_min)
-                frequency = sample->rate_min;
+            if (sample) {
+                if (frequency < sample->rate_min)
+                    frequency = sample->rate_min;
 
-            if (frequency > sample->rate_max)
-                frequency = sample->rate_max;
+                if (frequency > sample->rate_max)
+                    frequency = sample->rate_max;
+            }
 
             if (!(player_channel->frequency = frequency)) {
 turn_note_off:
@@ -1937,9 +1939,10 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
             if ((new_player_channel = play_note(avctx, instrument, player_host_channel, player_channel, octave, note, channel)))
                 player_channel = new_player_channel;
 
-            sample                  = player_host_channel->sample;
-            player_channel->volume  = sample->volume;
-            player_channel->sub_vol = sample->sub_volume;
+            if ((sample = player_host_channel->sample)) {
+                player_channel->volume  = sample->volume;
+                player_channel->sub_vol = sample->sub_volume;
+            }
 
             init_new_instrument(avctx, player_host_channel, player_channel);
             init_new_sample(avctx, player_host_channel, player_channel);
@@ -1968,9 +1971,10 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
             }
 
-            sample                  = player_host_channel->sample;
-            player_channel->volume  = sample->volume;
-            player_channel->sub_vol = sample->sub_volume;
+            if ((sample = player_host_channel->sample)) {
+                player_channel->volume  = sample->volume;
+                player_channel->sub_vol = sample->sub_volume;
+            }
 
             init_new_instrument(avctx, player_host_channel, player_channel);
 
@@ -1999,9 +2003,10 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
         if ((new_player_channel = play_note(avctx, instrument, player_host_channel, player_channel, octave, note, channel))) {
             AVSequencerSample *sample = player_host_channel->sample;
 
-            new_player_channel->mixer.pos = sample->start_offset;
+            if (sample)
+                new_player_channel->mixer.pos = sample->start_offset;
 
-            if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY) {
+            if (sample && sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY) {
                 new_player_channel->volume  = player_channel->volume;
                 new_player_channel->sub_vol = player_channel->sub_vol;
 
@@ -2077,7 +2082,7 @@ static int16_t get_key_table(AVSequencerContext *avctx, AVSequencerInstrument *i
     AVSequencerKeyboard *keyboard;
     AVSequencerSample *sample;
     uint16_t smp = 1, i;
-    int8_t transpose;
+    int8_t transpose = 0;
 
     if (!player_host_channel->instrument)
         player_host_channel->nna = instrument->nna;
@@ -2115,7 +2120,9 @@ do_not_play_keyboard:
     }
 
     player_host_channel->sample = sample;
-    transpose                   = sample->transpose;
+
+    if (sample)
+        transpose = sample->transpose;
 
     if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_TRANSPOSE)
         transpose = player_host_channel->transpose;
@@ -2137,6 +2144,9 @@ static uint32_t get_tone_pitch(AVSequencerContext *avctx, AVSequencerPlayerHostC
     uint32_t frequency, next_frequency;
     uint16_t octave;
     int8_t finetune;
+
+    if (!sample)
+        return 0;
 
     octave = note / 12;
     note   = note % 12;
@@ -2196,7 +2206,8 @@ static AVSequencerPlayerChannel *play_note_got(AVSequencerContext *avctx, AVSequ
     note                           += note_swing;
     player_host_channel->final_note = note;
 
-    player_host_channel->finetune   = sample->finetune;
+    if (sample)
+        player_host_channel->finetune = sample->finetune;
 
     if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_TRANSPOSE)
         player_host_channel->finetune = player_host_channel->trans_finetune;
@@ -2211,7 +2222,9 @@ static AVSequencerPlayerChannel *play_note_got(AVSequencerContext *avctx, AVSequ
 
     player_channel = trigger_nna(avctx, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel);
 
-    player_channel->mixer.pos            = sample->start_offset;
+    if (sample)
+        player_channel->mixer.pos = sample->start_offset;
+
     player_host_channel->virtual_channel = virtual_channel;
     player_channel->host_channel         = channel;
     player_channel->instrument           = instrument;
@@ -2253,12 +2266,14 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     AVSequencerPlayerGlobals *player_globals;
     AVSequencerEnvelope * (**assign_envelope)(AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, AVSequencerEnvelope **envelope, AVSequencerPlayerEnvelope **player_envelope);
     AVSequencerEnvelope * (**assign_auto_envelope)(AVSequencerSample *sample, AVSequencerPlayerChannel *player_channel, AVSequencerPlayerEnvelope **player_envelope);
-    uint32_t volume, panning, panning_separation, i;
+    uint32_t volume = 0, panning, panning_separation, i;
 
     if (instrument) {
         uint32_t volume_swing, abs_volume_swing, seed;
 
-        volume            = sample->global_volume * instrument->global_volume;
+        if (sample)
+            volume = sample->global_volume * instrument->global_volume;
+
         volume_swing      = (volume * instrument->volume_swing) >> 8;
         abs_volume_swing  = (volume_swing << 1) + 1;
         avctx->seed       = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
@@ -2270,7 +2285,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
 
         if (volume > (255*255))
             volume = 255*255;
-    } else {
+    } else if (sample) {
         volume = sample->global_volume * 255;
     }
 
@@ -2287,28 +2302,28 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         player_host_channel->nna       = instrument->nna;
     }
 
-    player_channel->auto_vibrato_sweep = sample->vibrato_sweep;
-    player_channel->auto_tremolo_sweep = sample->tremolo_sweep;
-    player_channel->auto_pan_sweep     = sample->pannolo_sweep;
-    player_channel->auto_vibrato_depth = sample->vibrato_depth;
-    player_channel->auto_vibrato_rate  = sample->vibrato_rate;
-    player_channel->auto_tremolo_depth = sample->tremolo_depth;
-    player_channel->auto_tremolo_rate  = sample->tremolo_rate;
-    player_channel->auto_pan_depth     = sample->pannolo_depth;
-    player_channel->auto_pan_rate      = sample->pannolo_rate;
+    if (sample) {
+        player_channel->auto_vibrato_sweep = sample->vibrato_sweep;
+        player_channel->auto_tremolo_sweep = sample->tremolo_sweep;
+        player_channel->auto_pan_sweep     = sample->pannolo_sweep;
+        player_channel->auto_vibrato_depth = sample->vibrato_depth;
+        player_channel->auto_vibrato_rate  = sample->vibrato_rate;
+        player_channel->auto_tremolo_depth = sample->tremolo_depth;
+        player_channel->auto_tremolo_rate  = sample->tremolo_rate;
+        player_channel->auto_pan_depth     = sample->pannolo_depth;
+        player_channel->auto_pan_rate      = sample->pannolo_rate;
+        player_channel->auto_vibrato_count = 0;
+        player_channel->auto_tremolo_count = 0;
+        player_channel->auto_pannolo_count = 0;
+        player_channel->auto_vibrato_freq  = 0;
+        player_channel->auto_tremolo_vol   = 0;
+        player_channel->auto_pannolo_pan   = 0;
+    }
+
     player_channel->slide_env_freq     = 0;
-    player_channel->auto_vibrato_count = 0;
-    player_channel->auto_tremolo_count = 0;
-    player_channel->auto_pannolo_count = 0;
-
-    player_channel->flags &= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
-
+    player_channel->flags             &= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
     player_host_channel->vibrato_slide = 0;
     player_host_channel->tremolo_slide = 0;
-    player_channel->auto_vibrato_freq  = 0;
-    player_channel->auto_tremolo_vol   = 0;
-    player_channel->auto_pannolo_pan   = 0;
-    player_channel->flags             &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB|AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV|AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV);
 
     if (sample->env_proc_flags & AVSEQ_SAMPLE_FLAG_PROC_LINEAR_AUTO_VIB)
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
@@ -2384,58 +2399,60 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
              assign_auto_envelope = (void *) &assign_auto_envelope_lut;
     i                             = 0;
 
-    do {
-        AVSequencerEnvelope *envelope;
-        AVSequencerPlayerEnvelope *player_envelope;
-        uint16_t mask = 1 << i;
+    if (sample) {
+        do {
+            AVSequencerEnvelope *envelope;
+            AVSequencerPlayerEnvelope *player_envelope;
+            uint16_t mask = 1 << i;
 
-        envelope = assign_auto_envelope[i](sample, player_channel, (AVSequencerPlayerEnvelope **) &player_envelope);
+            envelope = assign_auto_envelope[i](sample, player_channel, (AVSequencerPlayerEnvelope **) &player_envelope);
 
-        if (player_envelope->envelope && (sample->env_usage_flags & mask))
-            continue;
+            if (player_envelope->envelope && (sample->env_usage_flags & mask))
+                continue;
 
-        if ((player_envelope->envelope = envelope)) {
-            uint8_t flags         = 0;
-            uint16_t envelope_pos = 0, envelope_value = 0;
+            if ((player_envelope->envelope = envelope)) {
+                uint8_t flags         = 0;
+                uint16_t envelope_pos = 0, envelope_value = 0;
 
-            if (sample->env_proc_flags & mask)
-                flags  = AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD;
+                if (sample->env_proc_flags & mask)
+                    flags  = AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD;
 
-            if (sample->env_retrig_flags & mask) {
-                flags |= AVSEQ_PLAYER_ENVELOPE_FLAG_NO_RETRIG;
+                if (sample->env_retrig_flags & mask) {
+                    flags |= AVSEQ_PLAYER_ENVELOPE_FLAG_NO_RETRIG;
 
-                envelope_pos   = player_envelope->pos;
-                envelope_value = player_envelope->value;
+                    envelope_pos   = player_envelope->pos;
+                    envelope_value = player_envelope->value;
+                }
+
+                if (sample->env_random_flags & mask)
+                    flags |= AVSEQ_PLAYER_ENVELOPE_FLAG_RANDOM;
+
+                player_envelope->value           = envelope_value;
+                player_envelope->tempo           = envelope->tempo;
+                player_envelope->tempo_count     = 0;
+                player_envelope->sustain_counted = 0;
+                player_envelope->loop_counted    = 0;
+                player_envelope->sustain_start   = envelope->sustain_start;
+                player_envelope->sustain_end     = envelope->sustain_end;
+                player_envelope->sustain_count   = envelope->sustain_count;
+                player_envelope->loop_start      = envelope->loop_start;
+                player_envelope->loop_end        = envelope->loop_end;
+                player_envelope->loop_count      = envelope->loop_count;
+                player_envelope->value_min       = envelope->value_min;
+                player_envelope->value_max       = envelope->value_max;
+                player_envelope->rep_flags       = envelope->flags;
+
+                set_envelope(player_channel, player_envelope, envelope_pos);
+
+                player_envelope->flags |= flags;
             }
-
-            if (sample->env_random_flags & mask)
-                flags |= AVSEQ_PLAYER_ENVELOPE_FLAG_RANDOM;
-
-            player_envelope->value           = envelope_value;
-            player_envelope->tempo           = envelope->tempo;
-            player_envelope->tempo_count     = 0;
-            player_envelope->sustain_counted = 0;
-            player_envelope->loop_counted    = 0;
-            player_envelope->sustain_start   = envelope->sustain_start;
-            player_envelope->sustain_end     = envelope->sustain_end;
-            player_envelope->sustain_count   = envelope->sustain_count;
-            player_envelope->loop_start      = envelope->loop_start;
-            player_envelope->loop_end        = envelope->loop_end;
-            player_envelope->loop_count      = envelope->loop_count;
-            player_envelope->value_min       = envelope->value_min;
-            player_envelope->value_max       = envelope->value_max;
-            player_envelope->rep_flags       = envelope->flags;
-
-            set_envelope(player_channel, player_envelope, envelope_pos);
-
-            player_envelope->flags |= flags;
-        }
-    } while (++i < (sizeof (assign_auto_envelope_lut) / sizeof (void *)));
+        } while (++i < (sizeof (assign_auto_envelope_lut) / sizeof (void *)));
+    }
 
     panning                = (uint8_t) player_host_channel->track_note_pan;
     player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN;
 
-    if (sample->flags & AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING) {
+    if (sample && sample->flags & AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING) {
         player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
 
         if (sample->flags & AVSEQ_SAMPLE_FLAG_SURROUND_PANNING)
@@ -2469,7 +2486,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     if (instrument) {
         uint32_t volume_swing, seed;
 
-        if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
+        if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && sample && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
             player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
 
         if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING) {
@@ -2496,12 +2513,11 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         }
 
         panning_separation = ((int16_t) (player_host_channel->instr_note - (1 + instrument->pitch_pan_center)) * (int16_t) instrument->pitch_pan_separation) >> 8;
-
-        volume_swing           = (instrument->panning_swing << 1) + 1;
-        avctx->seed            = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
-        volume_swing           = ((uint64_t) seed * volume_swing) >> 32;
-        volume_swing          -= instrument->volume_swing;
-        panning               += volume_swing;
+        volume_swing       = (instrument->panning_swing << 1) + 1;
+        avctx->seed        = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
+        volume_swing       = ((uint64_t) seed * volume_swing) >> 32;
+        volume_swing      -= instrument->volume_swing;
+        panning           += volume_swing;
 
         if ((int32_t) (panning += panning_separation) < 0)
             panning = 0;
@@ -2527,6 +2543,9 @@ static void init_new_sample(AVSequencerContext *avctx, AVSequencerPlayerHostChan
     AVSequencerSynth *synth;
     AVMixerData *mixer;
     uint32_t samples;
+
+    if (!sample)
+        return;
 
     if ((samples = sample->samples)) {
         uint8_t flags, repeat_mode, playback_flags;
@@ -2983,9 +3002,10 @@ static void play_key_off(AVSequencerPlayerChannel *player_channel)
     if ((!player_channel->vol_env.envelope) || (!player_channel->vol_env.tempo) || (player_channel->vol_env.flags & AVSEQ_PLAYER_ENVELOPE_FLAG_LOOPING))
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
 
-    sample = player_channel->sample;
+    if (!(sample = player_channel->sample))
+        return;
 
-    if (!sample->flags & AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP)
+    if (sample->flags & AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP)
         return;
 
     repeat                              = sample->repeat;

@@ -231,7 +231,7 @@ static int iff_read_header(AVFormatContext *s,
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
     uint8_t buf[24];
-    const char *args = "stereo=false; interpolation=0; real16bit=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
+    const char *args = "interpolation=0; real16bit=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
@@ -696,14 +696,20 @@ read_unknown_chunk:
                 }
             }
 
-            st->codec->sample_rate = mixctx->frequency;
-            st->codec->channels    = ((av_stristr(iff->args, "stereo=true;") || av_stristr(iff->args, "stereo=enabled;") || av_stristr(iff->args, "stereo=1;")) && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
-            iff->body_size         = ((uint64_t) s->duration * st->codec->sample_rate * (st->codec->channels << 2)) / AV_TIME_BASE;
+            if (!(st->codec->sample_rate = ap->sample_rate))
+                st->codec->sample_rate = mixctx->frequency;
 
-            if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], iff->args, iff->opaque, 0)) < 0) {
+            if (!(st->codec->channels = ap->channels))
+                st->codec->channels = mixctx->channels_out;
+
+            iff->body_size = ((uint64_t) s->duration * st->codec->sample_rate * (st->codec->channels << 2)) / AV_TIME_BASE;
+
+            if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], iff->args, iff->opaque, 1)) < 0) {
                 avsequencer_destroy(iff->avctx);
                 return res;
             }
+
+            avseq_mixer_set_rate(iff->avctx->player_mixer_data, st->codec->sample_rate, st->codec->channels);
 
             if ((res = avseq_song_reset(iff->avctx, module->song_list[0])) < 0) {
                 avsequencer_destroy(iff->avctx);
@@ -2705,15 +2711,8 @@ static int iff_read_packet(AVFormatContext *s,
     AVStream *st = s->streams[0];
     int ret;
 
-    if(iff->sent_bytes >= iff->body_size) {
-#if CONFIG_AVSEQUENCER
-/*        avsequencer_destroy(iff->avctx);
-
-        iff->avctx = NULL; */
-        
-#endif
-        return AVERROR(EIO);
-    }
+    if(iff->sent_bytes >= iff->body_size)
+        return AVERROR_EOF;
 #if CONFIG_AVSEQUENCER
     if (iff->avctx) {
         int32_t row;
@@ -2925,10 +2924,10 @@ static int iff_read_seek(AVFormatContext *s,
     switch (st->codec->codec_tag) {
 #if CONFIG_AVSEQUENCER
     case ID_TCM1:
-        if (!timestamp)
-            return 0;
-
         iff = s->priv_data;
+
+        if (!iff->avctx)
+            return -1;
 
         if ((mixctx = avseq_mixer_get_by_name("Null mixer"))) {
             AVSequencerPlayerGlobals *player_globals;
@@ -2938,11 +2937,14 @@ static int iff_read_seek(AVFormatContext *s,
             uint16_t channel;
             int res, size;
 
+            if (timestamp < 0)
+                timestamp = 0;
+
             iff->avctx->player_mixer_data = NULL;
 
             avseq_module_stop(iff->avctx, 0);
 
-            if ((flags & AVSEEK_FLAG_BACKWARD) || (timestamp < 0)) {
+            if ((flags & AVSEEK_FLAG_BACKWARD) || (timestamp <= 0)) {
                 if ((res = avseq_song_reset(iff->avctx, iff->avctx->player_song)) < 0) {
                     iff->avctx->player_mixer_data = old_mixer_data;
                     avsequencer_destroy(iff->avctx);
@@ -2954,7 +2956,9 @@ static int iff_read_seek(AVFormatContext *s,
                 iff->audio_frame_count = 0;
             }
 
-            if ((res = avseq_module_play(iff->avctx, mixctx, iff->avctx->player_module, iff->avctx->player_song, iff->args, iff->opaque, 0)) < 0) {
+            player_globals = iff->avctx->player_globals;
+
+            if ((res = avseq_module_play(iff->avctx, mixctx, iff->avctx->player_module, iff->avctx->player_song, iff->args, iff->opaque, (player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) ? 0 : 1)) < 0) {
                 avseq_module_stop(iff->avctx, 0);
                 iff->avctx->player_mixer_data = old_mixer_data;
                 avsequencer_destroy(iff->avctx);
@@ -2966,22 +2970,19 @@ static int iff_read_seek(AVFormatContext *s,
             tempo              = avseq_song_calc_speed(iff->avctx, iff->avctx->player_song);
             mixer_data->flags |= AVSEQ_MIXER_DATA_FLAG_MIXING;
 
-            avseq_mixer_set_rate(mixer_data, mixctx->frequency);
+            avseq_mixer_set_rate(mixer_data, st->codec->sample_rate, st->codec->channels);
             avseq_mixer_set_tempo(mixer_data, tempo);
             avseq_mixer_set_volume(mixer_data, 0, 0, 0, iff->avctx->player_module->channels);
 
-            if (!(flags & AVSEEK_FLAG_BACKWARD) && (timestamp > 0)) {
-                channel = iff->avctx->player_module->channels - 1;
+            channel = iff->avctx->player_module->channels - 1;
 
-                do {
-                    AVMixerChannel mixer_channel;
+            do {
+                AVMixerChannel mixer_channel;
 
-                    avseq_mixer_get_channel(old_mixer_data, &mixer_channel, channel);
-                    avseq_mixer_set_channel(mixer_data, &mixer_channel, channel);
-                } while (--channel);
-            }
+                avseq_mixer_get_channel(old_mixer_data, &mixer_channel, channel);
+                avseq_mixer_set_channel(mixer_data, &mixer_channel, channel);
+            } while (--channel);
 
-            player_globals = iff->avctx->player_globals;
             size           = st->codec->channels * mixer_data->mix_buf_size << 2;
             timestamp      = ((timestamp * AV_TIME_BASE * st->time_base.num) / st->time_base.den) + player_globals->play_time;
 
@@ -3029,4 +3030,5 @@ AVInputFormat iff_demuxer = {
     iff_read_packet,
     NULL,
     iff_read_seek,
+    .flags = AVSEEK_FLAG_ANY
 };

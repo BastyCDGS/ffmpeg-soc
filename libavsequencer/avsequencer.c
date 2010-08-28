@@ -239,7 +239,8 @@ int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data)
     return 0;
 }
 
-uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate)
+uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
+                              uint32_t new_channels)
 {
     AVMixerContext *mixctx;
 
@@ -248,8 +249,17 @@ uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate)
 
     mixctx = mixer_data->mixctx;
 
-    if (new_mix_rate && mixctx && mixctx->set_rate)
-        return mixctx->set_rate(mixer_data, new_mix_rate);
+    if (mixctx && mixctx->set_rate) {
+        if (new_mix_rate < mixctx->frequency_min)
+            new_mix_rate = mixctx->frequency_min;
+        else if (new_mix_rate > mixctx->frequency_max)
+            new_mix_rate = mixctx->frequency_max;
+
+        if (new_channels > mixctx->channels_out)
+            new_channels = mixctx->channels_out;
+
+        return mixctx->set_rate(mixer_data, new_mix_rate, new_channels);
+    }
 
     return mixer_data->rate;
 }
@@ -296,7 +306,7 @@ void avseq_mixer_get_channel(AVMixerData *mixer_data,
 
     mixctx = mixer_data->mixctx;
 
-    if (mixctx && mixctx->get_channel && (channel < mixer_data->channels_max))
+    if (mixctx && mixctx->get_channel && (channel < mixer_data->channels_in))
         mixctx->get_channel(mixer_data, mixer_channel, channel);
 }
 
@@ -310,7 +320,7 @@ void avseq_mixer_set_channel(AVMixerData *mixer_data,
 
     mixctx = mixer_data->mixctx;
 
-    if (mixctx && mixctx->set_channel && (channel < mixer_data->channels_max))
+    if (mixctx && mixctx->set_channel && (channel < mixer_data->channels_in))
         mixctx->set_channel(mixer_data, mixer_channel, channel);
 }
 

@@ -263,17 +263,21 @@ AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
 int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data);
 
 /**
- * Sets and transfers a new mixing rate to the mixing engine.
+ * Sets and transfers a new mixing rate and number of output
+ * channels to the mixing engine.
  *
- * @param mixer_data the AVMixerData to set the new mixing rate
+ * @param mixer_data the AVMixerData to set the new mixing rate and
+ *                   number of output channels of
  * @param new_mix_rate the new mixing rate in Hz to use for mixing
+ * @param new_channels the new number of output channels to use for mixing
  * @return the mixing rate in Hz which actually has been set
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate);
+uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
+                              uint32_t new_channels);
 
 /**
  * Sets and transfers a new tempo for the playback handler to the
