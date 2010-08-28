@@ -1071,8 +1071,8 @@ int avseq_playback_handler(AVMixerData *mixer_data)
         uint32_t play_time_calc, play_time_advance, play_time_fraction;
 
         play_time_calc                  = ((uint64_t) player_globals->tempo * player_globals->relative_speed) >> 16;
-        play_time_advance               = 65536000 / play_time_calc;
-        play_time_fraction              = ((uint64_t) (65536000 % play_time_calc) << 32) / play_time_calc;
+        play_time_advance               = UINT64_C(AV_TIME_BASE * 655360) / play_time_calc;
+        play_time_fraction              = ((UINT64_C(AV_TIME_BASE * 655360) % play_time_calc) << 32) / play_time_calc;
         player_globals->play_time_frac += play_time_fraction;
 
         if (player_globals->play_time_frac < play_time_fraction)
@@ -1080,8 +1080,8 @@ int avseq_playback_handler(AVMixerData *mixer_data)
 
         player_globals->play_time      += play_time_advance;
         play_time_calc                  = player_globals->tempo;
-        play_time_advance               = 65536000 / play_time_calc;
-        play_time_fraction              = ((uint64_t) (65536000 % play_time_calc) << 32) / play_time_calc;
+        play_time_advance               = UINT64_C(AV_TIME_BASE * 655360) / play_time_calc;
+        play_time_fraction              = ((UINT64_C(AV_TIME_BASE * 655360) % play_time_calc) << 32) / play_time_calc;
         player_globals->play_tics_frac += play_time_fraction;
 
         if (player_globals->play_tics_frac < play_time_fraction)
@@ -1155,7 +1155,6 @@ int avseq_playback_handler(AVMixerData *mixer_data)
                 }
             } else {
                 AVSequencerInstrument *instrument = player_host_channel->instrument;
-                AVSequencerSample *sample;
                 AVSequencerPlayerChannel *new_player_channel;
 
                 if ((new_player_channel = play_note(avctx, instrument,
@@ -1164,7 +1163,6 @@ int avseq_playback_handler(AVMixerData *mixer_data)
                                                     note % 12, channel)))
                     player_channel = new_player_channel;
 
-                sample                  = player_host_channel->sample;
                 player_channel->volume  = player_host_channel->sample_note;
                 player_channel->sub_vol = 0;
 
@@ -1414,7 +1412,7 @@ rescan_row:
 
             sample = player_channel->sample;
 
-            if (sample->synth) {
+            if (sample && sample->synth) {
                 if (!(execute_synth(avctx, player_host_channel, player_channel, channel, 0)))
                     goto turn_note_off;
 

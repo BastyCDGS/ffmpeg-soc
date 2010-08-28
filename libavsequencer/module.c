@@ -217,7 +217,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
         av_free(player_globals);
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
         return AVERROR(ENOMEM);
-    } else if (!(mixer_data = avseq_mixer_init(avctx, mixctx, args, opaque))) {
+    } else if (mixctx && !(mixer_data = avseq_mixer_init(avctx, mixctx, args, opaque))) {
         av_free(player_channel);
         av_free(player_host_channel);
         av_free(player_globals);
@@ -368,7 +368,9 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
     volume_boost                   = ((uint64_t) module->channels * 65536*125/1000) + (65536*75/100);
     mixer_data->flags             |= AVSEQ_MIXER_DATA_FLAG_MIXING;
 
-    avseq_mixer_set_rate(mixer_data, mixctx->frequency);
+    if (mixctx)
+        avseq_mixer_set_rate(mixer_data, mixctx->frequency);
+
     avseq_mixer_set_tempo(mixer_data, tempo);
     avseq_mixer_set_volume(mixer_data, volume_boost, 65536, 65536, module->channels);
 

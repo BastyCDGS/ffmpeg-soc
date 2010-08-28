@@ -331,7 +331,7 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
         player_host_channel++;
     }
 
-    if (!(avseq_song_calc_speed ( avctx, song ))) {
+    if (!(avseq_song_calc_speed(avctx, song))) {
         av_log(song, AV_LOG_ERROR, "Relative song speed is invalid!\n");
         return AVERROR_INVALIDDATA;
     } else if (!avctx->player_globals->tempo) {

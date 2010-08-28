@@ -32,6 +32,7 @@
 #include "libavutil/intreadwrite.h"
 #include "libavcodec/iff.h"
 #include "avformat.h"
+#include "raw.h"
 
 #if CONFIG_AVSEQUENCER
 #include "libavutil/avstring.h"
@@ -49,25 +50,25 @@ static const char *const metadata_tag_list[] = {
 
 /* Metadata string read */
 static int seq_get_metadata(AVFormatContext *s, AVMetadata **const metadata, const char *const tag, const unsigned data_size);
-static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size);
+static int open_tcm1_song(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size);
 static int open_song_patt(AVFormatContext *s, AVSequencerSong *song, uint32_t data_size);
 static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t data_size);
-static int open_song_posi(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerSong *song, uint32_t data_size);
+static int open_song_posi(AVFormatContext *s, AVSequencerSong *song, uint32_t data_size);
 static int open_posi_post(AVFormatContext *s, AVSequencerSong *song, uint32_t channel, uint32_t data_size);
 static int open_post_posl(AVFormatContext *s, AVSequencerOrderList *order_list, uint32_t data_size);
 
-static int open_tcm1_insl(AVFormatContext *s, AVSequencerModule *module, const char *args, void *opaque, uint32_t data_size);
-static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, const char *args, void *opaque, uint32_t data_size);
-static int open_inst_samp(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, const char *args, void *opaque, uint32_t data_size);
-static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, const char *args, void *opaque, uint32_t data_size);
-static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, const char *args, void *opaque, uint32_t data_size);
+static int open_tcm1_insl(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size);
+static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size);
+static int open_inst_samp(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, uint32_t data_size);
+static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, uint32_t data_size);
+static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, uint32_t data_size);
 static int open_snth_wfrm(AVFormatContext *s, AVSequencerSynth *synth, uint32_t data_size);
 static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t data_size);
 static int open_snth_stab(AVFormatContext *s, AVSequencerSynth *synth, uint32_t data_size);
 static int open_stab_smbl(AVFormatContext *s, AVSequencerSynth *synth, uint32_t data_size);
 
-static int open_tcm1_envl(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size);
-static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size);
+static int open_tcm1_envl(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size);
+static int open_envl_envd(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size);
 
 static int open_tcm1_keyb( AVFormatContext *s, AVSequencerModule *module, uint32_t data_size);
 
@@ -166,6 +167,8 @@ typedef struct {
     uint32_t  audio_frame_count;
 #if CONFIG_AVSEQUENCER
     AVSequencerContext *avctx;
+    const char *args;
+    void *opaque;
 #endif
 } IffDemuxContext;
 
@@ -228,7 +231,7 @@ static int iff_read_header(AVFormatContext *s,
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
     uint8_t buf[24];
-    const char *args = "stereo=true; interpolation=0; real16bit=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
+    const char *args = "stereo=false; interpolation=0; real16bit=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
@@ -250,6 +253,9 @@ static int iff_read_header(AVFormatContext *s,
     if (st->codec->codec_tag == ID_TCM1) {
         if (!(iff->avctx = avsequencer_open(NULL, args, opaque)))
             return AVERROR(ENOMEM);
+
+        iff->args   = args;
+        iff->opaque = opaque;
 
         if (!(module = avseq_module_create())) {
             avsequencer_destroy(iff->avctx);
@@ -358,21 +364,21 @@ static int iff_read_header(AVFormatContext *s,
 
             switch (get_le32(pb)) {
             case ID_SONG:
-                if ((res = open_tcm1_song(s, iff->avctx, module, data_size)) < 0) {
+                if ((res = open_tcm1_song(s, module, data_size)) < 0) {
                     avsequencer_destroy(iff->avctx);
                     return res;
                 }
 
                 break;
             case ID_INSL:
-                if ((res = open_tcm1_insl(s, module, args, opaque, data_size)) < 0) {
+                if ((res = open_tcm1_insl(s, module, data_size)) < 0) {
                     avsequencer_destroy(iff->avctx);
                     return res;
                 }
 
                 break;
             case ID_ENVL:
-                if ((res = open_tcm1_envl(s, iff->avctx, module, data_size)) < 0) {
+                if ((res = open_tcm1_envl(s, module, data_size)) < 0) {
                     avsequencer_destroy(iff->avctx);
                     return res;
                 }
@@ -691,10 +697,10 @@ read_unknown_chunk:
             }
 
             st->codec->sample_rate = mixctx->frequency;
-            st->codec->channels    = ((av_stristr(args, "stereo=true;") || av_stristr(args, "stereo=enabled;") || av_stristr(args, "stereo=1;")) && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
+            st->codec->channels    = ((av_stristr(iff->args, "stereo=true;") || av_stristr(iff->args, "stereo=enabled;") || av_stristr(iff->args, "stereo=1;")) && mixctx->flags & AVSEQ_MIXER_CONTEXT_FLAG_STEREO) ? 2 : 1;
             iff->body_size         = ((uint64_t) s->duration * st->codec->sample_rate * (st->codec->channels << 2)) / AV_TIME_BASE;
 
-            if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], args, opaque, 0)) < 0) {
+            if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], iff->args, iff->opaque, 0)) < 0) {
                 avsequencer_destroy(iff->avctx);
                 return res;
             }
@@ -758,10 +764,11 @@ static int seq_get_metadata(AVFormatContext *s,
     return 0;
 }
 
-static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size)
+static int open_tcm1_song(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     AVSequencerSong *song;
+    IffDemuxContext *iff = s->priv_data;
     uint32_t iff_size = 4;
     uint16_t tracks = 0, channels = 1;
     int res;
@@ -779,7 +786,7 @@ static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
         return res;
     }
 
-    avseq_song_set_channels(avctx, song, 1);
+    avseq_song_set_channels(iff->avctx, song, 1);
 
     while (!url_feof(pb) && (data_size -= iff_size)) {
         unsigned year, month, day, hour, min, sec, cts;
@@ -863,7 +870,7 @@ static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
             song->global_panning     = get_byte(pb);
             song->global_sub_panning = get_byte(pb);
 
-            if ((res = avseq_song_set_channels(avctx, song, channels)) < 0)
+            if ((res = avseq_song_set_channels(iff->avctx, song, channels)) < 0)
                 return res;
 
             break;
@@ -875,7 +882,7 @@ static int open_tcm1_song(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
 
                 break;
             case ID_POSI:
-                if ((res = open_song_posi(s, avctx, song, iff_size)) < 0)
+                if ((res = open_song_posi(s, song, iff_size)) < 0)
                     return res;
 
                 break;
@@ -1104,9 +1111,10 @@ static int open_patt_trak(AVFormatContext *s, AVSequencerSong *song, uint32_t da
     return 0;
 }
 
-static int open_song_posi(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerSong *song, uint32_t data_size)
+static int open_song_posi(AVFormatContext *s, AVSequencerSong *song, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
+    IffDemuxContext *iff = s->priv_data;
     uint32_t iff_size = 4, channel = 0;
     int res;
 
@@ -1128,7 +1136,7 @@ static int open_song_posi(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
             switch (get_le32(pb)) {
             case ID_POST:
                 if (channel >= song->channels) {
-                    if ((res = avseq_song_set_channels(avctx, song, channel + 1)) < 0)
+                    if ((res = avseq_song_set_channels(iff->avctx, song, channel + 1)) < 0)
                         return res;
                 }
 
@@ -1331,7 +1339,7 @@ static int open_post_posl(AVFormatContext *s, AVSequencerOrderList *order_list, 
     return 0;
 }
 
-static int open_tcm1_insl(AVFormatContext *s, AVSequencerModule *module, const char *args, void *opaque, uint32_t data_size)
+static int open_tcm1_insl(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     uint32_t iff_size = 4;
@@ -1354,7 +1362,7 @@ static int open_tcm1_insl(AVFormatContext *s, AVSequencerModule *module, const c
         case ID_FORM:
             switch (get_le32(pb)) {
             case ID_INST:
-                if ((res = open_insl_inst(s, module, args, opaque, iff_size)) < 0)
+                if ((res = open_insl_inst(s, module, iff_size)) < 0)
                     return res;
 
                 break;
@@ -1371,7 +1379,7 @@ static int open_tcm1_insl(AVFormatContext *s, AVSequencerModule *module, const c
     return 0;
 }
 
-static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, const char *args, void *opaque, uint32_t data_size)
+static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     AVSequencerInstrument *instrument;
@@ -1448,7 +1456,7 @@ static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, const c
         case ID_FORM:
             switch (get_le32(pb)) {
             case ID_SAMP:
-                if ((res = open_inst_samp(s, module, instrument, args, opaque, iff_size)) < 0)
+                if ((res = open_inst_samp(s, module, instrument, iff_size)) < 0)
                     return res;
 
                 break;
@@ -1506,7 +1514,7 @@ static int open_insl_inst(AVFormatContext *s, AVSequencerModule *module, const c
     return 0;
 }
 
-static int open_inst_samp(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, const char *args, void *opaque, uint32_t data_size)
+static int open_inst_samp(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     uint32_t iff_size = 4;
@@ -1529,7 +1537,7 @@ static int open_inst_samp(AVFormatContext *s, AVSequencerModule *module, AVSeque
         case ID_FORM:
             switch (get_le32(pb)) {
             case ID_SMPL:
-                if ((res = open_samp_smpl(s, module, instrument, args, opaque, iff_size)) < 0)
+                if ((res = open_samp_smpl(s, module, instrument, iff_size)) < 0)
                     return res;
 
                 break;
@@ -1546,7 +1554,7 @@ static int open_inst_samp(AVFormatContext *s, AVSequencerModule *module, AVSeque
     return 0;
 }
 
-static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, const char *args, void *opaque, uint32_t data_size)
+static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSequencerInstrument *instrument, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     AVSequencerSample *sample;
@@ -1640,7 +1648,7 @@ static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSeque
         case ID_FORM:
             switch (get_le32(pb)) {
             case ID_SNTH:
-                if ((res = open_smpl_snth(s, sample, args, opaque, iff_size)) < 0) {
+                if ((res = open_smpl_snth(s, sample, iff_size)) < 0) {
                     av_freep(&buf);
                     return res;
                 }
@@ -1759,7 +1767,7 @@ static int open_samp_smpl(AVFormatContext *s, AVSequencerModule *module, AVSeque
     return 0;
 }
 
-static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, const char *args, void *opaque, uint32_t data_size)
+static int open_smpl_snth(AVFormatContext *s, AVSequencerSample *sample, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     AVSequencerSynth *synth;
@@ -2207,7 +2215,7 @@ static int open_stab_smbl(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
     return 0;
 }
 
-static int open_tcm1_envl(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size)
+static int open_tcm1_envl(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
     uint32_t iff_size = 4;
@@ -2230,7 +2238,7 @@ static int open_tcm1_envl(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
         case ID_FORM:
             switch (get_le32(pb)) {
             case ID_ENVD:
-                if ((res = open_envl_envd(s, avctx, module, iff_size)) < 0)
+                if ((res = open_envl_envd(s, module, iff_size)) < 0)
                     return res;
 
                 break;
@@ -2247,9 +2255,10 @@ static int open_tcm1_envl(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
     return 0;
 }
 
-static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSequencerModule *module, uint32_t data_size)
+static int open_envl_envd(AVFormatContext *s, AVSequencerModule *module, uint32_t data_size)
 {
     ByteIOContext *pb = s->pb;
+    IffDemuxContext *iff = s->priv_data;
     AVSequencerEnvelope *envelope;
     uint8_t *buf = NULL;
     uint8_t *node_buf = NULL;
@@ -2264,7 +2273,7 @@ static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
     if (!(envelope = avseq_envelope_create()))
         return AVERROR(ENOMEM);
 
-    if ((res = avseq_envelope_open(avctx, module, envelope, 1, 0, 0, 0, 0)) < 0) {
+    if ((res = avseq_envelope_open(iff->avctx, module, envelope, 1, 0, 0, 0, 0)) < 0) {
         avseq_envelope_destroy(envelope);
         return res;
     }
@@ -2373,7 +2382,7 @@ static int open_envl_envd(AVFormatContext *s, AVSequencerContext *avctx, AVSeque
         av_freep(&buf);
         av_log(envelope, AV_LOG_ERROR, "No envelope data node points found, but non-zero number of nodes!\n");
         return AVERROR_INVALIDDATA;
-    } else if ((res = avseq_envelope_data_open(avctx, envelope, FFALIGN(len, 2) >> 1, 0, 0, 0, FFALIGN(node_len, 2) >> 1)) < 0) {
+    } else if ((res = avseq_envelope_data_open(iff->avctx, envelope, FFALIGN(len, 2) >> 1, 0, 0, 0, FFALIGN(node_len, 2) >> 1)) < 0) {
         av_freep(&node_buf);
         av_freep(&buf);
         return res;
@@ -2698,9 +2707,10 @@ static int iff_read_packet(AVFormatContext *s,
 
     if(iff->sent_bytes >= iff->body_size) {
 #if CONFIG_AVSEQUENCER
-        avsequencer_destroy(iff->avctx);
+/*        avsequencer_destroy(iff->avctx);
 
-        iff->avctx = NULL;
+        iff->avctx = NULL; */
+        
 #endif
         return AVERROR(EIO);
     }
@@ -2719,6 +2729,8 @@ static int iff_read_packet(AVFormatContext *s,
 
         if (!(buf = av_malloc(16 * iff->avctx->player_song->channels))) {
             avsequencer_destroy(iff->avctx);
+
+            iff->avctx = NULL;
             av_log(s, AV_LOG_ERROR, "Cannot allocate pattern display buffer!\n");
             return AVERROR(ENOMEM);
         }
@@ -2848,6 +2860,8 @@ static int iff_read_packet(AVFormatContext *s,
 
         if ((ret = av_new_packet(pkt, size)) < 0) {
             avsequencer_destroy(iff->avctx);
+
+            iff->avctx = NULL;
             av_log(s, AV_LOG_ERROR, "Cannot allocate packet!\n");
 
             return ret;
@@ -2855,12 +2869,10 @@ static int iff_read_packet(AVFormatContext *s,
 
         memcpy(pkt->data, mixer_data->mix_buf, size);
 
-        if (iff->sent_bytes == 0)
-            pkt->flags |= AV_PKT_FLAG_KEY;
-
         iff->sent_bytes        += size;
         pkt->duration           = mixer_data->mix_buf_size;
         st->time_base           = (AVRational) {1, st->codec->sample_rate};
+        pkt->flags             |= AV_PKT_FLAG_KEY;
         pkt->stream_index       = 0;
         pkt->pts                = iff->audio_frame_count;
         iff->audio_frame_count += mixer_data->mix_buf_size;
@@ -2900,6 +2912,114 @@ static int iff_read_packet(AVFormatContext *s,
     return ret;
 }
 
+static int iff_read_seek(AVFormatContext *s,
+                         int stream_index, int64_t timestamp, int flags)
+{
+    AVStream *st = s->streams[0];
+#if CONFIG_AVSEQUENCER
+    IffDemuxContext *iff;
+    AVMixerContext *mixctx;
+    AVMixerData *mixer_data;
+#endif
+
+    switch (st->codec->codec_tag) {
+#if CONFIG_AVSEQUENCER
+    case ID_TCM1:
+        if (!timestamp)
+            return 0;
+
+        iff = s->priv_data;
+
+        if ((mixctx = avseq_mixer_get_by_name("Null mixer"))) {
+            AVSequencerPlayerGlobals *player_globals;
+            AVMixerData *mixer_data;
+            AVMixerData *old_mixer_data = iff->avctx->player_mixer_data;
+            uint32_t tempo;
+            uint16_t channel;
+            int res, size;
+
+            iff->avctx->player_mixer_data = NULL;
+
+            avseq_module_stop(iff->avctx, 0);
+
+            if ((flags & AVSEEK_FLAG_BACKWARD) || (timestamp < 0)) {
+                if ((res = avseq_song_reset(iff->avctx, iff->avctx->player_song)) < 0) {
+                    iff->avctx->player_mixer_data = old_mixer_data;
+                    avsequencer_destroy(iff->avctx);
+                    iff->avctx = NULL;
+                    return res;
+                }
+
+                iff->sent_bytes        = 0;
+                iff->audio_frame_count = 0;
+            }
+
+            if ((res = avseq_module_play(iff->avctx, mixctx, iff->avctx->player_module, iff->avctx->player_song, iff->args, iff->opaque, 0)) < 0) {
+                avseq_module_stop(iff->avctx, 0);
+                iff->avctx->player_mixer_data = old_mixer_data;
+                avsequencer_destroy(iff->avctx);
+                iff->avctx = NULL;
+                return res;
+            }
+
+            mixer_data         = iff->avctx->player_mixer_data;
+            tempo              = avseq_song_calc_speed(iff->avctx, iff->avctx->player_song);
+            mixer_data->flags |= AVSEQ_MIXER_DATA_FLAG_MIXING;
+
+            avseq_mixer_set_rate(mixer_data, mixctx->frequency);
+            avseq_mixer_set_tempo(mixer_data, tempo);
+            avseq_mixer_set_volume(mixer_data, 0, 0, 0, iff->avctx->player_module->channels);
+
+            if (!(flags & AVSEEK_FLAG_BACKWARD) && (timestamp > 0)) {
+                channel = iff->avctx->player_module->channels - 1;
+
+                do {
+                    AVMixerChannel mixer_channel;
+
+                    avseq_mixer_get_channel(old_mixer_data, &mixer_channel, channel);
+                    avseq_mixer_set_channel(mixer_data, &mixer_channel, channel);
+                } while (--channel);
+            }
+
+            player_globals = iff->avctx->player_globals;
+            size           = st->codec->channels * mixer_data->mix_buf_size << 2;
+            timestamp      = ((timestamp * AV_TIME_BASE * st->time_base.num) / st->time_base.den) + player_globals->play_time;
+
+            while (player_globals->play_time < timestamp) {
+                avseq_mixer_do_mix(mixer_data, NULL);
+
+                iff->sent_bytes        += size;
+                iff->audio_frame_count += mixer_data->mix_buf_size;
+            }
+
+            channel = iff->avctx->player_module->channels - 1;
+
+            do {
+                AVMixerChannel mixer_channel;
+
+                avseq_mixer_get_channel(mixer_data, &mixer_channel, channel);
+                avseq_mixer_set_channel(old_mixer_data, &mixer_channel, channel);
+            } while (--channel);
+
+            avseq_module_stop(iff->avctx, 0);
+
+            iff->avctx->player_mixer_data = old_mixer_data;
+        } else {
+            mixer_data = iff->avctx->player_mixer_data;
+            mixctx     = mixer_data->mixctx;
+        }
+
+        break;
+#endif
+    default:
+        break;
+    }
+    if(st->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+        return pcm_read_seek(s, stream_index, timestamp, flags);
+
+    return -1;
+}
+
 AVInputFormat iff_demuxer = {
     "IFF",
     NULL_IF_CONFIG_SMALL("IFF format"),
@@ -2907,4 +3027,6 @@ AVInputFormat iff_demuxer = {
     iff_probe,
     iff_read_header,
     iff_read_packet,
+    NULL,
+    iff_read_seek,
 };

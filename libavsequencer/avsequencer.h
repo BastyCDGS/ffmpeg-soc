@@ -37,17 +37,17 @@
 #define LIBAVSEQUENCER_IDENT       "Lavsequencer" AV_STRINGIFY(LIBAVSEQUENCER_VERSION)
 
 /**
- * Returns LIBAVSEQUENCER_VERSION_INT constant.
+ * Return LIBAVSEQUENCER_VERSION_INT constant.
  */
 unsigned avsequencer_version(void);
 
 /**
- * Returns the libavsequencer build-time configuration.
+ * Return the libavsequencer build-time configuration.
  */
 const char *avsequencer_configuration(void);
 
 /**
- * Returns the libavsequencer license.
+ * Return the libavsequencer license.
  */
 const char *avsequencer_license(void);
 
@@ -310,7 +310,39 @@ uint32_t avseq_mixer_set_tempo(AVMixerData *mixer_data, uint32_t new_tempo);
  */
 uint32_t avseq_mixer_set_volume(AVMixerData *mixer_data, uint32_t amplify,
                                 uint32_t left_volume, uint32_t right_volume,
-                                uint32_t channels );
+                                uint32_t channels);
+
+/**
+ * Gets and transfers a channel data block from the internal mixing
+ * engine to the AVSequencer.
+ *
+ * @param mixer_data the AVMixerData to get the channel data block from
+ * @param mixer_channel the AVMixerChannel to be received from the
+ *                      internal mixing engine
+ * @param channel the number of channel to be received
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_mixer_get_channel(AVMixerData *mixer_data,
+                             AVMixerChannel *mixer_channel, uint32_t channel);
+
+/**
+ * Sets and transfers a channel data block from the AVSequencer to the
+ * internal mixing engine.
+ *
+ * @param mixer_data the AVMixerData to set the channel data block of
+ * @param mixer_channel the AVMixerChannel to be stored into the internal
+ *                      mixing engine
+ * @param channel the number of channel to be stored
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_mixer_set_channel(AVMixerData *mixer_data,
+                             AVMixerChannel *mixer_channel, uint32_t channel);
 
 /**
  * Fills the output mixing buffer by calculating all the input channel samples.

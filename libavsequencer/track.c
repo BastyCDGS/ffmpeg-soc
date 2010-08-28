@@ -452,7 +452,7 @@ int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len
                 if (!(fx = avseq_track_effect_create()))
                     return AVERROR(ENOMEM);
 
-                fx->command = tmp_pack_byte;
+                fx->command = tmp_pack_byte & 0x7F;
                 fx->data    = tmp_pack_word;
 
                 if ((res = avseq_track_effect_open(track, data, fx)) < 0) {

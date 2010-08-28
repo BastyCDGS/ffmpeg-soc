@@ -56,7 +56,7 @@ typedef struct AV_LQMixerChannelInfo {
         uint32_t fraction;
         uint32_t advance;
         uint32_t advance_frac;
-        void (*mix_func)(AV_LQMixerData *mixer_data, struct AV_LQMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
+        void (*mix_func)(AV_LQMixerData *mixer_data, struct ChannelBlock *channel_block, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
         uint32_t end_offset;
         uint32_t restart_offset;
         uint32_t repeat;
@@ -69,7 +69,7 @@ typedef struct AV_LQMixerChannelInfo {
         uint32_t mult_left_volume;
         uint32_t div_volume;
         uint32_t mult_right_volume;
-        void (*mix_backwards_func)(AV_LQMixerData *mixer_data, struct AV_LQMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
+        void (*mix_backwards_func)(AV_LQMixerData *mixer_data, struct ChannelBlock *channel_block, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
         uint8_t volume;
@@ -130,7 +130,7 @@ CHANNEL_PREPARE(stereo_32_center);
 
 #define MIX(type)                                                               \
     static void mix_##type(AV_LQMixerData *mixer_data,                          \
-                           AV_LQMixerChannelInfo *channel_info,                 \
+                           struct ChannelBlock *channel_block,                  \
                            int32_t **buf, uint32_t *offset, uint32_t *fraction, \
                            uint32_t advance, uint32_t adv_frac, uint32_t len)
 
@@ -928,7 +928,7 @@ static void mix_sample(AV_LQMixerData *mixer_data, int32_t *buf, uint32_t len)
 
     for (i = mixer_data->channels; i > 0; i--) {
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
-            void (*mix_func)(AV_LQMixerData *mixer_data, AV_LQMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint32_t len);
+            void (*mix_func)(AV_LQMixerData *mixer_data, struct ChannelBlock *channel_block, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint32_t len);
             int32_t *mix_buf    = buf;
             uint32_t offset     = channel_info->current.offset;
             uint32_t fraction   = channel_info->current.fraction;
@@ -948,7 +948,7 @@ mix_sample_backwards:
 
                     if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
+                            mix_func(mixer_data, &channel_info->current, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
 
                             if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
                                 remain_len = 0;
@@ -958,7 +958,7 @@ mix_sample_backwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            mix_func(mixer_data, &channel_info->current, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
 
                             if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -1026,7 +1026,7 @@ mix_sample_forwards:
 
                     if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
+                            mix_func(mixer_data, &channel_info->current, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
 
                             if (offset >= channel_info->current.end_offset)
                                 remain_len = 0;
@@ -1036,7 +1036,7 @@ mix_sample_forwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            mix_func(mixer_data, &channel_info->current, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
 
                             if ((offset < channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -1136,7 +1136,7 @@ static void set_mix_functions(AV_LQMixerData *mixer_data, struct ChannelBlock *c
     uint32_t panning = 0x80;
 
     if ((channel_block->bits_per_sample <= 8) || !mixer_data->real_16_bit_mode) {
-        if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume) {
+        if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume || !mixer_data->amplify || !channel_block->sample_start_ptr) {
             mix_func = (void *) &mixer_skip_16_to_8;
         } else if (!mixer_data->stereo_mode) {
             mix_func = (void *) &mixer_mono_16_to_8;
@@ -1174,44 +1174,42 @@ static void set_mix_functions(AV_LQMixerData *mixer_data, struct ChannelBlock *c
                 break;
             }
         }
+    } else if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume || !mixer_data->amplify || !channel_block->sample_start_ptr) {
+        mix_func = (void *) &mixer_skip;
+    } else if (!mixer_data->stereo_mode) {
+        mix_func = (void *) &mixer_mono;
+    } else if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
+        mix_func = (void *) &mixer_stereo;
+
+        if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
+            mix_func = (void *) &mixer_stereo_surround;
     } else {
-        if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume) {
+        switch ((panning = channel_block->panning)) {
+        case 0 :
             mix_func = (void *) &mixer_skip;
-        } else if (!mixer_data->stereo_mode) {
-            mix_func = (void *) &mixer_mono;
-        } else if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_SURROUND) {
+
+            if (mixer_data->mixer_data.volume_left)
+                mix_func = (void *) &mixer_stereo_left;
+
+            break;
+        case 0xFF :
+            mix_func = (void *) &mixer_skip;
+
+            if (mixer_data->mixer_data.volume_right)
+                mix_func = (void *) &mixer_stereo_right;
+
+            break;
+        case 0x80 :
             mix_func = (void *) &mixer_stereo;
 
             if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
-                mix_func = (void *) &mixer_stereo_surround;
-        } else {
-            switch ((panning = channel_block->panning)) {
-            case 0 :
-                mix_func = (void *) &mixer_skip;
+                mix_func = (void *) &mixer_stereo_center;
 
-                if (mixer_data->mixer_data.volume_left)
-                    mix_func = (void *) &mixer_stereo_left;
+            break;
+        default :
+            mix_func = (void *) &mixer_stereo;
 
-                break;
-            case 0xFF :
-                mix_func = (void *) &mixer_skip;
-
-                if (mixer_data->mixer_data.volume_right)
-                    mix_func = (void *) &mixer_stereo_right;
-
-                break;
-            case 0x80 :
-                mix_func = (void *) &mixer_stereo;
-
-                if (mixer_data->mixer_data.volume_left == mixer_data->mixer_data.volume_right)
-                    mix_func = (void *) &mixer_stereo_center;
-
-                break;
-            default :
-                mix_func = (void *) &mixer_stereo;
-
-                break;
-            }
+            break;
         }
     }
 
@@ -1417,8 +1415,8 @@ MIX(skip_backwards)
 
 MIX(mono_8)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -1620,8 +1618,8 @@ get_second_sample:
 
 MIX(mono_backwards_8)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -1823,9 +1821,9 @@ get_second_sample:
 
 MIX(mono_16)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -2027,9 +2025,9 @@ get_second_sample:
 
 MIX(mono_backwards_16)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -2229,9 +2227,9 @@ get_second_sample:
 
 MIX(mono_32)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -2431,9 +2429,9 @@ get_second_sample:
 
 MIX(mono_backwards_32)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -2633,12 +2631,12 @@ get_second_sample:
 
 MIX(mono_x)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -2978,12 +2976,12 @@ get_second_sample:
 
 MIX(mono_backwards_x)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -3362,8 +3360,8 @@ get_second_sample:
 
 MIX(mono_16_to_8)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -3564,8 +3562,8 @@ get_second_sample:
 
 MIX(mono_backwards_16_to_8)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -3766,8 +3764,8 @@ get_second_sample:
 
 MIX(mono_32_to_8)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -3969,8 +3967,8 @@ get_second_sample:
 
 MIX(mono_backwards_32_to_8)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -4171,12 +4169,12 @@ get_second_sample:
 
 MIX(mono_x_to_8)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -4518,12 +4516,12 @@ get_second_sample:
 
 MIX(mono_backwards_x_to_8)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -4901,9 +4899,9 @@ get_second_sample:
 
 MIX(stereo_8)
 {
-    int8_t *sample            = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int8_t *sample            = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
@@ -5123,9 +5121,9 @@ get_second_sample:
 
 MIX(stereo_backwards_8)
 {
-    int8_t *sample            = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int8_t *sample            = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
@@ -5346,9 +5344,9 @@ get_second_sample:
 
 MIX(stereo_16)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -5567,9 +5565,9 @@ get_second_sample:
 
 MIX(stereo_backwards_16)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -5788,9 +5786,9 @@ get_second_sample:
 
 MIX(stereo_32)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -6010,9 +6008,9 @@ get_second_sample:
 
 MIX(stereo_backwards_32)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -6231,12 +6229,12 @@ get_second_sample:
 
 MIX(stereo_x)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -6591,12 +6589,12 @@ get_second_sample:
 
 MIX(stereo_backwards_x)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -6988,9 +6986,9 @@ get_second_sample:
 
 MIX(stereo_16_to_8)
 {
-    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int16_t *sample           = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
@@ -7218,9 +7216,9 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8)
 {
-    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int16_t *sample           = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
@@ -7448,9 +7446,9 @@ get_second_sample:
 
 MIX(stereo_32_to_8)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
@@ -7678,9 +7676,9 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
@@ -7909,13 +7907,13 @@ get_second_sample:
 
 MIX(stereo_x_to_8)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -8278,13 +8276,13 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_left_lut  = channel_info->current.volume_left_lut;
-    int32_t *volume_right_lut = channel_info->current.volume_right_lut;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_left_lut  = channel_block->volume_left_lut;
+    int32_t *volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf          = *buf;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -8685,8 +8683,8 @@ get_second_sample:
 
 MIX(stereo_8_left)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -8895,8 +8893,8 @@ get_second_sample:
 
 MIX(stereo_backwards_8_left)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -9105,9 +9103,9 @@ get_second_sample:
 
 MIX(stereo_16_left)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -9315,9 +9313,9 @@ get_second_sample:
 
 MIX(stereo_backwards_16_left)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -9525,9 +9523,9 @@ get_second_sample:
 
 MIX(stereo_32_left)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -9735,9 +9733,9 @@ get_second_sample:
 
 MIX(stereo_backwards_32_left)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
     uint32_t i;
@@ -9945,12 +9943,12 @@ get_second_sample:
 
 MIX(stereo_x_left)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -10299,12 +10297,12 @@ get_second_sample:
 
 MIX(stereo_backwards_x_left)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -10690,8 +10688,8 @@ get_second_sample:
 
 MIX(stereo_16_to_8_left)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -10900,8 +10898,8 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_left)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -11110,8 +11108,8 @@ get_second_sample:
 
 MIX(stereo_32_to_8_left)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -11320,8 +11318,8 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_left)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -11530,12 +11528,12 @@ get_second_sample:
 
 MIX(stereo_x_to_8_left)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -11885,12 +11883,12 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_left)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -12276,8 +12274,8 @@ get_second_sample:
 
 MIX(stereo_8_right)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -12486,8 +12484,8 @@ get_second_sample:
 
 MIX(stereo_backwards_8_right)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -12696,9 +12694,9 @@ get_second_sample:
 
 MIX(stereo_16_right)
 {
-    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample           = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf          = *buf;
-    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
     uint32_t i;
@@ -12906,9 +12904,9 @@ get_second_sample:
 
 MIX(stereo_backwards_16_right)
 {
-    int16_t *sample           = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample           = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf          = *buf;
-    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
     uint32_t i;
@@ -13116,9 +13114,9 @@ get_second_sample:
 
 MIX(stereo_32_right)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf          = *buf;
-    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
     uint32_t i;
@@ -13326,9 +13324,9 @@ get_second_sample:
 
 MIX(stereo_backwards_32_right)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf          = *buf;
-    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
     uint32_t i;
@@ -13536,12 +13534,12 @@ get_second_sample:
 
 MIX(stereo_x_right)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf          = *buf;
-    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -13889,12 +13887,12 @@ get_second_sample:
 
 MIX(stereo_backwards_x_right)
 {
-    int32_t *sample           = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample           = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf          = *buf;
-    int32_t mult_right_volume = channel_info->current.mult_right_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset      = *offset;
     uint32_t curr_frac        = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -14281,8 +14279,8 @@ get_second_sample:
 
 MIX(stereo_16_to_8_right)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -14491,8 +14489,8 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_right)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -14702,8 +14700,8 @@ get_second_sample:
 
 MIX(stereo_32_to_8_right)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -14912,8 +14910,8 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_right)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
@@ -15122,12 +15120,12 @@ get_second_sample:
 
 MIX(stereo_x_to_8_right)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -15476,12 +15474,12 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_right)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_right_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_right_lut;
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -15867,8 +15865,8 @@ get_second_sample:
 
 MIX(stereo_8_center)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -16084,8 +16082,8 @@ get_second_sample:
 
 MIX(stereo_backwards_8_center)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -16301,9 +16299,9 @@ get_second_sample:
 
 MIX(stereo_16_center)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -16518,9 +16516,9 @@ get_second_sample:
 
 MIX(stereo_backwards_16_center)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -16735,9 +16733,9 @@ get_second_sample:
 
 MIX(stereo_32_center)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -16953,9 +16951,9 @@ get_second_sample:
 
 MIX(stereo_backwards_32_center)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -17170,13 +17168,13 @@ get_second_sample:
 
 MIX(stereo_x_center)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -17531,13 +17529,13 @@ get_second_sample:
 
 MIX(stereo_backwards_x_center)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -17930,8 +17928,8 @@ get_second_sample:
 
 MIX(stereo_16_to_8_center)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -18147,8 +18145,8 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_center)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -18364,8 +18362,8 @@ get_second_sample:
 
 MIX(stereo_32_to_8_center)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -18582,8 +18580,8 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_center)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -18799,13 +18797,13 @@ get_second_sample:
 
 MIX(stereo_x_to_8_center)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -19159,13 +19157,13 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_center)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -19557,8 +19555,8 @@ get_second_sample:
 
 MIX(stereo_8_surround)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -19774,8 +19772,8 @@ get_second_sample:
 
 MIX(stereo_backwards_8_surround)
 {
-    int8_t *sample       = (int8_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int8_t *sample       = (int8_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -19991,9 +19989,9 @@ get_second_sample:
 
 MIX(stereo_16_surround)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -20209,9 +20207,9 @@ get_second_sample:
 
 MIX(stereo_backwards_16_surround)
 {
-    int16_t *sample          = (int16_t *) channel_info->current.sample_start_ptr;
+    int16_t *sample          = (int16_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -20426,9 +20424,9 @@ get_second_sample:
 
 MIX(stereo_32_surround)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -20643,9 +20641,9 @@ get_second_sample:
 
 MIX(stereo_backwards_32_surround)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
@@ -20860,13 +20858,13 @@ get_second_sample:
 
 MIX(stereo_x_surround)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -21220,13 +21218,13 @@ get_second_sample:
 
 MIX(stereo_backwards_x_surround)
 {
-    int32_t *sample          = (int32_t *) channel_info->current.sample_start_ptr;
+    int32_t *sample          = (int32_t *) channel_block->sample_start_ptr;
     int32_t *mix_buf         = *buf;
-    int32_t mult_left_volume = channel_info->current.mult_left_volume, div_volume = channel_info->current.div_volume;
+    int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     int32_t smp_in;
     uint32_t curr_offset     = *offset;
     uint32_t curr_frac       = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -21618,8 +21616,8 @@ get_second_sample:
 
 MIX(stereo_16_to_8_surround)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -21835,8 +21833,8 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_surround)
 {
-    int16_t *sample      = (int16_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int16_t *sample      = (int16_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -22052,8 +22050,8 @@ get_second_sample:
 
 MIX(stereo_32_to_8_surround)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -22270,8 +22268,8 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_surround)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
@@ -22488,13 +22486,13 @@ get_second_sample:
 
 MIX(stereo_x_to_8_surround)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {
@@ -22848,13 +22846,13 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_surround)
 {
-    int32_t *sample      = (int32_t *) channel_info->current.sample_start_ptr;
-    int32_t *volume_lut  = channel_info->current.volume_left_lut;
+    int32_t *sample      = (int32_t *) channel_block->sample_start_ptr;
+    int32_t *volume_lut  = channel_block->volume_left_lut;
     int32_t *mix_buf     = *buf;
     int32_t smp_in;
     uint32_t curr_offset = *offset;
     uint32_t curr_frac   = *fraction;
-    uint32_t i, bit, smp_data, bits_per_sample = channel_info->current.bits_per_sample;
+    uint32_t i, bit, smp_data, bits_per_sample = channel_block->bits_per_sample;
 
     if (advance) {
         if (mixer_data->interpolation) {

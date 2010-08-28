@@ -222,7 +222,7 @@ typedef struct AVSequencerPlayerGlobals {
 
     /** Current playing time of the module, in AV_TIME_BASE
        fractional seconds scaled by relative speed.  */
-    uint32_t play_time;
+    uint64_t play_time;
 
     /** Current playing time fraction of the module, in AV_TIME_BASE
        fractional seconds scaled by relative speed.  */
@@ -232,7 +232,7 @@ typedef struct AVSequencerPlayerGlobals {
        fractional seconds not scaled by relative speed, i.e.
        you can always determine the exact module position by
        using playing ticks instead of playing time.  */
-    uint32_t play_tics;
+    uint64_t play_tics;
 
     /** Current playing ticks fraction of the module, in AV_TIME_BASE
        fractional seconds not scaled by relative speed, i.e.
