@@ -1144,9 +1144,10 @@ int avseq_playback_handler(AVMixerData *mixer_data)
 
                     break;
                 case AVSEQ_TRACK_DATA_NOTE_KILL :
-                    player_host_channel->instrument = NULL;
-                    player_host_channel->sample     = NULL;
-                    player_host_channel->instr_note = 0;
+                    player_host_channel->instrument  = NULL;
+                    player_host_channel->sample      = NULL;
+                    player_host_channel->instr_note  = 0;
+                    player_host_channel->sample_note = 0;
 
                     if (player_channel->host_channel == channel)
                         player_channel->mixer.flags = 0;
@@ -1187,6 +1188,7 @@ int avseq_playback_handler(AVMixerData *mixer_data)
 
             player_channel = trigger_nna(avctx, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel);
 
+            sample                               = player_host_channel->sample;
             player_channel->mixer.pos            = sample->start_offset;
             player_host_channel->virtual_channel = virtual_channel;
             player_channel->host_channel         = channel;
@@ -1897,9 +1899,10 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
 
             break;
         case AVSEQ_TRACK_DATA_NOTE_KILL :
-            player_host_channel->instrument = NULL;
-            player_host_channel->sample     = NULL;
-            player_host_channel->instr_note = 0;
+            player_host_channel->instrument  = NULL;
+            player_host_channel->sample      = NULL;
+            player_host_channel->instr_note  = 0;
+            player_host_channel->sample_note = 0;
 
             if (player_channel->host_channel == channel)
                 player_channel->mixer.flags = 0;
@@ -1971,10 +1974,8 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
             }
 
-            if ((sample = player_host_channel->sample)) {
-                player_channel->volume  = sample->volume;
-                player_channel->sub_vol = sample->sub_volume;
-            }
+            player_channel->volume  = sample->volume;
+            player_channel->sub_vol = sample->sub_volume;
 
             init_new_instrument(avctx, player_host_channel, player_channel);
 
@@ -2003,68 +2004,62 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
         if ((new_player_channel = play_note(avctx, instrument, player_host_channel, player_channel, octave, note, channel))) {
             AVSequencerSample *sample = player_host_channel->sample;
 
-            if (sample)
-                new_player_channel->mixer.pos = sample->start_offset;
+            new_player_channel->mixer.pos = sample->start_offset;
 
-            if (sample && sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY) {
+            if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY) {
                 new_player_channel->volume  = player_channel->volume;
                 new_player_channel->sub_vol = player_channel->sub_vol;
-
-                init_new_instrument(avctx, player_host_channel, new_player_channel);
-                init_new_sample(avctx, player_host_channel, new_player_channel);
-            } else {
-                if (player_channel != new_player_channel) {
-                    new_player_channel->volume               = player_channel->volume;
-                    new_player_channel->sub_vol              = player_channel->sub_vol;
-                    new_player_channel->instr_volume         = player_channel->instr_volume;
-                    new_player_channel->panning              = player_channel->panning;
-                    new_player_channel->sub_pan              = player_channel->sub_pan;
-                    new_player_channel->final_volume         = player_channel->final_volume;
-                    new_player_channel->final_panning        = player_channel->final_panning;
-                    new_player_channel->global_volume        = player_channel->global_volume;
-                    new_player_channel->global_sub_vol       = player_channel->global_sub_vol;
-                    new_player_channel->global_panning       = player_channel->global_panning;
-                    new_player_channel->global_sub_pan       = player_channel->global_sub_pan;
-                    new_player_channel->volume_swing         = player_channel->volume_swing;
-                    new_player_channel->panning_swing        = player_channel->panning_swing;
-                    new_player_channel->pitch_swing          = player_channel->pitch_swing;
-                    new_player_channel->host_channel         = channel;
-                    new_player_channel->flags                = player_channel->flags;
-                    new_player_channel->vol_env              = player_channel->vol_env;
-                    new_player_channel->pan_env              = player_channel->pan_env;
-                    new_player_channel->slide_env            = player_channel->slide_env;
-                    new_player_channel->resonance_env        = player_channel->resonance_env;
-                    new_player_channel->auto_vib_env         = player_channel->auto_vib_env;
-                    new_player_channel->auto_trem_env        = player_channel->auto_trem_env;
-                    new_player_channel->auto_pan_env         = player_channel->auto_pan_env;
-                    new_player_channel->slide_env_freq       = player_channel->slide_env_freq;
-                    new_player_channel->auto_vibrato_freq    = player_channel->auto_vibrato_freq;
-                    new_player_channel->auto_tremolo_vol     = player_channel->auto_tremolo_vol;
-                    new_player_channel->auto_pannolo_pan     = player_channel->auto_pannolo_pan;
-                    new_player_channel->auto_vibrato_count   = player_channel->auto_vibrato_count;
-                    new_player_channel->auto_tremolo_count   = player_channel->auto_tremolo_count;
-                    new_player_channel->auto_pannolo_count   = player_channel->auto_pannolo_count;
-                    new_player_channel->fade_out             = player_channel->fade_out;
-                    new_player_channel->fade_out_count       = player_channel->fade_out_count;
-                    new_player_channel->pitch_pan_separation = player_channel->pitch_pan_separation;
-                    new_player_channel->pitch_pan_center     = player_channel->pitch_pan_center;
-                    new_player_channel->dca                  = player_channel->dca;
-                    new_player_channel->hold                 = player_channel->hold;
-                    new_player_channel->decay                = player_channel->decay;
-                    new_player_channel->auto_vibrato_sweep   = player_channel->auto_vibrato_sweep;
-                    new_player_channel->auto_tremolo_sweep   = player_channel->auto_tremolo_sweep;
-                    new_player_channel->auto_pan_sweep       = player_channel->auto_pan_sweep;
-                    new_player_channel->auto_vibrato_depth   = player_channel->auto_vibrato_depth;
-                    new_player_channel->auto_vibrato_rate    = player_channel->auto_vibrato_rate;
-                    new_player_channel->auto_tremolo_depth   = player_channel->auto_tremolo_depth;
-                    new_player_channel->auto_tremolo_rate    = player_channel->auto_tremolo_rate;
-                    new_player_channel->auto_pan_depth       = player_channel->auto_pan_depth;
-                    new_player_channel->auto_pan_rate        = player_channel->auto_pan_rate;
-                }
-
-                init_new_instrument(avctx, player_host_channel, new_player_channel);
-                init_new_sample(avctx, player_host_channel, new_player_channel);
+            } else if (player_channel != new_player_channel) {
+                new_player_channel->volume               = player_channel->volume;
+                new_player_channel->sub_vol              = player_channel->sub_vol;
+                new_player_channel->instr_volume         = player_channel->instr_volume;
+                new_player_channel->panning              = player_channel->panning;
+                new_player_channel->sub_pan              = player_channel->sub_pan;
+                new_player_channel->final_volume         = player_channel->final_volume;
+                new_player_channel->final_panning        = player_channel->final_panning;
+                new_player_channel->global_volume        = player_channel->global_volume;
+                new_player_channel->global_sub_vol       = player_channel->global_sub_vol;
+                new_player_channel->global_panning       = player_channel->global_panning;
+                new_player_channel->global_sub_pan       = player_channel->global_sub_pan;
+                new_player_channel->volume_swing         = player_channel->volume_swing;
+                new_player_channel->panning_swing        = player_channel->panning_swing;
+                new_player_channel->pitch_swing          = player_channel->pitch_swing;
+                new_player_channel->host_channel         = player_channel->host_channel;
+                new_player_channel->flags                = player_channel->flags;
+                new_player_channel->vol_env              = player_channel->vol_env;
+                new_player_channel->pan_env              = player_channel->pan_env;
+                new_player_channel->slide_env            = player_channel->slide_env;
+                new_player_channel->resonance_env        = player_channel->resonance_env;
+                new_player_channel->auto_vib_env         = player_channel->auto_vib_env;
+                new_player_channel->auto_trem_env        = player_channel->auto_trem_env;
+                new_player_channel->auto_pan_env         = player_channel->auto_pan_env;
+                new_player_channel->slide_env_freq       = player_channel->slide_env_freq;
+                new_player_channel->auto_vibrato_freq    = player_channel->auto_vibrato_freq;
+                new_player_channel->auto_tremolo_vol     = player_channel->auto_tremolo_vol;
+                new_player_channel->auto_pannolo_pan     = player_channel->auto_pannolo_pan;
+                new_player_channel->auto_vibrato_count   = player_channel->auto_vibrato_count;
+                new_player_channel->auto_tremolo_count   = player_channel->auto_tremolo_count;
+                new_player_channel->auto_pannolo_count   = player_channel->auto_pannolo_count;
+                new_player_channel->fade_out             = player_channel->fade_out;
+                new_player_channel->fade_out_count       = player_channel->fade_out_count;
+                new_player_channel->pitch_pan_separation = player_channel->pitch_pan_separation;
+                new_player_channel->pitch_pan_center     = player_channel->pitch_pan_center;
+                new_player_channel->dca                  = player_channel->dca;
+                new_player_channel->hold                 = player_channel->hold;
+                new_player_channel->decay                = player_channel->decay;
+                new_player_channel->auto_vibrato_sweep   = player_channel->auto_vibrato_sweep;
+                new_player_channel->auto_tremolo_sweep   = player_channel->auto_tremolo_sweep;
+                new_player_channel->auto_pan_sweep       = player_channel->auto_pan_sweep;
+                new_player_channel->auto_vibrato_depth   = player_channel->auto_vibrato_depth;
+                new_player_channel->auto_vibrato_rate    = player_channel->auto_vibrato_rate;
+                new_player_channel->auto_tremolo_depth   = player_channel->auto_tremolo_depth;
+                new_player_channel->auto_tremolo_rate    = player_channel->auto_tremolo_rate;
+                new_player_channel->auto_pan_depth       = player_channel->auto_pan_depth;
+                new_player_channel->auto_pan_rate        = player_channel->auto_pan_rate;
             }
+
+            init_new_instrument(avctx, player_host_channel, new_player_channel);
+            init_new_sample(avctx, player_host_channel, new_player_channel);
         }
     }
 
@@ -2215,21 +2210,21 @@ static AVSequencerPlayerChannel *play_note_got(AVSequencerContext *avctx, AVSequ
     player_host_channel->prev_auto_pan_env  = player_channel->auto_pan_env.envelope;
     player_host_channel->prev_resonance_env = player_channel->resonance_env.envelope;
 
-    player_channel            = trigger_nna(avctx, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel);
-    player_channel->mixer.pos = sample->start_offset;
+    player_channel = trigger_nna(avctx, player_host_channel, player_channel, channel, (uint16_t *) &virtual_channel);
 
+    player_channel->mixer.pos            = sample->start_offset;
     player_host_channel->virtual_channel = virtual_channel;
     player_channel->host_channel         = channel;
-    player_channel->instrument           = instrument;
-    player_channel->sample               = sample;
+    player_channel->instrument           = player_host_channel->instrument;
+    player_channel->sample               = player_host_channel->sample;
+    player_channel->instr_note           = player_host_channel->instr_note;
+    player_channel->sample_note          = player_host_channel->sample_note;
 
-    if ((player_channel->instr_note = player_host_channel->instr_note)) {
-        int16_t final_note;
+    if (player_channel->instr_note || player_channel->sample_note) {
+        const int16_t final_note = player_host_channel->final_note;
 
-        player_channel->sample_note = player_host_channel->sample_note;
-        player_channel->final_note  = final_note = player_host_channel->final_note;
-
-        frequency = get_tone_pitch(avctx, player_host_channel, player_channel, final_note);
+        player_channel->final_note = final_note;
+        frequency                  = get_tone_pitch(avctx, player_host_channel, player_channel, final_note);
     }
 
     note_swing    = pitch_swing = ((uint64_t) frequency * instrument->pitch_swing) >> 16;
@@ -2259,7 +2254,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     AVSequencerPlayerGlobals *player_globals;
     AVSequencerEnvelope * (**assign_envelope)(AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, AVSequencerEnvelope **envelope, AVSequencerPlayerEnvelope **player_envelope);
     AVSequencerEnvelope * (**assign_auto_envelope)(AVSequencerSample *sample, AVSequencerPlayerChannel *player_channel, AVSequencerPlayerEnvelope **player_envelope);
-    uint32_t volume = 0, panning, panning_separation, i;
+    uint32_t volume = 0, panning, i;
 
     if (instrument) {
         uint32_t volume_swing, abs_volume_swing, seed;
@@ -2448,13 +2443,12 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         player_channel->panning            = sample->panning;
         player_channel->sub_pan            = sample->sub_panning;
         player_host_channel->pannolo_slide = 0;
-
-        panning = (uint8_t) player_channel->panning;
+        panning                            = (uint8_t) player_channel->panning;
 
         if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
-            player_host_channel->track_panning      = player_channel->panning;
+            player_host_channel->track_panning      = panning;
             player_host_channel->track_sub_pan      = player_channel->sub_pan;
-            player_host_channel->track_note_pan     = player_channel->panning;
+            player_host_channel->track_note_pan     = panning;
             player_host_channel->track_note_sub_pan = player_channel->sub_pan;
             player_host_channel->flags             &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
 
@@ -2464,14 +2458,17 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     } else {
         player_channel->panning = player_host_channel->track_panning;
         player_channel->sub_pan = player_host_channel->track_sub_pan;
-        player_channel->flags  &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN);
-        player_channel->flags  |= (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
+        player_channel->flags  &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN)
+            player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
     }
 
     player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
 
     if (instrument) {
-        uint32_t volume_swing, seed;
+        uint32_t panning_swing, seed;
+        int32_t panning_separation;
 
         if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
             player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
@@ -2499,28 +2496,28 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
                 player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
         }
 
-        panning_separation = ((int16_t) (player_host_channel->instr_note - (1 + instrument->pitch_pan_center)) * (int16_t) instrument->pitch_pan_separation) >> 8;
-        volume_swing       = (instrument->panning_swing << 1) + 1;
+        panning_separation = (((int16_t) player_host_channel->instr_note - (instrument->pitch_pan_center + 1)) * instrument->pitch_pan_separation) >> 8;
+        panning_swing      = (instrument->panning_swing << 1) + 1;
         avctx->seed        = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
-        volume_swing       = ((uint64_t) seed * volume_swing) >> 32;
-        volume_swing      -= instrument->volume_swing;
-        panning           += volume_swing;
+        panning_swing      = ((uint64_t) seed * panning_swing) >> 32;
+        panning_swing     -= instrument->panning_swing;
+        panning           += panning_swing;
 
         if ((int32_t) (panning += panning_separation) < 0)
             panning = 0;
 
         if (panning > 255)
             panning = 255;
-    }
 
-    if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN)
-        player_host_channel->track_panning = panning;
-    else
-        player_channel->panning            = panning;
+        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN)
+            player_host_channel->track_panning = panning;
+        else
+            player_channel->panning            = panning;
 
-    if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN) {
-        player_host_channel->track_panning = panning;
-        player_channel->panning            = panning;
+        if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN) {
+            player_host_channel->track_panning = panning;
+            player_channel->panning            = panning;
+        }
     }
 }
 
