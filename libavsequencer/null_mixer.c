@@ -523,8 +523,6 @@ static av_cold void mix(AVMixerData *mixer_data, int32_t *buf)
         current_left_frac = null_mixer_data->current_left_frac;
         buf_size          = null_mixer_data->buf_size;
 
-        memset(buf, 0, buf_size << ((null_mixer_data->channels_out >= 2) ? 3 : 2));
-
         while (buf_size) {
             if (current_left) {
                 uint32_t mix_len = buf_size;

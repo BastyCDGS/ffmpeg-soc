@@ -344,7 +344,7 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
         uint16_t order;
 
         player_host_channel->tempo              = frames;
-        player_host_channel->order              = (AVSequencerOrderData *) order_list;
+        player_host_channel->order              = NULL;
         player_host_channel->multi_retrig_scale = 4;
         player_host_channel->tempo_counter      = 0xFFFFFFFE;
         player_host_channel->track_volume       = order_list->volume;
