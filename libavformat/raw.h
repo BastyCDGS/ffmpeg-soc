@@ -27,6 +27,8 @@
 int pcm_read_seek(AVFormatContext *s,
                   int stream_index, int64_t timestamp, int flags);
 
+int ff_raw_write_packet(AVFormatContext *s, AVPacket *pkt);
+
 int ff_raw_read_partial_packet(AVFormatContext *s, AVPacket *pkt);
 
 #endif /* AVFORMAT_RAW_H */

@@ -1435,7 +1435,7 @@ test_deps _encoder _decoder                                             \
     asv1                                                                \
     asv2                                                                \
     bmp                                                                 \
-    dnxhd="hdxhd_1080i dnxhd_720p dnxhd_720p_rd"                        \
+    dnxhd="dnxhd_1080i dnxhd_720p dnxhd_720p_rd"                        \
     dvvideo="dv dv50"                                                   \
     ffv1                                                                \
     flac                                                                \
@@ -1854,6 +1854,7 @@ elif $cc --vsn 2>/dev/null | grep -q "ARM C/C++ Compiler"; then
         --configure_sysroot="$sysroot"        \
         --configure_cpp_headers="$sysinclude" >>$logfile 2>&1 ||
         die "Error creating armcc configuration file."
+    $cc --vsn | grep -q RVCT && armcc_opt=rvct || armcc_opt=armcc
     cc="$cc --arm_linux_config_file=$armcc_conf --translate_gcc"
     as_default="${cross_prefix}gcc"
     CC_DEPFLAGS='-MMD'
@@ -2114,7 +2115,7 @@ elif enabled x86; then
             disable cmov
         ;;
         # targets that do support conditional mov (cmov)
-        i686|pentiumpro|pentium[23]|pentium-m|athlon|athlon-tbird|athlon-4|athlon-[mx]p|athlon64|k8|opteron|athlon-fx|core2|amdfam10|barcelona)
+        i686|pentiumpro|pentium[23]|pentium-m|athlon|athlon-tbird|athlon-4|athlon-[mx]p|athlon64|k8|opteron|athlon-fx|core2|amdfam10|barcelona|atom)
             cpuflags="-march=$cpu"
             enable cmov
             enable fast_cmov
@@ -2386,6 +2387,8 @@ case $target_os in
         ;;
 esac
 
+echo "config:$arch:$subarch:$cpu:$target_os:$cc_ident:$FFMPEG_CONFIGURATION" >config.fate
+
 check_cpp_condition stdlib.h "defined(__PIC__) || defined(__pic__) || defined(PIC)" && enable pic
 
 set_default $PATHS_LIST
@@ -2577,9 +2580,9 @@ EOF
     case "$objformat" in
         elf) enabled debug && append YASMFLAGS "-g dwarf2" ;;
     esac
-    if ! disabled yasm; then
+    if ! disabled_any asm mmx yasm; then
         check_yasm "pabsw xmm0, xmm0" && enable yasm ||
-            warn "yasm not found, performance will suffer"
+            die "yasm not found, use --disable-yasm for a crippled build"
     fi
 
     case "$cpu" in
@@ -2886,8 +2889,8 @@ elif enabled clang; then
     check_cflags -Qunused-arguments
 elif enabled armcc; then
     # 2523: use of inline assembler is deprecated
-    add_cflags -Wrvct,--diag_suppress=2523
-    add_cflags -Wrvct,--diag_suppress=1207
+    add_cflags -W${armcc_opt},--diag_suppress=2523
+    add_cflags -W${armcc_opt},--diag_suppress=1207
 elif enabled tms470; then
     add_cflags -pds=824 -pds=837
 fi
@@ -3219,8 +3222,6 @@ print_config AV_HAVE_ $TMPH /dev/null $HAVE_LIST_PUB
 echo "#endif /* AVUTIL_AVCONFIG_H */" >> $TMPH
 
 cp_if_changed $TMPH libavutil/avconfig.h
-
-echo "config:$arch:$subarch:$cpu:$target_os:$cc_ident:$FFMPEG_CONFIGURATION" >config.fate
 
 test -n "$WARNINGS" && printf "\n$WARNINGS"
 

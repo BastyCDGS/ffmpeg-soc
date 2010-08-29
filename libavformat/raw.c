@@ -31,20 +31,6 @@
 
 /* simple formats */
 
-#if CONFIG_ROQ_MUXER
-static int roq_write_header(struct AVFormatContext *s)
-{
-    static const uint8_t header[] = {
-        0x84, 0x10, 0xFF, 0xFF, 0xFF, 0xFF, 0x1E, 0x00
-    };
-
-    put_buffer(s->pb, header, 8);
-    put_flush_packet(s->pb);
-
-    return 0;
-}
-#endif
-
 #if CONFIG_NULL_MUXER
 static int null_write_packet(struct AVFormatContext *s, AVPacket *pkt)
 {
@@ -53,7 +39,7 @@ static int null_write_packet(struct AVFormatContext *s, AVPacket *pkt)
 #endif
 
 #if CONFIG_MUXERS
-static int raw_write_packet(struct AVFormatContext *s, AVPacket *pkt)
+int ff_raw_write_packet(AVFormatContext *s, AVPacket *pkt)
 {
     put_buffer(s->pb, pkt->data, pkt->size);
     put_flush_packet(s->pb);
@@ -662,80 +648,7 @@ static int eac3_probe(AVProbeData *p)
 }
 #endif
 
-#if CONFIG_AAC_DEMUXER
-static int adts_aac_probe(AVProbeData *p)
-{
-    int max_frames = 0, first_frames = 0;
-    int fsize, frames;
-    uint8_t *buf0 = p->buf;
-    uint8_t *buf2;
-    uint8_t *buf;
-    uint8_t *end = buf0 + p->buf_size - 7;
-
-    if (ff_id3v2_match(buf0, ID3v2_DEFAULT_MAGIC)) {
-        buf0 += ff_id3v2_tag_len(buf0);
-    }
-    buf = buf0;
-
-    for(; buf < end; buf= buf2+1) {
-        buf2 = buf;
-
-        for(frames = 0; buf2 < end; frames++) {
-            uint32_t header = AV_RB16(buf2);
-            if((header&0xFFF6) != 0xFFF0)
-                break;
-            fsize = (AV_RB32(buf2+3)>>13) & 0x8FFF;
-            if(fsize < 7)
-                break;
-            buf2 += fsize;
-        }
-        max_frames = FFMAX(max_frames, frames);
-        if(buf == buf0)
-            first_frames= frames;
-    }
-    if   (first_frames>=3) return AVPROBE_SCORE_MAX/2+1;
-    else if(max_frames>500)return AVPROBE_SCORE_MAX/2;
-    else if(max_frames>=3) return AVPROBE_SCORE_MAX/4;
-    else if(max_frames>=1) return 1;
-    else                   return 0;
-}
-
-static int adts_aac_read_header(AVFormatContext *s,
-                                AVFormatParameters *ap)
-{
-    AVStream *st;
-
-    st = av_new_stream(s, 0);
-    if (!st)
-        return AVERROR(ENOMEM);
-
-    st->codec->codec_type = AVMEDIA_TYPE_AUDIO;
-    st->codec->codec_id = s->iformat->value;
-    st->need_parsing = AVSTREAM_PARSE_FULL;
-
-    ff_id3v1_read(s);
-    ff_id3v2_read(s, ID3v2_DEFAULT_MAGIC);
-
-    return 0;
-}
-
-#endif
-
 /* Note: Do not forget to add new entries to the Makefile as well. */
-
-#if CONFIG_AAC_DEMUXER
-AVInputFormat aac_demuxer = {
-    "aac",
-    NULL_IF_CONFIG_SMALL("raw ADTS AAC"),
-    0,
-    adts_aac_probe,
-    adts_aac_read_header,
-    ff_raw_read_partial_packet,
-    .flags= AVFMT_GENERIC_INDEX,
-    .extensions = "aac",
-    .value = CODEC_ID_AAC,
-};
-#endif
 
 #if CONFIG_AC3_DEMUXER
 AVInputFormat ac3_demuxer = {
@@ -761,7 +674,7 @@ AVOutputFormat ac3_muxer = {
     CODEC_ID_AC3,
     CODEC_ID_NONE,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -789,7 +702,7 @@ AVOutputFormat dirac_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_DIRAC,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -817,7 +730,7 @@ AVOutputFormat dnxhd_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_DNXHD,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -846,7 +759,7 @@ AVOutputFormat dts_muxer = {
     CODEC_ID_DTS,
     CODEC_ID_NONE,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -875,7 +788,7 @@ AVOutputFormat eac3_muxer = {
     CODEC_ID_EAC3,
     CODEC_ID_NONE,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -918,7 +831,7 @@ AVOutputFormat h261_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_H261,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -947,7 +860,7 @@ AVOutputFormat h263_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_H263,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -976,7 +889,7 @@ AVOutputFormat h264_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_H264,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -991,7 +904,7 @@ AVOutputFormat cavsvideo_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_CAVS,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1034,7 +947,7 @@ AVOutputFormat m4v_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_MPEG4,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1063,7 +976,7 @@ AVOutputFormat mjpeg_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_MJPEG,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1092,7 +1005,7 @@ AVOutputFormat mlp_muxer = {
     CODEC_ID_MLP,
     CODEC_ID_NONE,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1103,7 +1016,7 @@ AVOutputFormat srt_muxer = {
     .long_name      = NULL_IF_CONFIG_SMALL("SubRip subtitle format"),
     .mime_type      = "application/x-subrip",
     .extensions     = "srt",
-    .write_packet   = raw_write_packet,
+    .write_packet   = ff_raw_write_packet,
     .flags          = AVFMT_NOTIMESTAMPS,
     .subtitle_codec = CODEC_ID_SRT,
 };
@@ -1133,7 +1046,7 @@ AVOutputFormat truehd_muxer = {
     CODEC_ID_TRUEHD,
     CODEC_ID_NONE,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1148,7 +1061,7 @@ AVOutputFormat mpeg1video_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_MPEG1VIDEO,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1163,7 +1076,7 @@ AVOutputFormat mpeg2video_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_MPEG2VIDEO,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif
@@ -1237,23 +1150,8 @@ AVOutputFormat rawvideo_muxer = {
     CODEC_ID_NONE,
     CODEC_ID_RAWVIDEO,
     NULL,
-    raw_write_packet,
+    ff_raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
-};
-#endif
-
-#if CONFIG_ROQ_MUXER
-AVOutputFormat roq_muxer =
-{
-    "RoQ",
-    NULL_IF_CONFIG_SMALL("raw id RoQ format"),
-    NULL,
-    "roq",
-    0,
-    CODEC_ID_ROQ_DPCM,
-    CODEC_ID_ROQ,
-    roq_write_header,
-    raw_write_packet,
 };
 #endif
 
@@ -1311,7 +1209,7 @@ AVOutputFormat pcm_ ## name ## _muxer = {\
     codec,\
     CODEC_ID_NONE,\
     NULL,\
-    raw_write_packet,\
+    ff_raw_write_packet,\
     .flags= AVFMT_NOTIMESTAMPS,\
 };
 

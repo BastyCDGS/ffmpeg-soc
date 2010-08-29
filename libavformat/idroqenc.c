@@ -1,6 +1,6 @@
 /*
- * vp6dsp SSE2 function declarations
- * Copyright (c) 2009  Zuxy Meng <zuxy.meng@gmail.com>
+ * id RoQ (.roq) File muxer
+ * Copyright (c) 2007 Vitor Sessak
  *
  * This file is part of FFmpeg.
  *
@@ -19,12 +19,31 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVCODEC_X86_VP6DSP_SSE2_H
-#define AVCODEC_X86_VP6DSP_SSE2_H
+#include "avformat.h"
+#include "raw.h"
 
-#include <stdint.h>
 
-void ff_vp6_filter_diag4_sse2(uint8_t *dst, uint8_t *src, int stride,
-                             const int16_t *h_weights,const int16_t *v_weights);
+static int roq_write_header(struct AVFormatContext *s)
+{
+    static const uint8_t header[] = {
+        0x84, 0x10, 0xFF, 0xFF, 0xFF, 0xFF, 0x1E, 0x00
+    };
 
-#endif /* AVCODEC_X86_VP6DSP_SSE2_H */
+    put_buffer(s->pb, header, 8);
+    put_flush_packet(s->pb);
+
+    return 0;
+}
+
+AVOutputFormat roq_muxer =
+{
+    "RoQ",
+    NULL_IF_CONFIG_SMALL("raw id RoQ format"),
+    NULL,
+    "roq",
+    0,
+    CODEC_ID_ROQ_DPCM,
+    CODEC_ID_ROQ,
+    roq_write_header,
+    ff_raw_write_packet,
+};

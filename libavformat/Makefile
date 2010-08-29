@@ -16,7 +16,8 @@ OBJS = allformats.o         \
        utils.o              \
 
 # muxers/demuxers
-OBJS-$(CONFIG_AAC_DEMUXER)               += raw.o id3v1.o id3v2.o
+OBJS-$(CONFIG_A64_MUXER)                 += a64.o
+OBJS-$(CONFIG_AAC_DEMUXER)               += aacdec.o id3v1.o id3v2.o
 OBJS-$(CONFIG_AC3_DEMUXER)               += raw.o
 OBJS-$(CONFIG_AC3_MUXER)                 += raw.o
 OBJS-$(CONFIG_ADTS_MUXER)                += adtsenc.o
@@ -208,8 +209,8 @@ OBJS-$(CONFIG_RAWVIDEO_MUXER)            += raw.o
 OBJS-$(CONFIG_RL2_DEMUXER)               += rl2.o
 OBJS-$(CONFIG_RM_DEMUXER)                += rmdec.o rm.o
 OBJS-$(CONFIG_RM_MUXER)                  += rmenc.o rm.o
-OBJS-$(CONFIG_ROQ_DEMUXER)               += idroq.o
-OBJS-$(CONFIG_ROQ_MUXER)                 += raw.o
+OBJS-$(CONFIG_ROQ_DEMUXER)               += idroqdec.o
+OBJS-$(CONFIG_ROQ_MUXER)                 += idroqenc.o
 OBJS-$(CONFIG_RSO_DEMUXER)               += rsodec.o rso.o raw.o
 OBJS-$(CONFIG_RSO_MUXER)                 += rsoenc.o rso.o
 OBJS-$(CONFIG_RPL_DEMUXER)               += rpl.o

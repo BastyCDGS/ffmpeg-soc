@@ -160,3 +160,36 @@ fate-wmapro-2ch: REF = $(SAMPLES)/wmapro/Beethovens_9th-1_small.pcm
 
 FATE_TESTS += fate-ansi
 fate-ansi: CMD = framecrc -i $(SAMPLES)/ansi/TRE-IOM5.ANS -pix_fmt rgb24
+
+FATE_TESTS += fate-wmv8-drm
+fate-wmv8-drm: CMD = framecrc -cryptokey 137381538c84c068111902a59c5cf6c340247c39 -i $(SAMPLES)/wmv8/wmv_drm.wmv -an
+
+FATE_TESTS += fate-binkaudio-dct
+fate-binkaudio-dct: CMD = pcm -i $(SAMPLES)/bink/binkaudio_dct.bik
+fate-binkaudio-dct: CMP = oneoff
+fate-binkaudio-dct: REF = $(SAMPLES)/bink/binkaudio_dct.pcm
+fate-binkaudio-dct: FUZZ = 2
+
+FATE_TESTS += fate-binkaudio-rdft
+fate-binkaudio-rdft: CMD = pcm -i $(SAMPLES)/bink/binkaudio_rdft.bik
+fate-binkaudio-rdft: CMP = oneoff
+fate-binkaudio-rdft: REF = $(SAMPLES)/bink/binkaudio_rdft.pcm
+fate-binkaudio-rdft: FUZZ = 2
+
+FATE_TESTS += fate-txd-pal8
+fate-txd-pal8: CMD = framecrc -i $(SAMPLES)/txd/outro.txd -pix_fmt rgb24 -an
+
+FATE_TESTS += fate-txd-16bpp
+fate-txd-16bpp: CMD = framecrc -i $(SAMPLES)/txd/misc.txd -pix_fmt bgra -an
+
+FATE_TESTS += fate-vp3
+fate-vp3: CMD = framecrc -i $(SAMPLES)/vp3/vp31.avi
+
+FATE_TESTS += fate-fax-g3
+fate-fax-g3: CMD = framecrc -i $(SAMPLES)/CCITT_fax/G31D.TIF
+
+FATE_TESTS += fate-fax-g3s
+fate-fax-g3s: CMD = framecrc -i $(SAMPLES)/CCITT_fax/G31DS.TIF
+
+FATE_TESTS += fate-ws_snd
+fate-ws_snd: CMD = md5  -i $(SAMPLES)/vqa/ws_snd.vqa -f s16le

@@ -31,6 +31,8 @@ version <next>:
 - RTP packetization and depacketization of VP8
 - hflip filter
 - Apple HTTP Live Streaming demuxer
+- a64 codec
+- MMS-HTTP support
 
 
 version 0.6:

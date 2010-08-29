@@ -237,6 +237,7 @@ include $(SRC_PATH_BARE)/tests/fate/aac.mak
 include $(SRC_PATH_BARE)/tests/fate/als.mak
 include $(SRC_PATH_BARE)/tests/fate/fft.mak
 include $(SRC_PATH_BARE)/tests/fate/h264.mak
+include $(SRC_PATH_BARE)/tests/fate/mp3.mak
 include $(SRC_PATH_BARE)/tests/fate/vorbis.mak
 include $(SRC_PATH_BARE)/tests/fate/vp8.mak
 
@@ -288,5 +289,8 @@ fate: $(FATE)
 $(FATE): ffmpeg$(EXESUF) $(FATE_UTILS:%=tests/%$(HOSTEXESUF))
 	@echo "TEST    $(@:fate-%=%)"
 	$(Q)$(SRC_PATH)/tests/fate-run.sh $@ "$(SAMPLES)" "$(TARGET_EXEC)" "$(TARGET_PATH)" '$(CMD)' '$(CMP)' '$(REF)' '$(FUZZ)'
+
+fate-list:
+	@printf '%s\n' $(sort $(FATE))
 
 .PHONY: documentation *test regtest-* alltools check config

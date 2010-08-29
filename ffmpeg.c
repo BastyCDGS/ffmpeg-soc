@@ -309,7 +309,7 @@ typedef struct AVInputStream {
     int showed_multi_packet_warning;
     int is_past_recording_time;
 #if CONFIG_AVFILTER
-    AVFilterContext *out_video_filter;
+    AVFilterContext *output_video_filter;
     AVFilterContext *input_video_filter;
     AVFrame *filter_frame;
     int has_filter_frame;
@@ -407,24 +407,25 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
     AVCodecContext *codec = ost->st->codec;
     AVCodecContext *icodec = ist->st->codec;
     char args[255];
+    int ret;
 
     graph = av_mallocz(sizeof(AVFilterGraph));
 
-    if (avfilter_open(&ist->input_video_filter, avfilter_get_by_name("buffer"), "src") < 0)
-        return -1;
-    if (avfilter_open(&ist->out_video_filter, &output_filter, "out") < 0)
-        return -1;
+    if ((ret = avfilter_open(&ist->input_video_filter, avfilter_get_by_name("buffer"), "src")) < 0)
+        return ret;
+    if ((ret = avfilter_open(&ist->output_video_filter, &output_filter, "out")) < 0)
+        return ret;
 
     snprintf(args, 255, "%d:%d:%d", ist->st->codec->width,
              ist->st->codec->height, ist->st->codec->pix_fmt);
-    if (avfilter_init_filter(ist->input_video_filter, args, NULL))
-        return -1;
-    if (avfilter_init_filter(ist->out_video_filter, NULL, &codec->pix_fmt))
-        return -1;
+    if ((ret = avfilter_init_filter(ist->input_video_filter, args, NULL)) < 0)
+        return ret;
+    if ((ret = avfilter_init_filter(ist->output_video_filter, NULL, &codec->pix_fmt)) < 0)
+        return ret;
 
     /* add input and output filters to the overall graph */
     avfilter_graph_add_filter(graph, ist->input_video_filter);
-    avfilter_graph_add_filter(graph, ist->out_video_filter);
+    avfilter_graph_add_filter(graph, ist->output_video_filter);
 
     last_filter = ist->input_video_filter;
 
@@ -432,13 +433,12 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
         snprintf(args, 255, "%d:%d:%d:%d", ost->leftBand, ost->topBand,
                  codec->width,
                  codec->height);
-        avfilter_open(&filter, avfilter_get_by_name("crop"), NULL);
-        if (!filter)
-            return -1;
-        if (avfilter_init_filter(filter, args, NULL))
-            return -1;
-        if (avfilter_link(last_filter, 0, filter, 0))
-            return -1;
+        if ((ret = avfilter_open(&filter, avfilter_get_by_name("crop"), NULL)) < 0)
+            return ret;
+        if ((ret = avfilter_init_filter(filter, args, NULL)) < 0)
+            return ret;
+        if ((ret = avfilter_link(last_filter, 0, filter, 0)) < 0)
+            return ret;
         last_filter = filter;
         avfilter_graph_add_filter(graph, last_filter);
     }
@@ -450,13 +450,12 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
                  codec->width,
                  codec->height,
                  (int)av_get_int(sws_opts, "sws_flags", NULL));
-        avfilter_open(&filter, avfilter_get_by_name("scale"), NULL);
-        if (!filter)
-            return -1;
-        if (avfilter_init_filter(filter, args, NULL))
-            return -1;
-        if (avfilter_link(last_filter, 0, filter, 0))
-            return -1;
+        if ((ret = avfilter_open(&filter, avfilter_get_by_name("scale"), NULL)) < 0)
+            return ret;
+        if ((ret = avfilter_init_filter(filter, args, NULL)) < 0)
+            return ret;
+        if ((ret = avfilter_link(last_filter, 0, filter, 0)) < 0)
+            return ret;
         last_filter = filter;
         avfilter_graph_add_filter(graph, last_filter);
     }
@@ -474,28 +473,28 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
         outputs->next    = NULL;
 
         inputs->name    = av_strdup("out");
-        inputs->filter  = ist->out_video_filter;
+        inputs->filter  = ist->output_video_filter;
         inputs->pad_idx = 0;
         inputs->next    = NULL;
 
-        if (avfilter_graph_parse(graph, vfilters, inputs, outputs, NULL) < 0)
-            return -1;
+        if ((ret = avfilter_graph_parse(graph, vfilters, inputs, outputs, NULL)) < 0)
+            return ret;
         av_freep(&vfilters);
     } else {
-        if (avfilter_link(last_filter, 0, ist->out_video_filter, 0) < 0)
-            return -1;
+        if ((ret = avfilter_link(last_filter, 0, ist->output_video_filter, 0)) < 0)
+            return ret;
     }
 
     /* configure all the filter links */
-    if (avfilter_graph_check_validity(graph, NULL))
-        return -1;
-    if (avfilter_graph_config_formats(graph, NULL))
-        return -1;
-    if (avfilter_graph_config_links(graph, NULL))
-        return -1;
+    if ((ret = avfilter_graph_check_validity(graph, NULL)) < 0)
+        return ret;
+    if ((ret = avfilter_graph_config_formats(graph, NULL)) < 0)
+        return ret;
+    if ((ret = avfilter_graph_config_links(graph, NULL)) < 0)
+        return ret;
 
-    codec->width = ist->out_video_filter->inputs[0]->w;
-    codec->height = ist->out_video_filter->inputs[0]->h;
+    codec->width  = ist->output_video_filter->inputs[0]->w;
+    codec->height = ist->output_video_filter->inputs[0]->h;
 
     return 0;
 }
@@ -1673,15 +1672,15 @@ static int output_packet(AVInputStream *ist, int ist_index,
         }
 #if CONFIG_AVFILTER
         frame_available = ist->st->codec->codec_type != AVMEDIA_TYPE_VIDEO ||
-            !ist->out_video_filter || avfilter_poll_frame(ist->out_video_filter->inputs[0]);
+            !ist->output_video_filter || avfilter_poll_frame(ist->output_video_filter->inputs[0]);
 #endif
         /* if output time reached then transcode raw format,
            encode packets and output them */
         if (start_time == 0 || ist->pts >= start_time)
 #if CONFIG_AVFILTER
         while (frame_available) {
-            if (ist->st->codec->codec_type == AVMEDIA_TYPE_VIDEO && ist->out_video_filter)
-                get_filtered_video_pic(ist->out_video_filter, &ist->picref, &picture, &ist->pts);
+            if (ist->st->codec->codec_type == AVMEDIA_TYPE_VIDEO && ist->output_video_filter)
+                get_filtered_video_pic(ist->output_video_filter, &ist->picref, &picture, &ist->pts);
 #endif
             for(i=0;i<nb_ostreams;i++) {
                 int frame_size;
@@ -1776,7 +1775,7 @@ static int output_packet(AVInputStream *ist, int ist_index,
 
 #if CONFIG_AVFILTER
             frame_available = (ist->st->codec->codec_type == AVMEDIA_TYPE_VIDEO) &&
-                              ist->out_video_filter && avfilter_poll_frame(ist->out_video_filter->inputs[0]);
+                              ist->output_video_filter && avfilter_poll_frame(ist->output_video_filter->inputs[0]);
             if(ist->picref)
                 avfilter_unref_buffer(ist->picref);
         }
@@ -2073,33 +2072,33 @@ static int transcode(AVFormatContext **output_files,
 
             } else {
                 int best_nb_frames=-1;
-                    /* get corresponding input stream index : we select the first one with the right type */
-                    found = 0;
-                    for(j=0;j<nb_istreams;j++) {
-                        int skip=0;
-                        ist = ist_table[j];
-                        if(opt_programid){
-                            int pi,si;
-                            AVFormatContext *f= input_files[ ist->file_index ];
-                            skip=1;
-                            for(pi=0; pi<f->nb_programs; pi++){
-                                AVProgram *p= f->programs[pi];
-                                if(p->id == opt_programid)
-                                    for(si=0; si<p->nb_stream_indexes; si++){
-                                        if(f->streams[ p->stream_index[si] ] == ist->st)
-                                            skip=0;
-                                    }
-                            }
-                        }
-                        if (ist->discard && ist->st->discard != AVDISCARD_ALL && !skip &&
-                            ist->st->codec->codec_type == ost->st->codec->codec_type) {
-                            if(best_nb_frames < ist->st->codec_info_nb_frames){
-                                best_nb_frames= ist->st->codec_info_nb_frames;
-                                ost->source_index = j;
-                                found = 1;
-                            }
+                /* get corresponding input stream index : we select the first one with the right type */
+                found = 0;
+                for(j=0;j<nb_istreams;j++) {
+                    int skip=0;
+                    ist = ist_table[j];
+                    if(opt_programid){
+                        int pi,si;
+                        AVFormatContext *f= input_files[ ist->file_index ];
+                        skip=1;
+                        for(pi=0; pi<f->nb_programs; pi++){
+                            AVProgram *p= f->programs[pi];
+                            if(p->id == opt_programid)
+                                for(si=0; si<p->nb_stream_indexes; si++){
+                                    if(f->streams[ p->stream_index[si] ] == ist->st)
+                                        skip=0;
+                                }
                         }
                     }
+                    if (ist->discard && ist->st->discard != AVDISCARD_ALL && !skip &&
+                        ist->st->codec->codec_type == ost->st->codec->codec_type) {
+                        if(best_nb_frames < ist->st->codec_info_nb_frames){
+                            best_nb_frames= ist->st->codec_info_nb_frames;
+                            ost->source_index = j;
+                            found = 1;
+                        }
+                    }
+                }
 
                 if (!found) {
                     if(! opt_programid) {
@@ -2538,7 +2537,7 @@ static int transcode(AVFormatContext **output_files,
         }
 
         /* finish if limit size exhausted */
-        if (limit_filesize != 0 && limit_filesize < url_ftell(output_files[0]->pb))
+        if (limit_filesize != 0 && limit_filesize <= url_ftell(output_files[0]->pb))
             break;
 
         /* read a frame from it and output it in the fifo */
@@ -3602,7 +3601,7 @@ static void new_subtitle_stream(AVFormatContext *oc)
     subtitle_stream_copy = 0;
 }
 
-static void opt_new_audio_stream(void)
+static void opt_new_stream(const char *opt, const char *arg)
 {
     AVFormatContext *oc;
     if (nb_output_files <= 0) {
@@ -3610,29 +3609,11 @@ static void opt_new_audio_stream(void)
         ffmpeg_exit(1);
     }
     oc = output_files[nb_output_files - 1];
-    new_audio_stream(oc);
-}
 
-static void opt_new_video_stream(void)
-{
-    AVFormatContext *oc;
-    if (nb_output_files <= 0) {
-        fprintf(stderr, "At least one output file must be specified\n");
-        ffmpeg_exit(1);
-    }
-    oc = output_files[nb_output_files - 1];
-    new_video_stream(oc);
-}
-
-static void opt_new_subtitle_stream(void)
-{
-    AVFormatContext *oc;
-    if (nb_output_files <= 0) {
-        fprintf(stderr, "At least one output file must be specified\n");
-        ffmpeg_exit(1);
-    }
-    oc = output_files[nb_output_files - 1];
-    new_subtitle_stream(oc);
+    if      (!strcmp(opt, "newvideo"   )) new_video_stream   (oc);
+    else if (!strcmp(opt, "newaudio"   )) new_audio_stream   (oc);
+    else if (!strcmp(opt, "newsubtitle")) new_subtitle_stream(oc);
+    else assert(0);
 }
 
 /* arg format is "output-stream-index:streamid-value". */
@@ -4259,7 +4240,7 @@ static const OptionDef options[] = {
     { "top", HAS_ARG | OPT_EXPERT | OPT_VIDEO, {(void*)opt_top_field_first}, "top=1/bottom=0/auto=-1 field first", "" },
     { "dc", OPT_INT | HAS_ARG | OPT_EXPERT | OPT_VIDEO, {(void*)&intra_dc_precision}, "intra_dc_precision", "precision" },
     { "vtag", HAS_ARG | OPT_EXPERT | OPT_VIDEO, {(void*)opt_video_tag}, "force video tag/fourcc", "fourcc/tag" },
-    { "newvideo", OPT_VIDEO, {(void*)opt_new_video_stream}, "add a new video stream to the current output stream" },
+    { "newvideo", OPT_VIDEO | OPT_FUNC2, {(void*)opt_new_stream}, "add a new video stream to the current output stream" },
     { "vlang", HAS_ARG | OPT_STRING | OPT_VIDEO, {(void *)&video_language}, "set the ISO 639 language code (3 letters) of the current video stream" , "code" },
     { "qphist", OPT_BOOL | OPT_EXPERT | OPT_VIDEO, { (void *)&qp_hist }, "show QP histogram" },
     { "force_fps", OPT_BOOL | OPT_EXPERT | OPT_VIDEO, {(void*)&force_fps}, "force the selected framerate, disable the best supported framerate selection" },
@@ -4275,14 +4256,14 @@ static const OptionDef options[] = {
     { "acodec", HAS_ARG | OPT_AUDIO, {(void*)opt_audio_codec}, "force audio codec ('copy' to copy stream)", "codec" },
     { "atag", HAS_ARG | OPT_EXPERT | OPT_AUDIO, {(void*)opt_audio_tag}, "force audio tag/fourcc", "fourcc/tag" },
     { "vol", OPT_INT | HAS_ARG | OPT_AUDIO, {(void*)&audio_volume}, "change audio volume (256=normal)" , "volume" }, //
-    { "newaudio", OPT_AUDIO, {(void*)opt_new_audio_stream}, "add a new audio stream to the current output stream" },
+    { "newaudio", OPT_AUDIO | OPT_FUNC2, {(void*)opt_new_stream}, "add a new audio stream to the current output stream" },
     { "alang", HAS_ARG | OPT_STRING | OPT_AUDIO, {(void *)&audio_language}, "set the ISO 639 language code (3 letters) of the current audio stream" , "code" },
     { "sample_fmt", HAS_ARG | OPT_EXPERT | OPT_AUDIO, {(void*)opt_audio_sample_fmt}, "set sample format, 'list' as argument shows all the sample formats supported", "format" },
 
     /* subtitle options */
     { "sn", OPT_BOOL | OPT_SUBTITLE, {(void*)&subtitle_disable}, "disable subtitle" },
     { "scodec", HAS_ARG | OPT_SUBTITLE, {(void*)opt_subtitle_codec}, "force subtitle codec ('copy' to copy stream)", "codec" },
-    { "newsubtitle", OPT_SUBTITLE, {(void*)opt_new_subtitle_stream}, "add a new subtitle stream to the current output stream" },
+    { "newsubtitle", OPT_SUBTITLE | OPT_FUNC2, {(void*)opt_new_stream}, "add a new subtitle stream to the current output stream" },
     { "slang", HAS_ARG | OPT_STRING | OPT_SUBTITLE, {(void *)&subtitle_language}, "set the ISO 639 language code (3 letters) of the current subtitle stream" , "code" },
     { "stag", HAS_ARG | OPT_EXPERT | OPT_SUBTITLE, {(void*)opt_subtitle_tag}, "force subtitle tag/fourcc", "fourcc/tag" },
 
