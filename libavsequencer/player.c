@@ -2073,7 +2073,7 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
 
 static int16_t get_key_table_note(AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t octave, uint16_t note)
 {
-    return get_key_table(avctx, instrument, player_host_channel, (( octave * 12 ) + note));
+    return get_key_table(avctx, instrument, player_host_channel, (octave * 12) + note);
 }
 
 static int16_t get_key_table(AVSequencerContext *avctx, AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *player_host_channel, uint16_t note)
@@ -2094,7 +2094,7 @@ static int16_t get_key_table(AVSequencerContext *avctx, AVSequencerInstrument *i
     if (!(keyboard = (AVSequencerKeyboard *) instrument->keyboard_defs))
         goto do_not_play_keyboard;
 
-    i                                = ++note;
+    i                                = --note;
     note                             = ((uint16_t) (keyboard->key[i].octave & 0x7F) * 12) + keyboard->key[i].note;
     player_host_channel->sample_note = note;
 
@@ -2841,8 +2841,7 @@ find_nna:
     nna_channel         = 0;
 
     do {
-        if (!((scan_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED) || (scan_player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY)))
-        {
+        if (!((scan_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED) || (scan_player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY))) {
             *virtual_channel   = nna_channel;
             new_player_channel = scan_player_channel;
 
@@ -2909,6 +2908,8 @@ nna_found:
                     }
                 }
             }
+
+            scan_player_channel++;
         } while (++nna_channel < module->channels);
     }
 
@@ -6800,23 +6801,92 @@ EXECUTE_EFFECT(synth_ctrl)
 
 EXECUTE_EFFECT(set_synth_value)
 {
-    AVSequencerSynthWave **waveform;
-    uint16_t *synth_change;
     uint8_t synth_ctrl_count   = player_host_channel->synth_ctrl_count;
     uint16_t synth_ctrl_change = player_host_channel->synth_ctrl_change & 0x7F;
 
     player_host_channel->synth_ctrl = data_word;
-    waveform                        = (AVSequencerSynthWave **) &player_channel->sample_waveform + (synth_ctrl_change - 0x24);
-    synth_change                    = (uint16_t *) &(player_channel->entry_pos[0]) + synth_ctrl_change;
 
     do {
-        if (synth_ctrl_change < 0x24) {
-            *synth_change++ = data_word;
-        } else if (synth_ctrl_change <= 0x28) {
-            if (data_word >= player_channel->synth->waveforms)
-                break;
+        switch (synth_ctrl_change) {
+            case 0x00 :
+            case 0x01 :
+            case 0x02 :
+            case 0x03 :
+                player_channel->entry_pos[synth_ctrl_change & 3] = data_word;
 
-            *waveform++ = player_channel->waveform_list[data_word];
+                break;
+            case 0x04 :
+            case 0x05 :
+            case 0x06 :
+            case 0x07 :
+                player_channel->sustain_pos[synth_ctrl_change & 3] = data_word;
+
+                break;
+            case 0x08 :
+            case 0x09 :
+            case 0x0A :
+            case 0x0B :
+                player_channel->nna_pos[synth_ctrl_change & 3] = data_word;
+
+                break;
+            case 0x0C :
+            case 0x0D :
+            case 0x0E :
+            case 0x0F :
+                player_channel->dna_pos[synth_ctrl_change & 3] = data_word;
+
+                break;
+            case 0x10 :
+            case 0x11 :
+            case 0x12 :
+            case 0x13 :
+            case 0x14 :
+            case 0x15 :
+            case 0x16 :
+            case 0x17 :
+            case 0x18 :
+            case 0x19 :
+            case 0x1A :
+            case 0x1B :
+            case 0x1C :
+            case 0x1D :
+            case 0x1E :
+            case 0x1F :
+                player_channel->variable[synth_ctrl_change & 0xF] = data_word;
+
+                break;
+            case 0x20 :
+            case 0x21 :
+            case 0x22 :
+            case 0x23 :
+                player_channel->cond_var[synth_ctrl_change & 3] = data_word;
+
+                break;
+            case 0x24 :
+                if (data_word < player_channel->synth->waveforms)
+                    player_channel->sample_waveform = player_channel->waveform_list[data_word];
+
+                break;
+            case 0x25 :
+                if (data_word < player_channel->synth->waveforms)
+                    player_channel->vibrato_waveform = player_channel->waveform_list[data_word];
+
+                break;
+            case 0x26 :
+                if (data_word < player_channel->synth->waveforms)
+                    player_channel->tremolo_waveform = player_channel->waveform_list[data_word];
+
+                break;
+            case 0x27 :
+                if (data_word < player_channel->synth->waveforms)
+                    player_channel->pannolo_waveform = player_channel->waveform_list[data_word];
+
+                break;
+            case 0x28 :
+                if (data_word < player_channel->synth->waveforms)
+                    player_channel->arpeggio_waveform = player_channel->waveform_list[data_word];
+
+                break;
         }
     } while (synth_ctrl_count--);
 }
