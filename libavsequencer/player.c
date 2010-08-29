@@ -1202,6 +1202,7 @@ int avseq_playback_handler(AVMixerData *mixer_data)
             init_new_instrument(avctx, player_host_channel, player_channel);
 
             i = -1;
+
             while (++i < module->instruments) {
                 uint16_t smp = -1;
 
@@ -1226,35 +1227,33 @@ instrument_found:
         }
 
         if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
-rescan_row:
-            process_row(avctx, player_host_channel, player_channel, channel);
-            get_effects(avctx, player_host_channel, player_channel, channel);
+            do {
+                process_row(avctx, player_host_channel, player_channel, channel);
+                get_effects(avctx, player_host_channel, player_channel, channel);
 
-            if (player_channel->host_channel == channel) {
-                if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO)) {
-                    int32_t slide_value                = player_host_channel->vibrato_slide;
+                if (player_channel->host_channel == channel) {
+                    if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO)) {
+                        int32_t slide_value = player_host_channel->vibrato_slide;
 
-                    player_host_channel->vibrato_slide = 0;
-                    player_channel->frequency         -= slide_value;
+                        player_host_channel->vibrato_slide = 0;
+                        player_channel->frequency         -= slide_value;
+                    }
+
+                    if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOLO)) {
+                        int16_t slide_value = player_host_channel->tremolo_slide;
+
+                        player_host_channel->tremolo_slide = 0;
+
+                        if ((int16_t) (slide_value = (player_channel->volume - slide_value)) < 0)
+                            slide_value = 0;
+
+                        if (slide_value > 255)
+                            slide_value = 255;
+
+                        player_channel->volume = slide_value;
+                    }
                 }
-
-                if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOLO)) {
-                    int16_t slide_value                = player_host_channel->tremolo_slide;
-
-                    player_host_channel->tremolo_slide = 0;
-
-                    if ((slide_value = (player_channel->volume - slide_value)) < 0)
-                        slide_value = 0;
-
-                    if ((uint16_t) slide_value >= 255)
-                        slide_value = -1;
-
-                    player_channel->volume = slide_value;
-                }
-            }
-
-            if (get_note(avctx, player_host_channel, player_channel, channel))
-                goto rescan_row;
+            } while (get_note(avctx, player_host_channel, player_channel, channel));
         }
 
         player_host_channel->virtual_channels = 0;
@@ -1280,20 +1279,19 @@ rescan_row:
     player_channel  = avctx->player_channel;
 
     do {
-        AVSequencerPlayerEnvelope *player_envelope;
-
         if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED)
             player_channel->mixer.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
 
         if (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
             AVSequencerSample *sample;
+            AVSequencerPlayerEnvelope *player_envelope;
             uint32_t frequency, host_volume, virtual_volume;
             uint32_t auto_vibrato_depth, auto_vibrato_count;
             uint16_t flags, slide_envelope_value;
             int16_t auto_vibrato_value, panning, abs_panning, panning_envelope_value;
 
             player_host_channel = avctx->player_host_channel + player_channel->host_channel;
-            player_envelope     = (AVSequencerPlayerEnvelope *) &player_channel->vol_env;
+            player_envelope     = &player_channel->vol_env;
 
             if (player_envelope->tempo) {
                 uint16_t volume = run_envelope(avctx, player_envelope, 1, 0x8000);
@@ -1306,8 +1304,8 @@ rescan_row:
                 }
             }
 
-            run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_channel->pan_env, 1, 0);
-            slide_envelope_value = run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_channel->slide_env, 1, 0);
+            run_envelope(avctx, &player_channel->pan_env, 1, 0);
+            slide_envelope_value = run_envelope(avctx, &player_channel->slide_env, 1, 0);
 
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV) {
                 uint32_t old_frequency = player_channel->frequency;
@@ -1328,8 +1326,7 @@ rescan_row:
                         frequency = amiga_slide_up(player_channel, frequency, slide_envelope_value);
                     }
 
-                    old_frequency -= frequency;
-
+                    old_frequency                  -= frequency;
                     player_channel->slide_env_freq += old_frequency;
                 }
             } else {
@@ -1377,7 +1374,7 @@ rescan_row:
                 player_channel->fade_out_count = fade_out;
             }
 
-            auto_vibrato_value = run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_channel->auto_vib_env, player_channel->auto_vibrato_rate, 0);
+            auto_vibrato_value = run_envelope(avctx, &player_channel->auto_vib_env, player_channel->auto_vibrato_rate, 0);
             auto_vibrato_depth = player_channel->auto_vibrato_depth << 8;
             auto_vibrato_count = player_channel->auto_vibrato_count + player_channel->auto_vibrato_sweep;
 
@@ -1912,8 +1909,6 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
 
         return 0;
     } else if ((instr = track_data->instrument)) {
-        AVSequencerSample *sample;
-
         instr--;
 
         if ((instr >= module->instruments) || (!(instrument = module->instrument_list[instr])))
@@ -1939,17 +1934,19 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
         }
 
         if (octave_note) {
+            AVSequencerSample *sample;
+
             if ((new_player_channel = play_note(avctx, instrument, player_host_channel, player_channel, octave, note, channel)))
                 player_channel = new_player_channel;
 
-            if ((sample = player_host_channel->sample)) {
-                player_channel->volume  = sample->volume;
-                player_channel->sub_vol = sample->sub_volume;
-            }
+            sample                  = player_host_channel->sample;
+            player_channel->volume  = sample->volume;
+            player_channel->sub_vol = sample->sub_volume;
 
             init_new_instrument(avctx, player_host_channel, player_channel);
             init_new_sample(avctx, player_host_channel, player_channel);
         } else {
+            AVSequencerSample *sample;
             uint16_t note;
 
             if (!instrument)
@@ -1974,6 +1971,7 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
             }
 
+            sample                  = player_host_channel->sample;
             player_channel->volume  = sample->volume;
             player_channel->sub_vol = sample->sub_volume;
 
@@ -3973,7 +3971,7 @@ static void do_vibrato(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *
 
     player_host_channel->vibrato_depth = vibrato_depth;
 
-    vibrato_slide_value = ((-vibrato_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->vibrato_env, vibrato_rate, 0)) >> (7 - 2)) << 8;
+    vibrato_slide_value = ((-vibrato_depth * run_envelope(avctx, &player_host_channel->vibrato_env, vibrato_rate, 0)) >> (7 - 2)) << 8;
 
     if (player_channel->host_channel == channel) {
         uint32_t old_frequency     = player_channel->frequency;
@@ -4523,7 +4521,7 @@ CHECK_EFFECT(portamento)
         if ((!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES)) && (*fx_byte > AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN)) {
             uint16_t mask_volume_fx = *fx_byte;
 
-            *fx_byte -= (AVSEQ_TRACK_EFFECT_CMD_PORTA_UP - AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO);
+            *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_PORTA_UP - AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO;
             *fx_byte &= -2;
 
             if (player_host_channel->fine_slide_flags & portamento_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN - 1)])
@@ -4573,7 +4571,7 @@ CHECK_EFFECT(volume_slide)
         if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
             uint16_t mask_volume_fx = *fx_byte;
 
-            *fx_byte -= (AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_UP - AVSEQ_TRACK_EFFECT_CMD_SET_VOLUME);
+            *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_UP - AVSEQ_TRACK_EFFECT_CMD_SET_VOLUME;
             *fx_byte &= -2;
 
             if (volume_slide_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_VOL_SLD_UP)] & player_host_channel->fine_slide_flags)
@@ -4614,7 +4612,7 @@ CHECK_EFFECT(track_volume_slide)
         if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
             uint16_t mask_volume_fx = *fx_byte;
 
-            *fx_byte -= (AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_UP - AVSEQ_TRACK_EFFECT_CMD_SET_TRK_VOL);
+            *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_UP - AVSEQ_TRACK_EFFECT_CMD_SET_TRK_VOL;
             *fx_byte &= -2;
 
             if (track_volume_slide_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_TVOL_SL_UP)] & player_host_channel->fine_slide_flags)
@@ -4649,7 +4647,7 @@ CHECK_EFFECT(panning_slide)
         if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
             uint16_t mask_volume_fx = *fx_byte;
 
-            *fx_byte -= (AVSEQ_TRACK_EFFECT_CMD_PAN_SL_LEFT - AVSEQ_TRACK_EFFECT_CMD_SET_PANNING);
+            *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_PAN_SL_LEFT - AVSEQ_TRACK_EFFECT_CMD_SET_PANNING;
             *fx_byte &= -2;
 
             if (panning_slide_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_PAN_SL_LEFT)] & player_host_channel->fine_slide_flags)
@@ -4684,7 +4682,7 @@ CHECK_EFFECT(track_panning_slide)
         if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
             uint16_t mask_volume_fx = *fx_byte;
 
-            *fx_byte -= (AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_LEFT - AVSEQ_TRACK_EFFECT_CMD_SET_TRK_PAN);
+            *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_LEFT - AVSEQ_TRACK_EFFECT_CMD_SET_TRK_PAN;
             *fx_byte &= -2;
 
             if (track_panning_slide_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_TPAN_SL_LEFT)] & player_host_channel->fine_slide_flags)
@@ -4719,7 +4717,7 @@ CHECK_EFFECT(speed_slide)
         if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES)) {
             uint16_t mask_volume_fx = *fx_byte;
 
-            *fx_byte -= (AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_FAST - AVSEQ_TRACK_EFFECT_CMD_SET_SPEED);
+            *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_FAST - AVSEQ_TRACK_EFFECT_CMD_SET_SPEED;
             *fx_byte &= -2;
 
             if (speed_slide_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_SPD_SLD_FAST)] & player_host_channel->fine_slide_flags)
@@ -5853,7 +5851,7 @@ EXECUTE_EFFECT(volume_slide_to)
 EXECUTE_EFFECT(tremolo)
 {
     AVSequencerSong *song = avctx->player_song;
-    int32_t tremolo_slide_value;
+    int16_t tremolo_slide_value;
     uint8_t tremolo_rate;
     int16_t tremolo_depth;
 
@@ -5875,7 +5873,7 @@ EXECUTE_EFFECT(tremolo)
             tremolo_depth = -63;
     }
 
-    tremolo_slide_value = (-tremolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->tremolo_env, tremolo_rate, 0)) >> 7;
+    tremolo_slide_value = (-tremolo_depth * run_envelope(avctx, &player_host_channel->tremolo_env, tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         tremolo_slide_value <<= 2;
@@ -5885,14 +5883,14 @@ EXECUTE_EFFECT(tremolo)
 
         tremolo_slide_value -= player_host_channel->tremolo_slide;
 
-        if ((tremolo_slide_value += volume) < 0)
+        if ((int16_t) (tremolo_slide_value += volume) < 0)
             tremolo_slide_value = 0;
 
         if (tremolo_slide_value > 255)
             tremolo_slide_value = 255;
 
         player_channel->volume              = tremolo_slide_value;
-        player_host_channel->tremolo_slide -= tremolo_slide_value - volume;
+        player_host_channel->tremolo_slide -= volume - tremolo_slide_value;
     }
 }
 
@@ -6067,7 +6065,7 @@ EXECUTE_EFFECT(track_volume_slide_to)
 EXECUTE_EFFECT(track_tremolo)
 {
     AVSequencerSong *song = avctx->player_song;
-    int32_t track_tremolo_slide_value;
+    int16_t track_tremolo_slide_value;
     uint8_t track_tremolo_rate;
     int16_t track_tremolo_depth;
     uint16_t track_volume;
@@ -6090,7 +6088,7 @@ EXECUTE_EFFECT(track_tremolo)
             track_tremolo_depth = -63;
     }
 
-    track_tremolo_slide_value = (-track_tremolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->track_trem_env, track_tremolo_rate, 0)) >> 7;
+    track_tremolo_slide_value = (-track_tremolo_depth * run_envelope(avctx, &player_host_channel->track_trem_env, track_tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         track_tremolo_slide_value <<= 2;
@@ -6098,14 +6096,14 @@ EXECUTE_EFFECT(track_tremolo)
     track_volume               = player_host_channel->track_volume;
     track_tremolo_slide_value -= player_host_channel->track_trem_slide;
 
-    if ((track_tremolo_slide_value += track_volume) < 0)
+    if ((int16_t) (track_tremolo_slide_value += track_volume) < 0)
         track_tremolo_slide_value = 0;
 
     if (track_tremolo_slide_value > 255)
         track_tremolo_slide_value = 255;
 
     player_host_channel->track_volume      = track_tremolo_slide_value;
-    player_host_channel->track_trem_slide -= track_tremolo_slide_value - track_volume;
+    player_host_channel->track_trem_slide -= track_volume - track_tremolo_slide_value;
 }
 
 EXECUTE_EFFECT(set_panning)
@@ -6310,7 +6308,7 @@ EXECUTE_EFFECT(panning_slide_to)
 
 EXECUTE_EFFECT(pannolo)
 {
-    int32_t pannolo_slide_value;
+    int16_t pannolo_slide_value;
     uint8_t pannolo_rate;
     int16_t pannolo_depth;
 
@@ -6324,20 +6322,20 @@ EXECUTE_EFFECT(pannolo)
 
     player_host_channel->pannolo_depth = pannolo_depth;
 
-    pannolo_slide_value = (-pannolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
+    pannolo_slide_value = (-pannolo_depth * run_envelope(avctx, &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
 
     if (player_channel->host_channel == channel) {
-        uint16_t panning     = (uint8_t) player_channel->panning;
+        int16_t panning      = (uint8_t) player_channel->panning;
         pannolo_slide_value -= player_host_channel->pannolo_slide;
 
-        if ((pannolo_slide_value += panning) < 0)
+        if ((int16_t) (pannolo_slide_value += panning) < 0)
             pannolo_slide_value = 0;
 
         if (pannolo_slide_value > 255)
             pannolo_slide_value = 255;
 
         player_channel->panning                 = pannolo_slide_value;
-        player_host_channel->pannolo_slide     -= pannolo_slide_value - panning;
+        player_host_channel->pannolo_slide     -= panning - pannolo_slide_value;
         player_host_channel->track_note_pan     = player_host_channel->track_panning = panning;
         player_host_channel->track_note_sub_pan = player_host_channel->track_sub_pan = player_channel->sub_pan;
     }
@@ -6530,7 +6528,7 @@ EXECUTE_EFFECT(track_panning_slide_to)
 
 EXECUTE_EFFECT(track_pannolo)
 {
-    int32_t track_pannolo_slide_value;
+    int16_t track_pannolo_slide_value;
     uint8_t track_pannolo_rate;
     int16_t track_pannolo_depth;
     uint16_t track_panning;
@@ -6544,19 +6542,19 @@ EXECUTE_EFFECT(track_pannolo)
         track_pannolo_depth = player_host_channel->track_pan_depth;
 
     player_host_channel->track_pan_depth = track_pannolo_depth;
-    track_pannolo_slide_value            = (-track_pannolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
+    track_pannolo_slide_value            = (-track_pannolo_depth * run_envelope(avctx, &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
 
     track_panning              = (uint8_t) player_host_channel->track_panning;
     track_pannolo_slide_value -= player_host_channel->track_pan_slide;
 
-    if ((track_pannolo_slide_value += track_panning) < 0)
+    if ((int16_t) (track_pannolo_slide_value += track_panning) < 0)
         track_pannolo_slide_value = 0;
 
     if (track_pannolo_slide_value > 255)
         track_pannolo_slide_value = 255;
 
     player_host_channel->track_panning    = track_pannolo_slide_value;
-    player_host_channel->track_pan_slide -= track_pannolo_slide_value - track_panning;
+    player_host_channel->track_pan_slide -= track_panning - track_pannolo_slide_value;
 }
 
 EXECUTE_EFFECT(set_tempo)
@@ -7541,7 +7539,7 @@ EXECUTE_EFFECT(global_tremolo)
 {
     AVSequencerSong *song                    = avctx->player_song;
     AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
-    int32_t global_tremolo_slide_value;
+    int16_t global_tremolo_slide_value;
     uint8_t global_tremolo_rate;
     int16_t global_tremolo_depth;
     uint16_t global_volume;
@@ -7564,7 +7562,7 @@ EXECUTE_EFFECT(global_tremolo)
             global_tremolo_depth = -63;
     }
 
-    global_tremolo_slide_value = (-global_tremolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7L;
+    global_tremolo_slide_value = (-global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7L;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         global_tremolo_slide_value <<= 2;
@@ -7572,14 +7570,14 @@ EXECUTE_EFFECT(global_tremolo)
     global_volume               = player_globals->global_volume;
     global_tremolo_slide_value -= player_globals->tremolo_slide;
 
-    if ((global_tremolo_slide_value += global_volume) < 0)
+    if ((int16_t) (global_tremolo_slide_value += global_volume) < 0)
         global_tremolo_slide_value = 0;
 
     if (global_tremolo_slide_value > 255)
         global_tremolo_slide_value = 255;
 
     player_globals->global_volume  = global_tremolo_slide_value;
-    player_globals->tremolo_slide -= global_tremolo_slide_value - global_volume;
+    player_globals->tremolo_slide -= global_volume - global_tremolo_slide_value;
 }
 
 EXECUTE_EFFECT(set_global_panning)
@@ -7776,7 +7774,7 @@ EXECUTE_EFFECT(global_panning_slide_to)
 EXECUTE_EFFECT(global_pannolo)
 {
     AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
-    int32_t global_pannolo_slide_value;
+    int16_t global_pannolo_slide_value;
     uint8_t global_pannolo_rate;
     int16_t global_pannolo_depth;
     uint16_t global_panning;
@@ -7790,18 +7788,18 @@ EXECUTE_EFFECT(global_pannolo)
         global_pannolo_depth = player_globals->pannolo_depth;
 
     player_globals->pannolo_depth = global_pannolo_depth;
-    global_pannolo_slide_value    = (-global_pannolo_depth * run_envelope(avctx, (AVSequencerPlayerEnvelope *) &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
+    global_pannolo_slide_value    = (-global_pannolo_depth * run_envelope(avctx, &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
     global_panning                = (uint8_t) player_globals->global_panning;
     global_pannolo_slide_value   -= player_globals->pannolo_slide;
 
-    if ((global_pannolo_slide_value += global_panning) < 0)
+    if ((int16_t) (global_pannolo_slide_value += global_panning) < 0)
         global_pannolo_slide_value = 0;
 
     if (global_pannolo_slide_value > 255)
         global_pannolo_slide_value = 255;
 
     player_globals->global_panning = global_pannolo_slide_value;
-    player_globals->pannolo_slide -= global_pannolo_slide_value - global_panning;
+    player_globals->pannolo_slide -= global_panning - global_pannolo_slide_value;
 }
 
 EXECUTE_EFFECT(user_sync)
@@ -7965,7 +7963,7 @@ static void se_tremolo_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *p
         tremolo_slide_value = 255;
 
     player_channel->volume                  = tremolo_slide_value;
-    player_channel->tremolo_slide          -= tremolo_slide_value - volume;
+    player_channel->tremolo_slide          -= volume - tremolo_slide_value;
 }
 
 static void se_pannolo_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t pannolo_slide_value)
@@ -7981,7 +7979,7 @@ static void se_pannolo_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *p
         pannolo_slide_value = 255;
 
     player_channel->panning                 = pannolo_slide_value;
-    player_channel->pannolo_slide          -= pannolo_slide_value - panning;
+    player_channel->pannolo_slide          -= panning - pannolo_slide_value;
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(stop)

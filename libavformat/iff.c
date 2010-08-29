@@ -2944,7 +2944,7 @@ static int iff_read_seek(AVFormatContext *s,
 
             avseq_module_stop(iff->avctx, 0);
 
-            if ((flags & AVSEEK_FLAG_BACKWARD) || (timestamp <= 0)) {
+            if (flags & AVSEEK_FLAG_BACKWARD) {
                 if ((res = avseq_song_reset(iff->avctx, iff->avctx->player_song)) < 0) {
                     iff->avctx->player_mixer_data = old_mixer_data;
                     avsequencer_destroy(iff->avctx);
@@ -2974,17 +2974,21 @@ static int iff_read_seek(AVFormatContext *s,
             avseq_mixer_set_tempo(mixer_data, tempo);
             avseq_mixer_set_volume(mixer_data, 0, 0, 0, iff->avctx->player_module->channels);
 
-            channel = iff->avctx->player_module->channels - 1;
+            size      = st->codec->channels * mixer_data->mix_buf_size << 2;
+            timestamp = (timestamp * AV_TIME_BASE * st->time_base.num) / st->time_base.den;
 
-            do {
-                AVMixerChannel mixer_channel;
+            if (flags & AVSEEK_FLAG_BACKWARD) {
+                timestamp += player_globals->play_time;
+            } else {
+                channel = iff->avctx->player_module->channels - 1;
 
-                avseq_mixer_get_channel(old_mixer_data, &mixer_channel, channel);
-                avseq_mixer_set_channel(mixer_data, &mixer_channel, channel);
-            } while (--channel);
+                do {
+                    AVMixerChannel mixer_channel;
 
-            size           = st->codec->channels * mixer_data->mix_buf_size << 2;
-            timestamp      = ((timestamp * AV_TIME_BASE * st->time_base.num) / st->time_base.den) + player_globals->play_time;
+                    avseq_mixer_get_channel(old_mixer_data, &mixer_channel, channel);
+                    avseq_mixer_set_channel(mixer_data, &mixer_channel, channel);
+                } while (--channel);
+            }
 
             while (player_globals->play_time < timestamp) {
                 avseq_mixer_do_mix(mixer_data, NULL);
