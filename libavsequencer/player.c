@@ -2301,7 +2301,6 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     player_channel->auto_vibrato_freq  = 0;
     player_channel->auto_tremolo_vol   = 0;
     player_channel->auto_pannolo_pan   = 0;
-
     player_channel->slide_env_freq     = 0;
     player_channel->flags             &= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
     player_host_channel->vibrato_slide = 0;
@@ -2310,11 +2309,13 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     if (sample->env_proc_flags & AVSEQ_SAMPLE_FLAG_PROC_LINEAR_AUTO_VIB)
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
 
-    if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV)
-        player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV;
+    if (instrument) {
+        if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV)
+            player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV;
 
-    if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_LINEAR_SLIDE_ENV)
-        player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV;
+        if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_LINEAR_SLIDE_ENV)
+            player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV;
+    }
 
     assign_envelope = (void *) &assign_envelope_lut;
     i               = 0;
