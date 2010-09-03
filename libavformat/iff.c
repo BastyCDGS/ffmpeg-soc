@@ -32,7 +32,7 @@
 #include "libavutil/intreadwrite.h"
 #include "libavcodec/iff.h"
 #include "avformat.h"
-#include "raw.h"
+#include "pcm.h"
 
 #if CONFIG_AVSEQUENCER
 #include "libavutil/avstring.h"
