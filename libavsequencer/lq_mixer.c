@@ -1341,8 +1341,8 @@ CHANNEL_PREPARE(stereo_32_center)
 
 MIX(skip)
 {
-    uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
-    uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
     skip_div     = skip_len >> 32;
     curr_offset += skip_div;
@@ -1358,8 +1358,8 @@ MIX(skip)
 
 MIX(skip_backwards)
 {
-    uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
-    uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
     skip_div     = skip_len >> 32;
     curr_offset -= skip_div;

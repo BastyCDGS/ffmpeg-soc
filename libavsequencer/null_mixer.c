@@ -53,7 +53,6 @@ typedef struct AV_NULLMixerChannelInfo {
         uint32_t fraction;
         uint32_t advance;
         uint32_t advance_frac;
-        void (*mix_func)(AV_NULLMixerData *mixer_data, struct AV_NULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
         uint32_t end_offset;
         uint32_t restart_offset;
         uint32_t repeat;
@@ -61,7 +60,6 @@ typedef struct AV_NULLMixerChannelInfo {
         uint32_t count_restart;
         uint32_t counted;
         uint32_t rate;
-        void (*mix_backwards_func)(AV_NULLMixerData *mixer_data, struct AV_NULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint16_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
         uint8_t volume;
@@ -98,7 +96,6 @@ static const AVClass avseq_null_mixer_class = {
 
 static void mix_sample(AV_NULLMixerData *mixer_data, int32_t *buf, uint32_t len);
 static void set_sample_mix_rate(AV_NULLMixerData *mixer_data, struct ChannelBlock *channel_block, uint32_t rate);
-static void set_mix_functions(AV_NULLMixerData *mixer_data, struct ChannelBlock *channel_block);
 
 #define MIX(type)                                                               \
     static void mix_##type(AV_NULLMixerData *mixer_data,                        \
@@ -399,9 +396,6 @@ static av_cold void set_channel_volume_panning_pitch(AVMixerData *mixer_data, AV
         rate_frac                          = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
         channel_info->current.advance_frac = rate_frac;
         channel_info->next.advance_frac    = rate_frac;
-
-        set_mix_functions(null_mixer_data, &channel_info->current);
-        set_mix_functions(null_mixer_data, &channel_info->next);
     }
 }
 
@@ -475,8 +469,6 @@ static av_cold void set_channel_position_repeat_flags(AVMixerData *mixer_data, A
         channel_info->current.restart_offset = repeat_len;
         channel_info->current.count_restart  = mixer_channel->repeat_count;
         channel_info->current.counted        = mixer_channel->repeat_counted;
-
-        set_mix_functions(null_mixer_data, &channel_info->current);
     }
 }
 
@@ -529,7 +521,6 @@ static void mix_sample(AV_NULLMixerData *mixer_data, int32_t *buf, uint32_t len)
 
     for (i = mixer_data->channels_in; i > 0; i--) {
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
-            void (*mix_func)(AV_NULLMixerData *mixer_data, AV_NULLMixerChannelInfo *channel_info, int32_t **buf, uint32_t *offset, uint32_t *fraction, uint32_t advance, uint32_t adv_frac, uint32_t len);
             int32_t *mix_buf    = buf;
             uint32_t offset     = channel_info->current.offset;
             uint32_t fraction   = channel_info->current.fraction;
@@ -540,8 +531,6 @@ static void mix_sample(AV_NULLMixerData *mixer_data, int32_t *buf, uint32_t len)
             uint32_t count_restart;
             uint64_t calc_mix;
 
-            mix_func = (void *) channel_info->current.mix_func;
-
             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
 mix_sample_backwards:
                 for (;;) {
@@ -549,7 +538,7 @@ mix_sample_backwards:
 
                     if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
+                            mix_skip_backwards(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
 
                             if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
                                 remain_len = 0;
@@ -559,7 +548,7 @@ mix_sample_backwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            mix_skip_backwards(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
 
                             if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -576,18 +565,12 @@ mix_sample_backwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                void *mixer_change_func;
-
                                 if (channel_info->next.sample_start_ptr) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
                                     channel_info->next.sample_start_ptr = NULL;
                                 }
 
-                                mixer_change_func                        = (void *) channel_info->current.mix_backwards_func;
-                                channel_info->current.mix_backwards_func = (void *) mix_func;
-                                mix_func                                 = (void *) mixer_change_func;
-                                channel_info->current.mix_func           = (void *) mix_func;
                                 channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
                                 remain_mix                               = channel_info->current.end_offset;
                                 offset                                  -= remain_mix;
@@ -627,7 +610,7 @@ mix_sample_forwards:
 
                     if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
+                            mix_skip(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, remain_len);
 
                             if (offset >= channel_info->current.end_offset)
                                 remain_len = 0;
@@ -637,7 +620,7 @@ mix_sample_forwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            mix_skip(mixer_data, channel_info, (int32_t **) &mix_buf, (uint32_t *) &offset, (uint32_t *) &fraction, advance, adv_frac, (uint32_t) calc_mix);
 
                             if ((offset < channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -654,18 +637,12 @@ mix_sample_forwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                void *mixer_change_func;
-
                                 if (channel_info->next.sample_start_ptr) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
                                     channel_info->next.sample_start_ptr = NULL;
                                 }
 
-                                mixer_change_func                        = (void *) channel_info->current.mix_backwards_func;
-                                channel_info->current.mix_backwards_func = (void *) mix_func;
-                                mix_func                                 = (void *) mixer_change_func;
-                                channel_info->current.mix_func           = (void *) mix_func;
                                 channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
                                 remain_mix                               = channel_info->current.end_offset;
                                 offset                                  -= remain_mix;
@@ -726,25 +703,12 @@ static void set_sample_mix_rate(AV_NULLMixerData *mixer_data, struct ChannelBloc
     mix_rate                    = mixer_data->mix_rate;
     channel_block->advance      = rate / mix_rate;
     channel_block->advance_frac = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
-
-    set_mix_functions(mixer_data, channel_block);
-}
-
-static void set_mix_functions(AV_NULLMixerData *mixer_data, struct ChannelBlock *channel_block)
-{
-    if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-        channel_block->mix_func           = (void *) mix_skip_backwards;
-        channel_block->mix_backwards_func = (void *) mix_skip;
-    } else {
-        channel_block->mix_func           = (void *) mix_skip;
-        channel_block->mix_backwards_func = (void *) mix_skip_backwards;
-    }
 }
 
 MIX(skip)
 {
-    uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
-    uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
     skip_div     = skip_len >> 32;
     curr_offset += skip_div;
@@ -760,8 +724,8 @@ MIX(skip)
 
 MIX(skip_backwards)
 {
-    uint32_t curr_offset = *offset, curr_frac = *fraction, skip_div;
-    uint64_t skip_len    = (((uint64_t) advance << 32) + adv_frac) * len;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
     skip_div     = skip_len >> 32;
     curr_offset -= skip_div;

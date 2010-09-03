@@ -55,7 +55,7 @@ enum AVSequencerPlayerEnvelopeRepFlags {
 typedef struct AVSequencerPlayerEnvelope {
     /** Pointer to associated instrument envelope this envelope
        belongs to.  */
-    AVSequencerEnvelope *envelope;
+    const AVSequencerEnvelope *envelope;
 
     /** The current data value last processed by this envelope.
        For a volume envelope, we have a default scale range of -32767
@@ -686,19 +686,19 @@ typedef struct AVSequencerPlayerHostChannel {
 
     /** Pointer to sequencer track data currently being
        played by this host channel.  */
-    AVSequencerTrack *track;
+    const AVSequencerTrack *track;
 
     /** Pointer to sequencer track effect currently being
        processed by this host channel.  */
-    AVSequencerTrackEffect *effect;
+    const AVSequencerTrackEffect *effect;
 
     /** Pointer to sequencer instrument currently being
        played by this host channel.  */
-    AVSequencerInstrument *instrument;
+    const AVSequencerInstrument *instrument;
 
     /** Pointer to sequencer sample currently being played
        by this host channel.  */
-    AVSequencerSample *sample;
+    const AVSequencerSample *sample;
 
     /** Current row of track being played by this host channel.  */
     uint16_t row;
@@ -1361,40 +1361,40 @@ typedef struct AVSequencerPlayerHostChannel {
     /** Pointer to the previous volume envelope which was played by
        this host channel or NULL if there was no previous
        envelope.  */
-    AVSequencerEnvelope *prev_volume_env;
+    const AVSequencerEnvelope *prev_volume_env;
 
     /** Pointer to the previous panning (panbrello) envelope which
        was played by this host channel or NULL if there was no
        previous envelope.  */
-    AVSequencerEnvelope *prev_panning_env;
+    const AVSequencerEnvelope *prev_panning_env;
 
     /** Pointer to the previous slide envelope which was played by
        this host channel or NULL if there was no previous
        envelope.  */
-    AVSequencerEnvelope *prev_slide_env;
+    const AVSequencerEnvelope *prev_slide_env;
 
     /** Pointer to the previous envelope data interpreted as resonance
        filter control or NULL if there was no previous envelope.  */
-    AVSequencerEnvelope *prev_resonance_env;
+    const AVSequencerEnvelope *prev_resonance_env;
 
     /** Pointer to the previous auto vibrato envelope which was
        played by this host channel or NULL if there was no previous
        envelope.  */
-    AVSequencerEnvelope *prev_auto_vib_env;
+    const AVSequencerEnvelope *prev_auto_vib_env;
 
     /** Pointer to the previous auto tremolo envelope which was
        played by this host channel or NULL if there was no previous
        envelope.  */
-    AVSequencerEnvelope *prev_auto_trem_env;
+    const AVSequencerEnvelope *prev_auto_trem_env;
 
     /** Pointer to the previous auto pannolo (panbrello) envelope
        which was played by this host channel or NULL if there was
        no previous envelope.  */
-    AVSequencerEnvelope *prev_auto_pan_env;
+    const AVSequencerEnvelope *prev_auto_pan_env;
 
     /** Array (of size waveforms) of pointers containing attached
        waveforms used by this host channel.  */
-    AVSequencerSynthWave **waveform_list;
+    AVSequencerSynthWave *const *waveform_list;
 
     /** Number of attached waveforms used by this host channel.  */
     uint16_t waveforms;
@@ -1402,7 +1402,7 @@ typedef struct AVSequencerPlayerHostChannel {
     /** Pointer to player synth sound definition for the
        current host channel for obtaining the synth
        sound code.  */
-    AVSequencerSynth *synth;
+    const AVSequencerSynth *synth;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the
@@ -1530,11 +1530,11 @@ typedef struct AVSequencerPlayerChannel {
 
     /** Pointer to player instrument definition for the current
        virtual channel for obtaining instrument stuff.  */
-    AVSequencerInstrument *instrument;
+    const AVSequencerInstrument *instrument;
 
     /** Pointer to player sound sample definition for the
        current virtual channel for obtaining sample data.  */
-    AVSequencerSample *sample;
+    const AVSequencerSample *sample;
 
     /** Current output frequency in Hz of currently playing sample
        or waveform. This will be forwarded after relative pitch
@@ -1745,34 +1745,34 @@ typedef struct AVSequencerPlayerChannel {
 
     /** Array (of size waveforms) of pointers containing attached
        waveforms used by this virtual channel.  */
-    AVSequencerSynthWave **waveform_list;
+    AVSequencerSynthWave *const *waveform_list;
 
     /** Number of attached waveforms used by this virtual channel.  */
     uint16_t waveforms;
 
     /** Pointer to sequencer sample synth sound currently being played
        by this virtual channel for obtaining the synth sound code.  */
-    AVSequencerSynth *synth;
+    const AVSequencerSynth *synth;
 
     /** Pointer to current sample data waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerSynthWave *sample_waveform;
+    const AVSequencerSynthWave *sample_waveform;
 
     /** Pointer to current vibrato waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerSynthWave *vibrato_waveform;
+    const AVSequencerSynthWave *vibrato_waveform;
 
     /** Pointer to current tremolo waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerSynthWave *tremolo_waveform;
+    const AVSequencerSynthWave *tremolo_waveform;
 
     /** Pointer to current pannolo (panbrello) waveform used by the
        synth sound currently being played by this virtual channel.  */
-    AVSequencerSynthWave *pannolo_waveform;
+    const AVSequencerSynthWave *pannolo_waveform;
 
     /** Pointer to current arpeggio data waveform used by the synth
        sound currently being played by this virtual channel.  */
-    AVSequencerSynthWave *arpeggio_waveform;
+    const AVSequencerSynthWave *arpeggio_waveform;
 
     /** Current entry position (line number) of volume [0], panning
        [1], slide [2] and special [3] handling code or 0 if the
