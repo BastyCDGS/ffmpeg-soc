@@ -1164,8 +1164,8 @@ int avseq_playback_handler(AVMixerData *mixer_data)
                                                     note % 12, channel)))
                     player_channel = new_player_channel;
 
-                player_channel->volume  = player_host_channel->sample_note;
-                player_channel->sub_vol = 0;
+                player_channel->volume     = player_host_channel->sample_note;
+                player_channel->sub_volume = 0;
 
                 init_new_instrument(avctx, player_host_channel, player_channel);
                 init_new_sample(avctx, player_host_channel, player_channel);
@@ -1197,7 +1197,7 @@ int avseq_playback_handler(AVMixerData *mixer_data)
             player_channel->sample               = sample;
             player_channel->frequency            = frequency;
             player_channel->volume               = player_host_channel->instr_note;
-            player_channel->sub_vol              = 0;
+            player_channel->sub_volume           = 0;
             player_host_channel->instr_note      = 0;
 
             init_new_instrument(avctx, player_host_channel, player_channel);
@@ -1456,10 +1456,10 @@ turn_note_off:
                 goto turn_note_off;
 
             if (!(song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY)) {
-                player_channel->global_volume  = player_globals->global_volume;
-                player_channel->global_sub_vol = player_globals->global_sub_volume;
-                player_channel->global_panning = player_globals->global_panning;
-                player_channel->global_sub_pan = player_globals->global_sub_panning;
+                player_channel->global_volume      = player_globals->global_volume;
+                player_channel->global_sub_volume  = player_globals->global_sub_volume;
+                player_channel->global_panning     = player_globals->global_panning;
+                player_channel->global_sub_panning = player_globals->global_sub_panning;
             }
 
             host_volume = player_channel->volume;
@@ -1939,9 +1939,9 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
             if ((new_player_channel = play_note(avctx, instrument, player_host_channel, player_channel, octave, note, channel)))
                 player_channel = new_player_channel;
 
-            sample                  = player_host_channel->sample;
-            player_channel->volume  = sample->volume;
-            player_channel->sub_vol = sample->sub_volume;
+            sample                     = player_host_channel->sample;
+            player_channel->volume     = sample->volume;
+            player_channel->sub_volume = sample->sub_volume;
 
             init_new_instrument(avctx, player_host_channel, player_channel);
             init_new_sample(avctx, player_host_channel, player_channel);
@@ -1971,9 +1971,9 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
             }
 
-            sample                  = player_host_channel->sample;
-            player_channel->volume  = sample->volume;
-            player_channel->sub_vol = sample->sub_volume;
+            sample                     = player_host_channel->sample;
+            player_channel->volume     = sample->volume;
+            player_channel->sub_volume = sample->sub_volume;
 
             init_new_instrument(avctx, player_host_channel, player_channel);
 
@@ -2005,20 +2005,20 @@ static uint32_t get_note(AVSequencerContext *avctx, AVSequencerPlayerHostChannel
             new_player_channel->mixer.pos = sample->start_offset;
 
             if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY) {
-                new_player_channel->volume  = player_channel->volume;
-                new_player_channel->sub_vol = player_channel->sub_vol;
+                new_player_channel->volume     = player_channel->volume;
+                new_player_channel->sub_volume = player_channel->sub_volume;
             } else if (player_channel != new_player_channel) {
                 new_player_channel->volume               = player_channel->volume;
-                new_player_channel->sub_vol              = player_channel->sub_vol;
+                new_player_channel->sub_volume           = player_channel->sub_volume;
                 new_player_channel->instr_volume         = player_channel->instr_volume;
                 new_player_channel->panning              = player_channel->panning;
-                new_player_channel->sub_pan              = player_channel->sub_pan;
+                new_player_channel->sub_panning          = player_channel->sub_panning;
                 new_player_channel->final_volume         = player_channel->final_volume;
                 new_player_channel->final_panning        = player_channel->final_panning;
                 new_player_channel->global_volume        = player_channel->global_volume;
-                new_player_channel->global_sub_vol       = player_channel->global_sub_vol;
+                new_player_channel->global_sub_volume    = player_channel->global_sub_volume;
                 new_player_channel->global_panning       = player_channel->global_panning;
-                new_player_channel->global_sub_pan       = player_channel->global_sub_pan;
+                new_player_channel->global_sub_panning   = player_channel->global_sub_panning;
                 new_player_channel->volume_swing         = player_channel->volume_swing;
                 new_player_channel->panning_swing        = player_channel->panning_swing;
                 new_player_channel->pitch_swing          = player_channel->pitch_swing;
@@ -2273,12 +2273,12 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         volume = sample->global_volume * 255;
     }
 
-    player_channel->instr_volume   = volume;
-    player_globals                 = avctx->player_globals;
-    player_channel->global_volume  = player_globals->global_volume;
-    player_channel->global_sub_vol = player_globals->global_sub_volume;
-    player_channel->global_panning = player_globals->global_panning;
-    player_channel->global_sub_pan = player_globals->global_sub_panning;
+    player_channel->instr_volume       = volume;
+    player_globals                     = avctx->player_globals;
+    player_channel->global_volume      = player_globals->global_volume;
+    player_channel->global_sub_volume  = player_globals->global_sub_volume;
+    player_channel->global_panning     = player_globals->global_panning;
+    player_channel->global_sub_panning = player_globals->global_sub_panning;
 
     if (instrument) {
         player_channel->fade_out       = instrument->fade_out;
@@ -2326,10 +2326,8 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         uint16_t mask = 1 << i;
 
         if (instrument) {
-            if (assign_envelope[i](avctx, instrument, player_host_channel, player_channel, &envelope, &player_envelope)) {
-                if (instrument->env_usage_flags & mask)
-                    continue;
-            }
+            if (assign_envelope[i](avctx, instrument, player_host_channel, player_channel, &envelope, &player_envelope) && (instrument->env_usage_flags & mask))
+                continue;
 
             if ((player_envelope->envelope = envelope)) {
                 uint8_t flags         = 0;
@@ -2379,7 +2377,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
     } while (++i < (sizeof (assign_envelope_lut) / sizeof (void *)));
 
     player_channel->vol_env.value = -1;
-             assign_auto_envelope = (void *) &assign_auto_envelope_lut;
+    assign_auto_envelope          = (void *) &assign_auto_envelope_lut;
     i                             = 0;
 
     do {
@@ -2430,7 +2428,7 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
         }
     } while (++i < (sizeof (assign_auto_envelope_lut) / sizeof (void *)));
 
-    panning                = (uint8_t) player_host_channel->track_note_pan;
+    panning                = (uint8_t) player_host_channel->track_note_panning;
     player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN;
 
     if (sample->flags & AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING) {
@@ -2440,24 +2438,24 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
             player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
 
         player_channel->panning            = sample->panning;
-        player_channel->sub_pan            = sample->sub_panning;
+        player_channel->sub_panning        = sample->sub_panning;
         player_host_channel->pannolo_slide = 0;
         panning                            = (uint8_t) player_channel->panning;
 
         if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
-            player_host_channel->track_panning      = panning;
-            player_host_channel->track_sub_pan      = player_channel->sub_pan;
-            player_host_channel->track_note_pan     = panning;
-            player_host_channel->track_note_sub_pan = player_channel->sub_pan;
-            player_host_channel->flags             &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+            player_host_channel->track_panning          = panning;
+            player_host_channel->track_sub_panning      = player_channel->sub_panning;
+            player_host_channel->track_note_panning     = panning;
+            player_host_channel->track_note_sub_panning = player_channel->sub_panning;
+            player_host_channel->flags                 &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
 
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                 player_host_channel->flags         |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
         }
     } else {
-        player_channel->panning = player_host_channel->track_panning;
-        player_channel->sub_pan = player_host_channel->track_sub_pan;
-        player_channel->flags  &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+        player_channel->panning     = player_host_channel->track_panning;
+        player_channel->sub_panning = player_host_channel->track_sub_panning;
+        player_channel->flags      &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN)
             player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
@@ -2478,18 +2476,17 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
             if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
 
-            player_channel->panning = instrument->default_panning;
-            player_channel->sub_pan = instrument->default_sub_pan;
+            player_channel->panning     = instrument->default_panning;
+            player_channel->sub_panning = instrument->default_sub_pan;
         }
 
         player_host_channel->pannolo_slide = 0;
         panning                            = (uint8_t) player_channel->panning;
 
         if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
-            player_host_channel->track_panning = player_channel->panning;
-            player_host_channel->track_sub_pan = player_channel->sub_pan;
-
-            player_host_channel->flags &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
+            player_host_channel->track_panning     = player_channel->panning;
+            player_host_channel->track_sub_panning = player_channel->sub_panning;
+            player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
 
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                 player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
@@ -4007,28 +4004,28 @@ static uint32_t check_old_volume(AVSequencerContext *avctx, AVSequencerPlayerCha
 static void do_volume_slide(AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel)
 {
     if (check_old_volume(avctx, player_channel, &data_word, channel)) {
-        uint16_t slide_volume = (player_channel->volume << 8U) + player_channel->sub_vol;
+        uint16_t slide_volume = (player_channel->volume << 8U) + player_channel->sub_volume;
 
         if ((slide_volume += data_word) < data_word)
             slide_volume = 0xFFFF;
 
-        player_channel->volume  = slide_volume >> 8;
-        player_channel->sub_vol = slide_volume;
+        player_channel->volume     = slide_volume >> 8;
+        player_channel->sub_volume = slide_volume;
     }
 }
 
 static void do_volume_slide_down(AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel)
 {
     if (check_old_volume(avctx, player_channel, &data_word, channel)) {
-        uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_vol;
+        uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_volume;
 
         if (slide_volume < data_word)
             data_word = slide_volume;
 
         slide_volume -= data_word;
 
-        player_channel->volume  = slide_volume >> 8;
-        player_channel->sub_vol = slide_volume;
+        player_channel->volume     = slide_volume >> 8;
+        player_channel->sub_volume = slide_volume;
     }
 }
 
@@ -4141,103 +4138,103 @@ static uint32_t check_old_track_volume(AVSequencerContext *avctx, uint16_t *data
 static void do_track_volume_slide(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word)
 {
     if (check_old_track_volume(avctx, &data_word)) {
-        uint16_t track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+        uint16_t track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_volume;
 
         if ((track_volume += data_word) < data_word)
             track_volume = 0xFFFF;
 
-        player_host_channel->track_volume  = track_volume >> 8;
-        player_host_channel->track_sub_vol = track_volume;
+        player_host_channel->track_volume     = track_volume >> 8;
+        player_host_channel->track_sub_volume = track_volume;
     }
 }
 
 static void do_track_volume_slide_down(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word)
 {
     if (check_old_track_volume(avctx, &data_word)) {
-        uint16_t track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+        uint16_t track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_volume;
 
         if (track_volume < data_word)
             data_word = track_volume;
 
-        track_volume                      -= data_word;
-        player_host_channel->track_volume  = track_volume >> 8;
-        player_host_channel->track_sub_vol = track_volume;
+        track_volume                         -= data_word;
+        player_host_channel->track_volume     = track_volume >> 8;
+        player_host_channel->track_sub_volume = track_volume;
     }
 }
 
 static void do_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel)
 {
     if (player_channel->host_channel == channel) {
-        uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+        uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
         if (panning < data_word)
             data_word = panning;
 
         panning -= data_word;
 
-        player_host_channel->track_panning = player_channel->panning = panning >> 8;
-        player_host_channel->track_sub_pan = player_channel->sub_pan = panning;
+        player_host_channel->track_panning     = player_channel->panning     = panning >> 8;
+        player_host_channel->track_sub_panning = player_channel->sub_panning = panning;
     } else {
-        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_panning;
 
         if (track_panning < data_word)
             data_word = track_panning;
 
-        track_panning                     -= data_word;
-        player_host_channel->track_panning = track_panning >> 8;
-        player_host_channel->track_sub_pan = track_panning;
+        track_panning                         -= data_word;
+        player_host_channel->track_panning     = track_panning >> 8;
+        player_host_channel->track_sub_panning = track_panning;
     }
 
-    player_host_channel->track_note_pan     = player_host_channel->track_panning;
-    player_host_channel->track_note_sub_pan = player_host_channel->track_sub_pan;
+    player_host_channel->track_note_panning     = player_host_channel->track_panning;
+    player_host_channel->track_note_sub_panning = player_host_channel->track_sub_panning;
 }
 
 static void do_panning_slide_right(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t data_word, uint16_t channel)
 {
     if (player_channel->host_channel == channel) {
-        uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+        uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
         if ((panning += data_word) < data_word)
             panning = 0xFFFF;
 
-        player_host_channel->track_panning = player_channel->panning = panning >> 8;
-        player_host_channel->track_sub_pan = player_channel->sub_pan = panning;
+        player_host_channel->track_panning     = player_channel->panning     = panning >> 8;
+        player_host_channel->track_sub_panning = player_channel->sub_panning = panning;
     } else {
-        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+        uint16_t track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_panning;
 
         if ((track_panning += data_word) < data_word)
             track_panning = 0xFFFF;
 
-        player_host_channel->track_panning = track_panning >> 8U;
-        player_host_channel->track_sub_pan = track_panning;
+        player_host_channel->track_panning     = track_panning >> 8;
+        player_host_channel->track_sub_panning = track_panning;
     }
 
-    player_host_channel->track_note_pan     = player_host_channel->track_panning;
-    player_host_channel->track_note_sub_pan = player_host_channel->track_sub_pan;
+    player_host_channel->track_note_panning     = player_host_channel->track_panning;
+    player_host_channel->track_note_sub_panning = player_host_channel->track_sub_panning;
 }
 
 static void do_track_panning_slide(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word)
 {
-    uint16_t channel_panning = ((uint8_t) player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
+    uint16_t channel_panning = ((uint8_t) player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_panning;
 
     if (channel_panning < data_word)
         data_word = channel_panning;
 
     channel_panning -= data_word;
 
-    player_host_channel->channel_panning = channel_panning >> 8;
-    player_host_channel->channel_sub_pan = channel_panning;
+    player_host_channel->channel_panning     = channel_panning >> 8;
+    player_host_channel->channel_sub_panning = channel_panning;
 }
 
 static void do_track_panning_slide_right(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, uint16_t data_word)
 {
-    uint16_t channel_panning = ((uint8_t) player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_pan;
+    uint16_t channel_panning = ((uint8_t) player_host_channel->channel_panning << 8) + player_host_channel->channel_sub_panning;
 
     if ((channel_panning += data_word) < data_word)
         channel_panning = 0xFFFF;
 
-    player_host_channel->channel_panning = channel_panning >> 8;
-    player_host_channel->channel_sub_pan = channel_panning;
+    player_host_channel->channel_panning     = channel_panning >> 8;
+    player_host_channel->channel_sub_panning = channel_panning;
 }
 
 static uint32_t check_surround_track_panning(AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel, uint8_t channel_ctrl_byte)
@@ -5480,8 +5477,8 @@ EXECUTE_EFFECT(note_cut)
         player_host_channel->effects_used[(fx_byte >> 3)] |= (1 << (7 - (fx_byte & 7)));
 
         if (player_channel->host_channel == channel) {
-            player_channel->volume  = 0;
-            player_channel->sub_vol = 0;
+            player_channel->volume     = 0;
+            player_channel->sub_volume = 0;
 
             if (data_word & 0xF000) {
                 player_host_channel->instrument = NULL;
@@ -5569,8 +5566,8 @@ EXECUTE_EFFECT(multi_retrigger_note)
             if (player_channel->volume >= volume) {
                 player_channel->volume -= volume;
             } else {
-                player_channel->volume  = 0;
-                player_channel->sub_vol = 0;
+                player_channel->volume     = 0;
+                player_channel->sub_volume = 0;
             }
         } else {
             volume = ((multi_retrigger_volume_change + 0x40) * multi_retrigger_scale) + player_channel->volume;
@@ -5578,8 +5575,8 @@ EXECUTE_EFFECT(multi_retrigger_note)
             if (volume < 0x100) {
                 player_channel->volume  = volume;
             } else {
-                player_channel->volume  = 0xFF;
-                player_channel->sub_vol = 0xFF;
+                player_channel->volume     = 0xFF;
+                player_channel->sub_volume = 0xFF;
             }
         }
     } else {
@@ -5588,7 +5585,7 @@ EXECUTE_EFFECT(multi_retrigger_note)
         volume = (player_channel->volume << 8);
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SUB_SLIDE_RETRIG)
-            volume += player_channel->sub_vol;
+            volume += player_channel->sub_volume;
 
         if ((volume_multiplier = (multi_retrigger_volume_change >> 4)))
             volume *= volume_multiplier;
@@ -5602,7 +5599,7 @@ EXECUTE_EFFECT(multi_retrigger_note)
         player_channel->volume = volume >> 8;
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SUB_SLIDE_RETRIG)
-            player_channel->sub_vol = volume;
+            player_channel->sub_volume = volume;
     }
 
     if ((retrigger_tick_count = player_host_channel->retrig_tick_count) && --multi_retrigger_tick) {
@@ -5738,8 +5735,8 @@ EXECUTE_EFFECT(set_volume)
     player_host_channel->tremolo_slide = 0;
 
     if (check_old_volume(avctx, player_channel, &data_word, channel)) {
-        player_channel->volume  = data_word >> 8;
-        player_channel->sub_vol = data_word;
+        player_channel->volume     = data_word >> 8;
+        player_channel->sub_volume = data_word;
     }
 }
 
@@ -5827,25 +5824,25 @@ EXECUTE_EFFECT(volume_slide_to)
         player_host_channel->volume_slide_to_volume = volume_slide_to_volume;
     } else if (volume_slide_to_volume && (player_channel->host_channel == channel)) {
         const uint16_t volume_slide_target = (volume_slide_to_volume << 8) + player_host_channel->volume_slide_to_volume;
-        uint16_t volume                    = (player_channel->volume << 8) + player_channel->sub_vol;
+        uint16_t volume                    = (player_channel->volume << 8) + player_channel->sub_volume;
 
         if (volume < volume_slide_target) {
             do_volume_slide(avctx, player_channel, player_host_channel->volume_slide_to_slide, channel);
 
-            volume = (player_channel->volume << 8) + player_channel->sub_vol;
+            volume = (player_channel->volume << 8) + player_channel->sub_volume;
 
             if (volume_slide_target <= volume) {
-                player_channel->volume  = volume_slide_target >> 8;
-                player_channel->sub_vol = volume_slide_target;
+                player_channel->volume     = volume_slide_target >> 8;
+                player_channel->sub_volume = volume_slide_target;
             }
         } else {
             do_volume_slide_down(avctx, player_channel, player_host_channel->volume_slide_to_slide, channel);
 
-            volume = (player_channel->volume << 8) + player_channel->sub_vol;
+            volume = (player_channel->volume << 8) + player_channel->sub_volume;
 
             if (volume_slide_target >= volume) {
-                player_channel->volume  = volume_slide_target >> 8;
-                player_channel->sub_vol = volume_slide_target;
+                player_channel->volume     = volume_slide_target >> 8;
+                player_channel->sub_volume = volume_slide_target;
             }
         }
     }
@@ -5900,8 +5897,8 @@ EXECUTE_EFFECT(tremolo)
 EXECUTE_EFFECT(set_track_volume)
 {
     if (check_old_track_volume(avctx, &data_word)) {
-        player_host_channel->track_volume  = data_word >> 8;
-        player_host_channel->track_sub_vol = data_word;
+        player_host_channel->track_volume     = data_word >> 8;
+        player_host_channel->track_sub_volume = data_word;
     }
 }
 
@@ -6040,26 +6037,26 @@ EXECUTE_EFFECT(track_volume_slide_to)
     if (track_volume_slide_to_volume && (track_volume_slide_to_volume < 0xFF)) {
         player_host_channel->track_vol_slide_to = track_volume_slide_to_volume;
     } else if (track_volume_slide_to_volume) {
-        const uint16_t track_volume_slide_target = (track_volume_slide_to_volume << 8) + player_host_channel->track_vol_slide_to_sub_vol;
-        uint16_t track_volume                    = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+        const uint16_t track_volume_slide_target = (track_volume_slide_to_volume << 8) + player_host_channel->track_vol_slide_to_sub_volume;
+        uint16_t track_volume                    = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_volume;
 
         if (track_volume < track_volume_slide_target) {
             do_track_volume_slide(avctx, player_host_channel, player_host_channel->track_vol_slide_to_slide);
 
-            track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+            track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_volume;
 
             if (track_volume_slide_target <= track_volume) {
-                player_host_channel->track_volume  = track_volume_slide_target >> 8;
-                player_host_channel->track_sub_vol = track_volume_slide_target;
+                player_host_channel->track_volume     = track_volume_slide_target >> 8;
+                player_host_channel->track_sub_volume = track_volume_slide_target;
             }
         } else {
             do_track_volume_slide_down(avctx, player_host_channel, player_host_channel->track_vol_slide_to_slide);
 
-            track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_vol;
+            track_volume = (player_host_channel->track_volume << 8) + player_host_channel->track_sub_volume;
 
             if (track_volume_slide_target >= track_volume) {
-                player_host_channel->track_volume  = track_volume_slide_target >> 8;
-                player_host_channel->track_sub_vol = track_volume_slide_target;
+                player_host_channel->track_volume     = track_volume_slide_target >> 8;
+                player_host_channel->track_sub_volume = track_volume_slide_target;
             }
         }
     }
@@ -6114,15 +6111,15 @@ EXECUTE_EFFECT(set_panning)
     const uint8_t panning = data_word >> 8;
 
     if (player_channel->host_channel == channel) {
-        player_channel->panning = panning;
-        player_channel->sub_pan = data_word;
+        player_channel->panning     = panning;
+        player_channel->sub_panning = data_word;
     }
 
-    player_host_channel->flags             &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
-    player_host_channel->track_panning      = panning;
-    player_host_channel->track_sub_pan      = data_word;
-    player_host_channel->track_note_pan     = panning;
-    player_host_channel->track_note_sub_pan = data_word;
+    player_host_channel->flags                 &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+    player_host_channel->track_panning          = panning;
+    player_host_channel->track_sub_panning      = data_word;
+    player_host_channel->track_note_panning     = panning;
+    player_host_channel->track_note_sub_panning = data_word;
 }
 
 EXECUTE_EFFECT(panning_slide_left)
@@ -6276,34 +6273,32 @@ EXECUTE_EFFECT(panning_slide_to)
     if (panning_slide_to_panning && (panning_slide_to_panning < 0xFF)) {
         player_host_channel->panning_slide_to_panning = panning_slide_to_panning;
     } else if (panning_slide_to_panning && (player_channel->host_channel == channel)) {
-        const uint16_t panning_slide_target = ((uint8_t) panning_slide_to_panning << 8) + player_host_channel->panning_slide_to_sub_pan;
-        uint16_t panning                    = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+        const uint16_t panning_slide_target = ((uint8_t) panning_slide_to_panning << 8) + player_host_channel->panning_slide_to_sub_panning;
+        uint16_t panning                    = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
         if (panning < panning_slide_target) {
             do_panning_slide_right(avctx, player_host_channel, player_channel, player_host_channel->panning_slide_to_slide, channel);
 
-            panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+            panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
             if (panning_slide_target <= panning) {
-                player_channel->panning = panning_slide_target >> 8;
-                player_channel->sub_pan = panning_slide_target;
-
+                player_channel->panning                       = panning_slide_target >> 8;
+                player_channel->sub_panning                   = panning_slide_target;
                 player_host_channel->panning_slide_to_panning = 0;
-                player_host_channel->track_note_pan           = player_host_channel->track_panning = player_host_channel->panning_slide_to_slide >> 8;
-                player_host_channel->track_note_sub_pan       = player_host_channel->track_sub_pan = player_host_channel->panning_slide_to_slide;
+                player_host_channel->track_note_panning       = player_host_channel->track_panning = player_host_channel->panning_slide_to_slide >> 8;
+                player_host_channel->track_note_sub_panning   = player_host_channel->track_sub_panning = player_host_channel->panning_slide_to_slide;
             }
         } else {
             do_panning_slide(avctx, player_host_channel, player_channel, player_host_channel->panning_slide_to_slide, channel);
 
-            panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+            panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
             if (panning_slide_target >= panning) {
-                player_channel->panning = panning_slide_target >> 8;
-                player_channel->sub_pan = panning_slide_target;
-
+                player_channel->panning                       = panning_slide_target >> 8;
+                player_channel->sub_panning                   = panning_slide_target;
                 player_host_channel->panning_slide_to_panning = 0;
-                player_host_channel->track_note_pan           = player_host_channel->track_panning = player_host_channel->panning_slide_to_slide >> 8;
-                player_host_channel->track_note_sub_pan       = player_host_channel->track_sub_pan = player_host_channel->panning_slide_to_slide;
+                player_host_channel->track_note_panning       = player_host_channel->track_panning = player_host_channel->panning_slide_to_slide >> 8;
+                player_host_channel->track_note_sub_panning   = player_host_channel->track_sub_panning = player_host_channel->panning_slide_to_slide;
             }
         }
     }
@@ -6338,17 +6333,17 @@ EXECUTE_EFFECT(pannolo)
         if (pannolo_slide_value > 255)
             pannolo_slide_value = 255;
 
-        player_channel->panning                 = pannolo_slide_value;
-        player_host_channel->pannolo_slide     -= panning - pannolo_slide_value;
-        player_host_channel->track_note_pan     = player_host_channel->track_panning = panning;
-        player_host_channel->track_note_sub_pan = player_host_channel->track_sub_pan = player_channel->sub_pan;
+        player_channel->panning                     = pannolo_slide_value;
+        player_host_channel->pannolo_slide         -= panning - pannolo_slide_value;
+        player_host_channel->track_note_panning     = player_host_channel->track_panning = panning;
+        player_host_channel->track_note_sub_panning = player_host_channel->track_sub_panning = player_channel->sub_panning;
     }
 }
 
 EXECUTE_EFFECT(set_track_panning)
 {
-    player_host_channel->channel_panning = data_word >> 8;
-    player_host_channel->channel_sub_pan = data_word;
+    player_host_channel->channel_panning     = data_word >> 8;
+    player_host_channel->channel_sub_panning = data_word;
 
     player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_CHANNEL_SUR_PAN;
 }
@@ -6505,26 +6500,26 @@ EXECUTE_EFFECT(track_panning_slide_to)
     if (track_panning_slide_to_panning && (track_panning_slide_to_panning < 0xFF)) {
         player_host_channel->track_pan_slide_to_panning = track_panning_slide_to_panning;
     } else if (track_panning_slide_to_panning) {
-        const uint16_t track_panning_slide_to_target = ((uint8_t) track_panning_slide_to_panning << 8) + player_host_channel->track_pan_slide_to_sub_pan;
-        uint16_t track_panning                       = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+        const uint16_t track_panning_slide_to_target = ((uint8_t) track_panning_slide_to_panning << 8) + player_host_channel->track_pan_slide_to_sub_panning;
+        uint16_t track_panning                       = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_panning;
 
         if (track_panning < track_panning_slide_to_target) {
             do_track_panning_slide_right(avctx, player_host_channel, player_host_channel->track_pan_slide_to_slide);
 
-            track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+            track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_panning;
 
             if (track_panning_slide_to_target <= track_panning) {
-                player_host_channel->track_panning = track_panning_slide_to_target >> 8;
-                player_host_channel->track_sub_pan = track_panning_slide_to_target;
+                player_host_channel->track_panning     = track_panning_slide_to_target >> 8;
+                player_host_channel->track_sub_panning = track_panning_slide_to_target;
             }
         } else {
             do_track_panning_slide(avctx, player_host_channel, player_host_channel->track_pan_slide_to_slide);
 
-            track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_pan;
+            track_panning = ((uint8_t) player_host_channel->track_panning << 8) + player_host_channel->track_sub_panning;
 
             if (track_panning_slide_to_target >= track_panning) {
-                player_host_channel->track_panning = track_panning_slide_to_target >> 8;
-                player_host_channel->track_sub_pan = track_panning_slide_to_target;
+                player_host_channel->track_panning     = track_panning_slide_to_target >> 8;
+                player_host_channel->track_sub_panning = track_panning_slide_to_target;
             }
         }
     }
@@ -6711,22 +6706,22 @@ EXECUTE_EFFECT(set_sub_slides)
         sub_slide_flags = player_host_channel->sub_slide_bits;
 
     if (sub_slide_flags & 0x01)
-        player_host_channel->volume_slide_to_volume     = data_word;
+        player_host_channel->volume_slide_to_volume = data_word;
 
     if (sub_slide_flags & 0x02)
-        player_host_channel->track_vol_slide_to_sub_vol = data_word;
+        player_host_channel->track_vol_slide_to_sub_volume = data_word;
 
     if (sub_slide_flags & 0x04)
-        player_globals->global_volume_sl_to_sub_vol     = data_word;
+        player_globals->global_volume_sl_to_sub_volume = data_word;
 
     if (sub_slide_flags & 0x08)
-        player_host_channel->panning_slide_to_sub_pan   = data_word;
+        player_host_channel->panning_slide_to_sub_panning = data_word;
 
     if (sub_slide_flags & 0x10)
-        player_host_channel->track_pan_slide_to_sub_pan = data_word;
+        player_host_channel->track_pan_slide_to_sub_panning = data_word;
 
     if (sub_slide_flags & 0x20)
-        player_globals->global_pan_slide_to_sub_pan     = data_word;
+        player_globals->global_pan_slide_to_sub_panning = data_word;
 }
 
 EXECUTE_EFFECT(sample_offset_high)
@@ -7513,7 +7508,7 @@ EXECUTE_EFFECT(global_volume_slide_to)
     if (global_volume_slide_to_volume && (global_volume_slide_to_volume < 0xFF)) {
         player_globals->global_volume_sl_to_volume = global_volume_slide_to_volume;
     } else if (global_volume_slide_to_volume) {
-        const uint16_t global_volume_slide_target = (global_volume_slide_to_volume << 8) + player_globals->global_volume_sl_to_sub_vol;
+        const uint16_t global_volume_slide_target = (global_volume_slide_to_volume << 8) + player_globals->global_volume_sl_to_sub_volume;
         uint16_t global_volume                    = (player_globals->global_volume << 8) + player_globals->global_sub_volume;
 
         if (global_volume < global_volume_slide_target) {
@@ -7749,7 +7744,7 @@ EXECUTE_EFFECT(global_panning_slide_to)
     if (global_pan_slide_to_panning && (global_pan_slide_to_panning < 0xFF)) {
         player_globals->global_pan_slide_to_panning = global_pan_slide_to_panning;
     } else if (global_pan_slide_to_panning) {
-        const uint16_t global_panning_slide_target = ((uint8_t) global_pan_slide_to_panning << 8) + player_globals->global_pan_slide_to_sub_pan;
+        const uint16_t global_panning_slide_target = ((uint8_t) global_pan_slide_to_panning << 8) + player_globals->global_pan_slide_to_sub_panning;
         uint16_t global_panning                    = ((uint8_t) player_globals->global_panning << 8) + player_globals->global_sub_panning;
 
         if (global_panning < global_panning_slide_target) {
@@ -9794,11 +9789,9 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(arpegio)
     player_channel->arpeggio_speed = arpeggio_speed;
 
     if ((waveform = player_channel->arpeggio_waveform)) {
-        uint32_t waveform_pos;
         int8_t arpeggio_transpose;
         uint8_t arpeggio_finetune;
-
-        waveform_pos = player_channel->arpeggio_pos % waveform->samples;
+        const uint32_t waveform_pos = player_channel->arpeggio_pos % waveform->samples;
 
         if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
             arpeggio_transpose = ((int8_t *) waveform->data)[waveform_pos] << 8;
@@ -10098,7 +10091,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(reset)
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(volslup)
 {
-    uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_vol;
+    uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_volume;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->vol_sl_up;
@@ -10108,15 +10101,15 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(volslup)
     if ((slide_volume += instruction_data) < instruction_data)
         slide_volume = 0xFFFF;
 
-    player_channel->volume  = slide_volume >> 8;
-    player_channel->sub_vol = slide_volume;
+    player_channel->volume     = slide_volume >> 8;
+    player_channel->sub_volume = slide_volume;
 
     return synth_code_line;
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(volsldn)
 {
-    uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_vol;
+    uint16_t slide_volume = (player_channel->volume << 8) + player_channel->sub_volume;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->vol_sl_dn;
@@ -10126,9 +10119,9 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(volsldn)
     if (slide_volume < instruction_data)
         instruction_data = slide_volume;
 
-    slide_volume           -= instruction_data;
-    player_channel->volume  = slide_volume >> 8;
-    player_channel->sub_vol = slide_volume;
+    slide_volume              -= instruction_data;
+    player_channel->volume     = slide_volume >> 8;
+    player_channel->sub_volume = slide_volume;
 
     return synth_code_line;
 }
@@ -10237,7 +10230,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(trmval)
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(panleft)
 {
-    uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+    uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->pan_sl_left;
@@ -10249,15 +10242,15 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(panleft)
 
     panning -= instruction_data;
 
-    player_channel->panning = panning >> 8;
-    player_channel->sub_pan = panning;
+    player_channel->panning     = panning >> 8;
+    player_channel->sub_panning = panning;
 
     return synth_code_line;
 }
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(panrght)
 {
-    uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_pan;
+    uint16_t panning = ((uint8_t) player_channel->panning << 8) + player_channel->sub_panning;
 
     if (!(instruction_data += player_channel->variable[src_var]))
         instruction_data = player_channel->pan_sl_right;
@@ -10267,8 +10260,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(panrght)
     if ((panning += instruction_data) < instruction_data)
         panning = 0xFFFF;
 
-    player_channel->panning = panning >> 8;
-    player_channel->sub_pan = panning;
+    player_channel->panning     = panning >> 8;
+    player_channel->sub_panning = panning;
 
     return synth_code_line;
 }

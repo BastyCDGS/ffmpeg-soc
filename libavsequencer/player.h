@@ -351,7 +351,7 @@ typedef struct AVSequencerPlayerGlobals {
        the global volume slide to effect was not used yet during
        playback. This is basically volume divided by 256, but
        the sub-volume doesn't account into actual mixer output.  */
-    uint8_t global_volume_sl_to_sub_vol;
+    uint8_t global_volume_sl_to_sub_volume;
 
     /** Current global tremolo relative slide value or zero if the
        global tremolo effect was not used yet during playback.  */
@@ -400,7 +400,7 @@ typedef struct AVSequencerPlayerGlobals {
        the global panning slide to effect was not used yet during
        playback. This is basically panning divided by 256, but the
        sub-panning doesn't account into actual mixer output.  */
-    uint8_t global_pan_slide_to_sub_pan;
+    uint8_t global_pan_slide_to_sub_panning;
 
     /** Current global pannolo (panbrello) relative slide value or
        zero if the global pannolo effect was not used yet during
@@ -754,7 +754,7 @@ typedef struct AVSequencerPlayerHostChannel {
     /** Current track sub-volume level for this host channel. This
        is basically track volume divided by 256, but the sub-volume
        doesn't account into actual mixer output.  */
-    uint8_t track_sub_vol;
+    uint8_t track_sub_volume;
 
     /** Current track panning stereo position being played on this
        host channel.  */
@@ -764,18 +764,18 @@ typedef struct AVSequencerPlayerHostChannel {
        channel. This is basically track panning divided by 256,
        but the sub-panning doesn't account into actual mixer
        output.  */
-    uint8_t track_sub_pan;
+    uint8_t track_sub_panning;
 
     /** Current track note panning which indicates a panning
        change relative to a base note and octave. This allows
        choosing the stereo position based on octave * 12 + note.  */
-    int8_t track_note_pan;
+    int8_t track_note_panning;
 
     /** Current track note sub-panning stereo position for this host
        channel. This is basically track note panning divided by 256,
        but the sub-panning doesn't account into actual mixer
        output.  */
-    uint8_t track_note_sub_pan;
+    uint8_t track_note_sub_panning;
 
     /** Current chhannel panning stereo position being played on this
        host channel.  */
@@ -785,7 +785,7 @@ typedef struct AVSequencerPlayerHostChannel {
        channel. This is basically channel panning divided by 256,
        but the sub-panning doesn't account into actual mixer
        output.  */
-    uint8_t channel_sub_pan;
+    uint8_t channel_sub_panning;
 
     /** Current finetune of the sample last played on this host
        channel.  */
@@ -1014,7 +1014,7 @@ typedef struct AVSequencerPlayerHostChannel {
        slide to effect was not used yet during playback. This is
        basically volume divided by 256, but the sub-volume does not
        take account into actual mixer output.  */
-    uint8_t volume_slide_to_sub_vol;
+    uint8_t volume_slide_to_sub_volume;
 
     /** Current tremolo volume level relative to played sample volume
        to be able to undo the previous tremolo volume changes or 0
@@ -1060,7 +1060,7 @@ typedef struct AVSequencerPlayerHostChannel {
        playback. This is basically track volume divided by 256, but
        the track sub-volume does not take account into actual mixer
        output.  */
-    uint8_t track_vol_slide_to_sub_vol;
+    uint8_t track_vol_slide_to_sub_volume;
 
     /** Current track tremolo volume level relative to played sample
        volume to be able to undo the previous track tremolo volume
@@ -1105,7 +1105,7 @@ typedef struct AVSequencerPlayerHostChannel {
        panning slide to effect was not used yet during playback. This
        is basically panning divided by 256, but the sub-panning does
        not take account into actual mixer output.  */
-    uint8_t panning_slide_to_sub_pan;
+    uint8_t panning_slide_to_sub_panning;
 
     /** Current pannolo (panbrello) panning position relative to
        played sample panning to be able to undo the previous pannolo
@@ -1154,7 +1154,7 @@ typedef struct AVSequencerPlayerHostChannel {
        playback. This is basically track panning divided by 256, but
        the sub-panning does not take account into actual mixer
        output.  */
-    uint8_t track_pan_slide_to_sub_pan;
+    uint8_t track_pan_slide_to_sub_panning;
 
     /** Current track pannolo (panbrello) panning position relative to
        played track panning to be able to undo the previous track
@@ -1548,7 +1548,7 @@ typedef struct AVSequencerPlayerChannel {
     /** Current sample sub-volume of currently playing sample or
        waveform. This is basically volume divided by 256, but the
        sub-volume doesn't account into actual mixer output.  */
-    uint8_t sub_vol;
+    uint8_t sub_volume;
 
     /** Current instrument global volume of currently playing
        instrument being played by this virtual channel.  */
@@ -1561,7 +1561,7 @@ typedef struct AVSequencerPlayerChannel {
     /** Current sample sub-panning of currently playing sample or
        waveform. This is basically panning divided by 256, but
        the sub-panning doesn't account into actual mixer output.  */
-    uint8_t sub_pan;
+    uint8_t sub_panning;
 
     /** Current final volume level of currently playing sample or
        waveform for this virtual channel as it will be forwarded
@@ -1581,7 +1581,7 @@ typedef struct AVSequencerPlayerChannel {
        or waveform. This is basically global volume divided by 256,
        but the sub-volume doesn't account into actual mixer
        output.  */
-    uint8_t global_sub_vol;
+    uint8_t global_sub_volume;
 
     /** Current sample global panning position of currently playing
        sample or waveform for this virtual channel.  */
@@ -1590,7 +1590,7 @@ typedef struct AVSequencerPlayerChannel {
     /** Current sample global sub-panning of currently playing sample
        or waveform. This is basically global panning divided by 256,
        but sub-panning doesn't account into actual mixer output.  */
-    uint8_t global_sub_pan;
+    uint8_t global_sub_panning;
 
     /** Current random volume swing in 1/256th steps (i.e. 256 means
        100%). The volume will vibrate randomnessly around that volume
