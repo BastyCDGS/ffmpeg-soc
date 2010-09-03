@@ -1,6 +1,6 @@
 /*
- * vp3dsp SSE2 function declarations
- * Copyright (c) 2007 Aurelien Jacobs <aurel@gnuage.org>
+ * RAW null muxer
+ * Copyright (c) 2002 Fabrice Bellard
  *
  * This file is part of FFmpeg.
  *
@@ -19,13 +19,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVCODEC_X86_VP3DSP_SSE2_H
-#define AVCODEC_X86_VP3DSP_SSE2_H
+#include "avformat.h"
 
-#include "libavcodec/dsputil.h"
+static int null_write_packet(struct AVFormatContext *s, AVPacket *pkt)
+{
+    return 0;
+}
 
-void ff_vp3_idct_sse2(int16_t *input_data);
-void ff_vp3_idct_put_sse2(uint8_t *dest, int line_size, DCTELEM *block);
-void ff_vp3_idct_add_sse2(uint8_t *dest, int line_size, DCTELEM *block);
-
-#endif /* AVCODEC_X86_VP3DSP_SSE2_H */
+AVOutputFormat null_muxer = {
+    "null",
+    NULL_IF_CONFIG_SMALL("raw null video format"),
+    NULL,
+    NULL,
+    0,
+    AV_NE(CODEC_ID_PCM_S16BE, CODEC_ID_PCM_S16LE),
+    CODEC_ID_RAWVIDEO,
+    NULL,
+    null_write_packet,
+    .flags = AVFMT_NOFILE | AVFMT_RAWPICTURE | AVFMT_NOTIMESTAMPS,
+};
