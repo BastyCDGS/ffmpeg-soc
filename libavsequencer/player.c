@@ -1123,11 +1123,11 @@ int avseq_playback_handler(AVMixerData *mixer_data)
         }
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) {
-            uint16_t note = (uint8_t) player_host_channel->instr_note;
+            uint16_t note = player_host_channel->instr_note;
 
             player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT;
 
-            if ((int16_t) note < 0) {
+            if ((int8_t) note < 0) {
                 switch ((int) note) {
                 case AVSEQ_TRACK_DATA_NOTE_FADE :
                     player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
@@ -1288,8 +1288,9 @@ instrument_found:
             AVSequencerPlayerEnvelope *player_envelope;
             uint32_t frequency, host_volume, virtual_volume;
             uint32_t auto_vibrato_depth, auto_vibrato_count;
+            int32_t auto_vibrato_value;
             uint16_t flags, slide_envelope_value;
-            int16_t auto_vibrato_value, panning, abs_panning, panning_envelope_value;
+            int16_t panning, abs_panning, panning_envelope_value;
 
             player_host_channel = avctx->player_host_channel + player_channel->host_channel;
             player_envelope     = &player_channel->vol_env;
@@ -1376,7 +1377,7 @@ instrument_found:
 
             auto_vibrato_value = run_envelope(avctx, &player_channel->auto_vib_env, player_channel->auto_vibrato_rate, 0);
             auto_vibrato_depth = player_channel->auto_vibrato_depth << 8;
-            auto_vibrato_count = player_channel->auto_vibrato_count + player_channel->auto_vibrato_sweep;
+            auto_vibrato_count = (uint32_t) player_channel->auto_vibrato_count + player_channel->auto_vibrato_sweep;
 
             if (auto_vibrato_count > auto_vibrato_depth)
                 auto_vibrato_count = auto_vibrato_depth;
@@ -1384,28 +1385,27 @@ instrument_found:
             player_channel->auto_vibrato_count = auto_vibrato_count;
             auto_vibrato_count               >>= 8;
 
-            if ((auto_vibrato_value *= (int16_t) -auto_vibrato_count)) {
+            if ((auto_vibrato_value *= (int32_t) -auto_vibrato_count)) {
                 uint32_t old_frequency = player_channel->frequency;
 
                 auto_vibrato_value      >>= 7 - 2;
                 player_channel->frequency -= player_channel->auto_vibrato_freq;
 
                 if ((frequency = player_channel->frequency)) {
-                    if ((int16_t) auto_vibrato_value < 0) {
+                    if (auto_vibrato_value < 0) {
                         auto_vibrato_value = -auto_vibrato_value;
 
-                        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV)
+                        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB)
                             frequency = linear_slide_up(avctx, player_channel, frequency, auto_vibrato_value);
                         else
                             frequency = amiga_slide_up(player_channel, frequency, auto_vibrato_value);
-                    } else if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV) {
+                    } else if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB) {
                         frequency = linear_slide_down(avctx, player_channel, frequency, auto_vibrato_value);
                     } else {
                         frequency = amiga_slide_down(player_channel, frequency, auto_vibrato_value);
                     }
 
-                    old_frequency                     -= frequency;
-                    player_channel->auto_vibrato_freq -= old_frequency;
+                    player_channel->auto_vibrato_freq -= old_frequency - frequency;
                 }
             }
 
@@ -2476,23 +2476,22 @@ static void init_new_instrument(AVSequencerContext *avctx, AVSequencerPlayerHost
             if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
 
-            player_channel->panning     = instrument->default_panning;
-            player_channel->sub_panning = instrument->default_sub_pan;
+            player_channel->panning            = instrument->default_panning;
+            player_channel->sub_panning        = instrument->default_sub_pan;
+            player_host_channel->pannolo_slide = 0;
+            panning                            = (uint8_t) player_channel->panning;
+
+            if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
+                player_host_channel->track_panning     = player_channel->panning;
+                player_host_channel->track_sub_panning = player_channel->sub_panning;
+                player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
+
+                if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
+                    player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+            }
         }
 
-        player_host_channel->pannolo_slide = 0;
-        panning                            = (uint8_t) player_channel->panning;
-
-        if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
-            player_host_channel->track_panning     = player_channel->panning;
-            player_host_channel->track_sub_panning = player_channel->sub_panning;
-            player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
-
-            if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
-                player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
-        }
-
-        panning_separation = (((int16_t) player_host_channel->instr_note - (instrument->pitch_pan_center + 1)) * instrument->pitch_pan_separation) >> 8;
+        panning_separation = (((int16_t) player_host_channel->instr_note - ((uint8_t) instrument->pitch_pan_center + 1)) * instrument->pitch_pan_separation) >> 8;
         panning_swing      = (instrument->panning_swing << 1) + 1;
         avctx->seed        = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
         panning_swing      = ((uint64_t) seed * panning_swing) >> 32;
@@ -3712,7 +3711,7 @@ static void portamento_slide_up(AVSequencerContext *avctx, AVSequencerPlayerHost
         uint32_t portamento_slide_value;
         uint8_t portamento_sub_slide_value = data_word;
 
-        if ((portamento_slide_value = (data_word & 0xFFFFFF00) >> portamento_shift)) {
+        if ((portamento_slide_value = ((data_word & 0xFFFFFF00) >> portamento_shift))) {
             player_host_channel->sub_slide += portamento_sub_slide_value;
 
             if (player_host_channel->sub_slide < portamento_sub_slide_value)
@@ -3738,7 +3737,7 @@ static void portamento_slide_down(AVSequencerContext *avctx, AVSequencerPlayerHo
             return;
         }
 
-        if ((portamento_slide_value = (data_word & 0xFFFFFF00) >> portamento_shift)) {
+        if ((portamento_slide_value = ((data_word & 0xFFFFFF00) >> portamento_shift))) {
             if (player_host_channel->sub_slide < portamento_sub_slide_value) {
                 portamento_slide_value += carry_add;
 
@@ -4544,7 +4543,7 @@ CHECK_EFFECT(note_slide)
 {
     uint8_t note_slide_type;
 
-    if (!(note_slide_type = *data_word >> 8))
+    if (!(note_slide_type = (*data_word >> 8)))
         note_slide_type = player_host_channel->note_slide_type;
 
     if (note_slide_type & 0xF)
@@ -5405,7 +5404,7 @@ EXECUTE_EFFECT(note_slide)
 {
     uint16_t note_slide_value, note_slide_type;
 
-    if (!(note_slide_value = data_word & 0xFF))
+    if (!(note_slide_value = (uint8_t) data_word))
         note_slide_value = player_host_channel->note_slide;
 
     player_host_channel->note_slide = note_slide_value;
@@ -5428,15 +5427,15 @@ EXECUTE_EFFECT(note_slide)
 EXECUTE_EFFECT(vibrato)
 {
     uint16_t vibrato_rate;
-    int8_t vibrato_depth;
+    int16_t vibrato_depth;
 
     if (!(vibrato_rate = (data_word >> 8)))
         vibrato_rate = player_host_channel->vibrato_rate;
 
     player_host_channel->vibrato_rate = vibrato_rate;
-    vibrato_depth                     = data_word;
+    vibrato_depth                     = (int8_t) data_word;
 
-    do_vibrato(avctx, player_host_channel, player_channel, channel, vibrato_rate, ((int16_t) vibrato_depth << 2));
+    do_vibrato(avctx, player_host_channel, player_channel, channel, vibrato_rate, vibrato_depth << 2);
 }
 
 EXECUTE_EFFECT(fine_vibrato) {
@@ -5464,7 +5463,7 @@ EXECUTE_EFFECT(hold_delay)
 EXECUTE_EFFECT(note_fade)
 {
     if (data_word >= player_host_channel->tempo_counter) {
-        player_host_channel->effects_used[(fx_byte >> 3)] |= (1 << (7 - (fx_byte & 7)));
+        player_host_channel->effects_used[fx_byte >> 3] |= 1 << (7 - (fx_byte & 7));
 
         if (player_channel->host_channel == channel)
             player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
@@ -5474,7 +5473,7 @@ EXECUTE_EFFECT(note_fade)
 EXECUTE_EFFECT(note_cut)
 {
     if ((data_word & 0xFFF) >= player_host_channel->tempo_counter) {
-        player_host_channel->effects_used[(fx_byte >> 3)] |= (1 << (7 - (fx_byte & 7)));
+        player_host_channel->effects_used[fx_byte >> 3] |= 1 << (7 - (fx_byte & 7));
 
         if (player_channel->host_channel == channel) {
             player_channel->volume     = 0;
@@ -5483,7 +5482,7 @@ EXECUTE_EFFECT(note_cut)
             if (data_word & 0xF000) {
                 player_host_channel->instrument = NULL;
                 player_host_channel->sample     = NULL;
-                player_channel->flags           = 0;
+                player_channel->mixer.flags     = 0;
             }
         }
     }
@@ -5498,7 +5497,7 @@ EXECUTE_EFFECT(tremor) {
 
     player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC;
 
-    if (!(tremor_off = data_word))
+    if (!(tremor_off = (uint8_t) data_word))
         tremor_off = player_host_channel->tremor_off_ticks;
 
     player_host_channel->tremor_off_ticks = tremor_off;
@@ -5547,7 +5546,7 @@ EXECUTE_EFFECT(multi_retrigger_note)
 
     player_host_channel->multi_retrig_tick = multi_retrigger_tick;
 
-    if (!(multi_retrigger_volume_change = data_word))
+    if (!(multi_retrigger_volume_change = (uint8_t) data_word))
         multi_retrigger_volume_change = player_host_channel->multi_retrig_vol_chg;
 
     player_host_channel->multi_retrig_vol_chg = multi_retrigger_volume_change;
@@ -5668,7 +5667,7 @@ EXECUTE_EFFECT(extended_ctrl)
 
         do {
             if ((scan_player_channel->host_channel == channel) && (scan_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND))
-                scan_player_channel->flags = 0;
+                scan_player_channel->mixer.flags = 0;
 
             scan_player_channel++;
         } while (++virtual_channel < module->channels);
@@ -5812,7 +5811,7 @@ EXECUTE_EFFECT(volume_slide_to)
 {
     uint8_t volume_slide_to_value, volume_slide_to_volume;
 
-    if (!(volume_slide_to_value = data_word))
+    if (!(volume_slide_to_value = (uint8_t) data_word))
         volume_slide_to_value = player_host_channel->volume_slide_to;
 
     player_host_channel->volume_slide_to        = volume_slide_to_value;
@@ -5860,7 +5859,7 @@ EXECUTE_EFFECT(tremolo)
 
     player_host_channel->tremolo_rate = tremolo_rate;
 
-    if (!(tremolo_depth = data_word))
+    if (!(tremolo_depth = (int8_t) data_word))
         tremolo_depth = player_host_channel->tremolo_depth;
 
     player_host_channel->tremolo_depth = tremolo_depth;
@@ -6026,7 +6025,7 @@ EXECUTE_EFFECT(track_volume_slide_to)
 {
     uint8_t track_vol_slide_to, track_volume_slide_to_volume;
 
-    if (!(track_vol_slide_to = data_word))
+    if (!(track_vol_slide_to = (uint8_t) data_word))
         track_vol_slide_to = player_host_channel->track_vol_slide_to;
 
     player_host_channel->track_vol_slide_to        = track_vol_slide_to;
@@ -6075,7 +6074,7 @@ EXECUTE_EFFECT(track_tremolo)
 
     player_host_channel->track_trem_rate = track_tremolo_rate;
 
-    if (!(track_tremolo_depth = data_word))
+    if (!(track_tremolo_depth = (int8_t) data_word))
         track_tremolo_depth = player_host_channel->track_trem_depth;
 
     player_host_channel->track_trem_depth = track_tremolo_depth;
@@ -6262,7 +6261,7 @@ EXECUTE_EFFECT(panning_slide_to)
 {
     uint8_t panning_slide_to_value, panning_slide_to_panning;
 
-    if (!(panning_slide_to_value = data_word))
+    if (!(panning_slide_to_value = (uint8_t) data_word))
         panning_slide_to_value   = player_host_channel->panning_slide_to;
 
     player_host_channel->panning_slide_to        = panning_slide_to_value;
@@ -6315,7 +6314,7 @@ EXECUTE_EFFECT(pannolo)
 
     player_host_channel->pannolo_rate = pannolo_rate;
 
-    if (!(pannolo_depth = data_word))
+    if (!(pannolo_depth = (int8_t) data_word))
         pannolo_depth = player_host_channel->pannolo_depth;
 
     player_host_channel->pannolo_depth = pannolo_depth;
@@ -6488,7 +6487,7 @@ EXECUTE_EFFECT(track_panning_slide_to)
 {
     uint8_t track_pan_slide_to, track_panning_slide_to_panning;
 
-    if (!(track_pan_slide_to = data_word))
+    if (!(track_pan_slide_to = (uint8_t) data_word))
         track_pan_slide_to = player_host_channel->track_pan_slide_to;
 
     player_host_channel->track_pan_slide_to        = track_pan_slide_to;
@@ -6537,7 +6536,7 @@ EXECUTE_EFFECT(track_pannolo)
 
     player_host_channel->track_pan_rate = track_pannolo_rate;
 
-    if (!(track_pannolo_depth = data_word))
+    if (!(track_pannolo_depth = (int8_t) data_word))
         track_pannolo_depth = player_host_channel->track_pan_depth;
 
     player_host_channel->track_pan_depth = track_pannolo_depth;
@@ -7063,8 +7062,8 @@ EXECUTE_EFFECT(set_envelope_value)
 
 EXECUTE_EFFECT(nna_ctrl)
 {
-    const uint8_t nna_ctrl_type   = data_word >> 8;
-    uint8_t nna_ctrl_action       = data_word;
+    const uint8_t nna_ctrl_type = data_word >> 8;
+    uint8_t nna_ctrl_action     = data_word;
 
     switch (nna_ctrl_type) {
     case 0x00 :
@@ -7496,7 +7495,7 @@ EXECUTE_EFFECT(global_volume_slide_to)
     AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint8_t global_volume_slide_to_value, global_volume_slide_to_volume;
 
-    if (!(global_volume_slide_to_value = data_word))
+    if (!(global_volume_slide_to_value = (uint8_t) data_word))
         global_volume_slide_to_value = player_globals->global_volume_slide_to;
 
     player_globals->global_volume_slide_to     = global_volume_slide_to_value;
@@ -7547,8 +7546,8 @@ EXECUTE_EFFECT(global_tremolo)
 
     player_globals->tremolo_rate = global_tremolo_rate;
 
-    if (!(global_tremolo_depth = data_word))
-        global_tremolo_depth = player_globals->tremolo_depth;
+    if (!(global_tremolo_depth = (int8_t) data_word))
+        global_tremolo_depth = (int8_t) player_globals->tremolo_depth;
 
     player_globals->tremolo_depth = global_tremolo_depth;
 
@@ -7560,7 +7559,7 @@ EXECUTE_EFFECT(global_tremolo)
             global_tremolo_depth = -63;
     }
 
-    global_tremolo_slide_value = (-global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7L;
+    global_tremolo_slide_value = (-global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         global_tremolo_slide_value <<= 2;
@@ -7732,14 +7731,13 @@ EXECUTE_EFFECT(global_panning_slide_to)
     AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
     uint8_t global_pan_slide_to, global_pan_slide_to_panning;
 
-    if (!(global_pan_slide_to = data_word))
+    if (!(global_pan_slide_to = (uint8_t) data_word))
         global_pan_slide_to = player_globals->global_pan_slide_to;
 
     player_globals->global_pan_slide_to        = global_pan_slide_to;
     player_globals->global_pan_slide_to_slide &= 0x00FF;
     player_globals->global_pan_slide_to_slide += global_pan_slide_to << 8;
-
-    global_pan_slide_to_panning = data_word >> 8;
+    global_pan_slide_to_panning                = data_word >> 8;
 
     if (global_pan_slide_to_panning && (global_pan_slide_to_panning < 0xFF)) {
         player_globals->global_pan_slide_to_panning = global_pan_slide_to_panning;
@@ -7782,7 +7780,7 @@ EXECUTE_EFFECT(global_pannolo)
 
     player_globals->pannolo_rate = global_pannolo_rate;
 
-    if (!(global_pannolo_depth = data_word))
+    if (!(global_pannolo_depth = (int8_t) data_word))
         global_pannolo_depth = player_globals->pannolo_depth;
 
     player_globals->pannolo_depth = global_pannolo_depth;
@@ -7950,7 +7948,7 @@ static void se_arpegio_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *p
 
 static void se_tremolo_do(AVSequencerContext *avctx, AVSequencerPlayerChannel *player_channel, int32_t tremolo_slide_value)
 {
-    uint16_t volume      = player_channel->volume;
+    uint16_t volume = player_channel->volume;
 
     tremolo_slide_value -= player_channel->tremolo_slide;
 
