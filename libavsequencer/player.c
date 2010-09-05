@@ -1328,8 +1328,7 @@ instrument_found:
                         frequency = amiga_slide_up(player_channel, frequency, slide_envelope_value);
                     }
 
-                    old_frequency                  -= frequency;
-                    player_channel->slide_env_freq += old_frequency;
+                    player_channel->slide_env_freq += old_frequency - frequency;
                 }
             } else {
                 const uint32_t *frequency_lut;

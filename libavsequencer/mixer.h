@@ -72,7 +72,7 @@ typedef struct AVMixerChannel {
 
     /** Current sample data for this channel. Actual layout depends
        on number of bits per sample.  */
-    int16_t *data;
+    const int16_t *data;
 
     /** Current sample rate in Hz for this channel.  */
     uint32_t rate;
