@@ -3714,10 +3714,12 @@ static void portamento_slide_up(AVSequencerContext *avctx, AVSequencerPlayerHost
             if (player_host_channel->sub_slide < portamento_sub_slide_value)
                 portamento_slide_value += carry_add;
 
-            if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
-                linear_slide_up(avctx, player_channel, player_channel->frequency, portamento_slide_value);
-            else
-                amiga_slide_up(player_channel, player_channel->frequency, portamento_slide_value);
+            if (player_channel->frequency) {
+                if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+                    linear_slide_up(avctx, player_channel, player_channel->frequency, portamento_slide_value);
+                else
+                    amiga_slide_up(player_channel, player_channel->frequency, portamento_slide_value);
+            }
         }
     }
 }
@@ -3744,10 +3746,12 @@ static void portamento_slide_down(AVSequencerContext *avctx, AVSequencerPlayerHo
 
             player_host_channel->sub_slide -= portamento_sub_slide_value;
 
-            if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
-                linear_slide_down(avctx, player_channel, player_channel->frequency, portamento_slide_value);
-            else
-                amiga_slide_down(player_channel, player_channel->frequency, portamento_slide_value);
+            if (player_channel->frequency) {
+                if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_LINEAR_FREQ)
+                    linear_slide_down(avctx, player_channel, player_channel->frequency, portamento_slide_value);
+                else
+                    amiga_slide_down(player_channel, player_channel->frequency, portamento_slide_value);
+            }
         }
     }
 }
