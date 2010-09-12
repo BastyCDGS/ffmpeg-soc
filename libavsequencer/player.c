@@ -2109,7 +2109,7 @@ do_not_play_keyboard:
     } else {
         sample = player_host_channel->sample;
 
-        if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_PREV_SAMPLE) || !sample)
+        if (!((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_PREV_SAMPLE) && sample))
             return 0x8000;
     }
 
