@@ -477,6 +477,7 @@ OBJS-$(CONFIG_ADPCM_EA_R1_DECODER)        += adpcm.o
 OBJS-$(CONFIG_ADPCM_EA_R2_DECODER)        += adpcm.o
 OBJS-$(CONFIG_ADPCM_EA_R3_DECODER)        += adpcm.o
 OBJS-$(CONFIG_ADPCM_EA_XAS_DECODER)       += adpcm.o
+OBJS-$(CONFIG_ADPCM_G722_DECODER)         += g722.o
 OBJS-$(CONFIG_ADPCM_G726_DECODER)         += g726.o
 OBJS-$(CONFIG_ADPCM_G726_ENCODER)         += g726.o
 OBJS-$(CONFIG_ADPCM_IMA_AMV_DECODER)      += adpcm.o
@@ -524,7 +525,7 @@ OBJS-$(CONFIG_NUT_MUXER)               += mpegaudiodata.o
 OBJS-$(CONFIG_OGG_DEMUXER)             += flacdec.o flacdata.o flac.o \
                                           dirac.o mpeg12data.o
 OBJS-$(CONFIG_OGG_MUXER)               += xiph.o flacdec.o flacdata.o flac.o
-OBJS-$(CONFIG_RTP_MUXER)               += mpegvideo.o
+OBJS-$(CONFIG_RTP_MUXER)               += mpegvideo.o xiph.o
 OBJS-$(CONFIG_WEBM_MUXER)              += xiph.o mpeg4audio.o \
                                           flacdec.o flacdata.o flac.o
 
@@ -635,7 +636,6 @@ SKIPHEADERS                            += mpegaudio3.h
 EXAMPLES = api
 
 TESTPROGS = cabac dct eval fft h264 iirfilter rangecoder snow
-TESTPROGS-$(ARCH_X86) += x86/cpuid
 TESTPROGS-$(HAVE_MMX) += motion
 TESTOBJS = dctref.o
 

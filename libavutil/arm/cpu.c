@@ -1,8 +1,4 @@
 /*
- * Header file for hardcoded AAC tables
- *
- * Copyright (c) 2010 Alex Converse <alex.converse@gmail.com>
- *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -20,15 +16,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AAC_TABLEGEN_DECL_H
-#define AAC_TABLEGEN_DECL_H
+#include "libavutil/cpu.h"
+#include "config.h"
 
-#if CONFIG_HARDCODED_TABLES
-#define ff_aac_tableinit()
-extern const float ff_aac_pow2sf_tab[428];
-#else
-void ff_aac_tableinit(void);
-extern       float ff_aac_pow2sf_tab[428];
-#endif /* CONFIG_HARDCODED_TABLES */
-
-#endif /* AAC_TABLEGEN_DECL_H */
+int ff_get_cpu_flags_arm(void)
+{
+    return HAVE_IWMMXT * AV_CPU_FLAG_IWMMXT;
+}
