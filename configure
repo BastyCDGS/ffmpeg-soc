@@ -3203,7 +3203,6 @@ print_config CONFIG_ $TMPH config.mak $CONFIG_LIST       \
                                       $DEMUXER_LIST      \
                                       $MUXER_LIST        \
                                       $FILTER_LIST       \
-                                      $MIXER_LIST        \
                                       $PROTOCOL_LIST     \
                                       $INDEV_LIST        \
                                       $OUTDEV_LIST       \
