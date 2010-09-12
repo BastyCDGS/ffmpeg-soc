@@ -50,8 +50,8 @@ typedef struct AV_LQMixerData {
 
 typedef struct AV_LQMixerChannelInfo {
     struct ChannelBlock {
-        const int16_t *sample_start_ptr;
-        uint32_t sample_len;
+        const int16_t *data;
+        uint32_t len;
         uint32_t offset;
         uint32_t fraction;
         uint32_t advance;
@@ -660,8 +660,8 @@ static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     mixer_channel->flags           = channel_info->current.flags;
     mixer_channel->volume          = channel_info->current.volume;
     mixer_channel->panning         = channel_info->current.panning;
-    mixer_channel->data            = channel_info->current.sample_start_ptr;
-    mixer_channel->len             = channel_info->current.sample_len;
+    mixer_channel->data            = channel_info->current.data;
+    mixer_channel->len             = channel_info->current.len;
     mixer_channel->repeat_start    = channel_info->current.repeat;
     mixer_channel->repeat_length   = channel_info->current.repeat_len;
     mixer_channel->repeat_count    = channel_info->current.count_restart;
@@ -676,7 +676,7 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     struct ChannelBlock *channel_block;
     uint32_t repeat, repeat_len;
 
-    channel_info->next.sample_start_ptr = NULL;
+    channel_info->next.data = NULL;
 
     if (mixer_channel->flags & AVSEQ_MIXER_CHANNEL_FLAG_SYNTH)
         channel_block = &channel_info->next;
@@ -689,8 +689,8 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     channel_block->flags            = mixer_channel->flags;
     channel_block->volume           = mixer_channel->volume;
     channel_block->panning          = mixer_channel->panning;
-    channel_block->sample_start_ptr = mixer_channel->data;
-    channel_block->sample_len       = mixer_channel->len;
+    channel_block->data             = mixer_channel->data;
+    channel_block->len              = mixer_channel->len;
     repeat                          = mixer_channel->repeat_start;
     repeat_len                      = mixer_channel->repeat_length;
     channel_block->repeat           = repeat;
@@ -937,10 +937,10 @@ mix_sample_backwards:
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
                                 void (*mixer_change_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
 
-                                if (channel_info->next.sample_start_ptr) {
+                                if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                                    channel_info->next.sample_start_ptr = NULL;
+                                    channel_info->next.data = NULL;
                                 }
 
                                 mixer_change_func                        = channel_info->current.mix_backwards_func;
@@ -961,7 +961,7 @@ mix_sample_backwards:
                             } else {
                                 offset += channel_info->current.restart_offset;
 
-                                if (channel_info->next.sample_start_ptr)
+                                if (channel_info->next.data)
                                     goto mix_sample_synth;
 
                                 if ((int32_t) remain_len > 0)
@@ -971,7 +971,7 @@ mix_sample_backwards:
                             }
                         }
                     } else {
-                        if (channel_info->next.sample_start_ptr)
+                        if (channel_info->next.data)
                             goto mix_sample_synth;
                         else
                             channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
@@ -1008,17 +1008,17 @@ mix_sample_forwards:
 
                         if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
                             channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
-                            channel_info->current.end_offset = channel_info->current.sample_len;
+                            channel_info->current.end_offset = channel_info->current.len;
 
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
                                 void (*mixer_change_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
 
-                                if (channel_info->next.sample_start_ptr) {
+                                if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                                    channel_info->next.sample_start_ptr = NULL;
+                                    channel_info->next.data = NULL;
                                 }
 
                                 mixer_change_func                        = channel_info->current.mix_backwards_func;
@@ -1039,10 +1039,10 @@ mix_sample_forwards:
                             } else {
                                 offset -= channel_info->current.restart_offset;
 
-                                if (channel_info->next.sample_start_ptr) {
+                                if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                                    channel_info->next.sample_start_ptr = NULL;
+                                    channel_info->next.data = NULL;
                                 }
 
                                 if ((int32_t) remain_len > 0)
@@ -1052,11 +1052,11 @@ mix_sample_forwards:
                             }
                         }
                     } else {
-                        if (channel_info->next.sample_start_ptr) {
+                        if (channel_info->next.data) {
 mix_sample_synth:
                             memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                            channel_info->next.sample_start_ptr = NULL;
+                            channel_info->next.data = NULL;
 
                             if ((int32_t) remain_len > 0)
                                 continue;
@@ -1095,7 +1095,7 @@ static void set_mix_functions(const AV_LQMixerData *const mixer_data, struct Cha
     uint32_t panning = 0x80;
 
     if ((channel_block->bits_per_sample <= 8) || !mixer_data->real_16_bit_mode) {
-        if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume || !mixer_data->amplify || !channel_block->sample_start_ptr) {
+        if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume || !mixer_data->amplify || !channel_block->data) {
             mix_func = (void *) &mixer_skip_16_to_8;
         } else if (mixer_data->channels_out <= 1) {
             mix_func = (void *) &mixer_mono_16_to_8;
@@ -1133,7 +1133,7 @@ static void set_mix_functions(const AV_LQMixerData *const mixer_data, struct Cha
                 break;
             }
         }
-    } else if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume || !mixer_data->amplify || !channel_block->sample_start_ptr) {
+    } else if ((channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_MUTED) || !channel_block->volume || !mixer_data->amplify || !channel_block->data) {
         mix_func = (void *) &mixer_skip;
     } else if (mixer_data->channels_out <= 1) {
         mix_func = (void *) &mixer_mono;
@@ -1374,7 +1374,7 @@ MIX(skip_backwards)
 
 MIX(mono_8)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -1577,7 +1577,7 @@ get_second_sample:
 
 MIX(mono_backwards_8)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -1780,7 +1780,7 @@ get_second_sample:
 
 MIX(mono_16)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -1984,7 +1984,7 @@ get_second_sample:
 
 MIX(mono_backwards_16)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -2186,7 +2186,7 @@ get_second_sample:
 
 MIX(mono_32)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -2388,7 +2388,7 @@ get_second_sample:
 
 MIX(mono_backwards_32)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -2590,7 +2590,7 @@ get_second_sample:
 
 MIX(mono_x)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -2936,7 +2936,7 @@ get_second_sample:
 
 MIX(mono_backwards_x)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -3321,7 +3321,7 @@ get_second_sample:
 
 MIX(mono_16_to_8)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -3523,7 +3523,7 @@ get_second_sample:
 
 MIX(mono_backwards_16_to_8)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -3725,7 +3725,7 @@ get_second_sample:
 
 MIX(mono_32_to_8)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -3928,7 +3928,7 @@ get_second_sample:
 
 MIX(mono_backwards_32_to_8)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -4130,7 +4130,7 @@ get_second_sample:
 
 MIX(mono_x_to_8)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -4478,7 +4478,7 @@ get_second_sample:
 
 MIX(mono_backwards_x_to_8)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -4862,7 +4862,7 @@ get_second_sample:
 
 MIX(stereo_8)
 {
-    const int8_t *sample                  = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample                  = (const int8_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                      = *buf;
@@ -5084,7 +5084,7 @@ get_second_sample:
 
 MIX(stereo_backwards_8)
 {
-    const int8_t *sample                  = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample                  = (const int8_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                      = *buf;
@@ -5307,7 +5307,7 @@ get_second_sample:
 
 MIX(stereo_16)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -5528,7 +5528,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -5749,7 +5749,7 @@ get_second_sample:
 
 MIX(stereo_32)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -5971,7 +5971,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -6192,7 +6192,7 @@ get_second_sample:
 
 MIX(stereo_x)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -6553,7 +6553,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -6951,7 +6951,7 @@ get_second_sample:
 
 MIX(stereo_16_to_8)
 {
-    const int16_t *sample                 = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample                 = (const int16_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                      = *buf;
@@ -7181,7 +7181,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8)
 {
-    const int16_t *sample                 = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample                 = (const int16_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                      = *buf;
@@ -7411,7 +7411,7 @@ get_second_sample:
 
 MIX(stereo_32_to_8)
 {
-    const int32_t *sample                 = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample                 = (const int32_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                      = *buf;
@@ -7641,7 +7641,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8)
 {
-    const int32_t *sample                 = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample                 = (const int32_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                      = *buf;
@@ -7872,7 +7872,7 @@ get_second_sample:
 
 MIX(stereo_x_to_8)
 {
-    const int32_t *sample                 = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample                 = (const int32_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     const uint32_t bits_per_sample        = channel_block->bits_per_sample;
@@ -8242,7 +8242,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8)
 {
-    const int32_t *sample                 = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample                 = (const int32_t *) channel_block->data;
     const int32_t *const volume_left_lut  = channel_block->volume_left_lut;
     const int32_t *const volume_right_lut = channel_block->volume_right_lut;
     const uint32_t bits_per_sample        = channel_block->bits_per_sample;
@@ -8650,7 +8650,7 @@ get_second_sample:
 
 MIX(stereo_8_left)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -8860,7 +8860,7 @@ get_second_sample:
 
 MIX(stereo_backwards_8_left)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -9070,7 +9070,7 @@ get_second_sample:
 
 MIX(stereo_16_left)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -9280,7 +9280,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_left)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -9490,7 +9490,7 @@ get_second_sample:
 
 MIX(stereo_32_left)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -9700,7 +9700,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_left)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -9910,7 +9910,7 @@ get_second_sample:
 
 MIX(stereo_x_left)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -10265,7 +10265,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_left)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -10657,7 +10657,7 @@ get_second_sample:
 
 MIX(stereo_16_to_8_left)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -10867,7 +10867,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_left)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -11077,7 +11077,7 @@ get_second_sample:
 
 MIX(stereo_32_to_8_left)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -11287,7 +11287,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_left)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -11497,7 +11497,7 @@ get_second_sample:
 
 MIX(stereo_x_to_8_left)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -11853,7 +11853,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_left)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -12245,7 +12245,7 @@ get_second_sample:
 
 MIX(stereo_8_right)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -12455,7 +12455,7 @@ get_second_sample:
 
 MIX(stereo_backwards_8_right)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -12665,7 +12665,7 @@ get_second_sample:
 
 MIX(stereo_16_right)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     int32_t *mix_buf                = *buf;
     const int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset            = *offset;
@@ -12875,7 +12875,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_right)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     int32_t *mix_buf                = *buf;
     const int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset            = *offset;
@@ -13085,7 +13085,7 @@ get_second_sample:
 
 MIX(stereo_32_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     int32_t *mix_buf                = *buf;
     const int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset            = *offset;
@@ -13295,7 +13295,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     int32_t *mix_buf                = *buf;
     const int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset            = *offset;
@@ -13505,7 +13505,7 @@ get_second_sample:
 
 MIX(stereo_x_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     int32_t *mix_buf                = *buf;
     const int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
@@ -13859,7 +13859,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     int32_t *mix_buf                = *buf;
     const int32_t mult_right_volume = channel_block->mult_right_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
@@ -14252,7 +14252,7 @@ get_second_sample:
 
 MIX(stereo_16_to_8_right)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -14462,7 +14462,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_right)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -14673,7 +14673,7 @@ get_second_sample:
 
 MIX(stereo_32_to_8_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -14883,7 +14883,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -15093,7 +15093,7 @@ get_second_sample:
 
 MIX(stereo_x_to_8_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -15448,7 +15448,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_right)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_right_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -15840,7 +15840,7 @@ get_second_sample:
 
 MIX(stereo_8_center)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -16057,7 +16057,7 @@ get_second_sample:
 
 MIX(stereo_backwards_8_center)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -16274,7 +16274,7 @@ get_second_sample:
 
 MIX(stereo_16_center)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -16491,7 +16491,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_center)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -16708,7 +16708,7 @@ get_second_sample:
 
 MIX(stereo_32_center)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -16926,7 +16926,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_center)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -17143,7 +17143,7 @@ get_second_sample:
 
 MIX(stereo_x_center)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -17505,7 +17505,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_center)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -17905,7 +17905,7 @@ get_second_sample:
 
 MIX(stereo_16_to_8_center)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -18122,7 +18122,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_center)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -18339,7 +18339,7 @@ get_second_sample:
 
 MIX(stereo_32_to_8_center)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -18557,7 +18557,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_center)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -18774,7 +18774,7 @@ get_second_sample:
 
 MIX(stereo_x_to_8_center)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -19135,7 +19135,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_center)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -19534,7 +19534,7 @@ get_second_sample:
 
 MIX(stereo_8_surround)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -19751,7 +19751,7 @@ get_second_sample:
 
 MIX(stereo_backwards_8_surround)
 {
-    const int8_t *sample            = (const int8_t *) channel_block->sample_start_ptr;
+    const int8_t *sample            = (const int8_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -19968,7 +19968,7 @@ get_second_sample:
 
 MIX(stereo_16_surround)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -20186,7 +20186,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_surround)
 {
-    const int16_t *sample          = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample          = (const int16_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -20403,7 +20403,7 @@ get_second_sample:
 
 MIX(stereo_32_surround)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -20620,7 +20620,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_surround)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     uint32_t curr_offset           = *offset;
@@ -20837,7 +20837,7 @@ get_second_sample:
 
 MIX(stereo_x_surround)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -21198,7 +21198,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_surround)
 {
-    const int32_t *sample          = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample          = (const int32_t *) channel_block->data;
     int32_t *mix_buf               = *buf;
     const int32_t mult_left_volume = channel_block->mult_left_volume, div_volume = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
@@ -21597,7 +21597,7 @@ get_second_sample:
 
 MIX(stereo_16_to_8_surround)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -21814,7 +21814,7 @@ get_second_sample:
 
 MIX(stereo_backwards_16_to_8_surround)
 {
-    const int16_t *sample           = (const int16_t *) channel_block->sample_start_ptr;
+    const int16_t *sample           = (const int16_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -22031,7 +22031,7 @@ get_second_sample:
 
 MIX(stereo_32_to_8_surround)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -22249,7 +22249,7 @@ get_second_sample:
 
 MIX(stereo_backwards_32_to_8_surround)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     int32_t *mix_buf                = *buf;
     uint32_t curr_offset            = *offset;
@@ -22467,7 +22467,7 @@ get_second_sample:
 
 MIX(stereo_x_to_8_surround)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;
@@ -22828,7 +22828,7 @@ get_second_sample:
 
 MIX(stereo_backwards_x_to_8_surround)
 {
-    const int32_t *sample           = (const int32_t *) channel_block->sample_start_ptr;
+    const int32_t *sample           = (const int32_t *) channel_block->data;
     const int32_t *const volume_lut = channel_block->volume_left_lut;
     const uint32_t bits_per_sample  = channel_block->bits_per_sample;
     int32_t *mix_buf                = *buf;

@@ -44,8 +44,8 @@ typedef struct AV_NULLMixerData {
 
 typedef struct AV_NULLMixerChannelInfo {
     struct ChannelBlock {
-        const int16_t *sample_start_ptr;
-        uint32_t sample_len;
+        const int16_t *data;
+        uint32_t len;
         uint32_t offset;
         uint32_t fraction;
         uint32_t advance;
@@ -295,8 +295,8 @@ static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     mixer_channel->flags           = channel_info->current.flags;
     mixer_channel->volume          = channel_info->current.volume;
     mixer_channel->panning         = channel_info->current.panning;
-    mixer_channel->data            = channel_info->current.sample_start_ptr;
-    mixer_channel->len             = channel_info->current.sample_len;
+    mixer_channel->data            = channel_info->current.data;
+    mixer_channel->len             = channel_info->current.len;
     mixer_channel->repeat_start    = channel_info->current.repeat;
     mixer_channel->repeat_length   = channel_info->current.repeat_len;
     mixer_channel->repeat_count    = channel_info->current.count_restart;
@@ -311,7 +311,7 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     struct ChannelBlock *channel_block;
     uint32_t repeat, repeat_len;
 
-    channel_info->next.sample_start_ptr = NULL;
+    channel_info->next.data = NULL;
 
     if (mixer_channel->flags & AVSEQ_MIXER_CHANNEL_FLAG_SYNTH)
         channel_block = &channel_info->next;
@@ -324,8 +324,8 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     channel_block->flags            = mixer_channel->flags;
     channel_block->volume           = mixer_channel->volume;
     channel_block->panning          = mixer_channel->panning;
-    channel_block->sample_start_ptr = mixer_channel->data;
-    channel_block->sample_len       = mixer_channel->len;
+    channel_block->data             = mixer_channel->data;
+    channel_block->len              = mixer_channel->len;
     repeat                          = mixer_channel->repeat_start;
     repeat_len                      = mixer_channel->repeat_length;
     channel_block->repeat           = repeat;
@@ -556,10 +556,10 @@ mix_sample_backwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                if (channel_info->next.sample_start_ptr) {
+                                if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                                    channel_info->next.sample_start_ptr = NULL;
+                                    channel_info->next.data = NULL;
                                 }
 
                                 channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
@@ -576,7 +576,7 @@ mix_sample_backwards:
                             } else {
                                 offset += channel_info->current.restart_offset;
 
-                                if (channel_info->next.sample_start_ptr)
+                                if (channel_info->next.data)
                                     goto mix_sample_synth;
 
                                 if ((int32_t) remain_len > 0)
@@ -586,7 +586,7 @@ mix_sample_backwards:
                             }
                         }
                     } else {
-                        if (channel_info->next.sample_start_ptr)
+                        if (channel_info->next.data)
                             goto mix_sample_synth;
                         else
                             channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
@@ -623,15 +623,15 @@ mix_sample_forwards:
 
                         if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
                             channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
-                            channel_info->current.end_offset = channel_info->current.sample_len;
+                            channel_info->current.end_offset = channel_info->current.len;
 
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                if (channel_info->next.sample_start_ptr) {
+                                if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                                    channel_info->next.sample_start_ptr = NULL;
+                                    channel_info->next.data = NULL;
                                 }
 
                                 channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
@@ -648,10 +648,10 @@ mix_sample_forwards:
                             } else {
                                 offset -= channel_info->current.restart_offset;
 
-                                if (channel_info->next.sample_start_ptr) {
+                                if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                                    channel_info->next.sample_start_ptr = NULL;
+                                    channel_info->next.data = NULL;
                                 }
 
                                 if ((int32_t) remain_len > 0)
@@ -661,11 +661,11 @@ mix_sample_forwards:
                             }
                         }
                     } else {
-                        if (channel_info->next.sample_start_ptr) {
+                        if (channel_info->next.data) {
 mix_sample_synth:
                             memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
 
-                            channel_info->next.sample_start_ptr = NULL;
+                            channel_info->next.data = NULL;
 
                             if ((int32_t) remain_len > 0)
                                 continue;

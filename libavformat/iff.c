@@ -716,6 +716,7 @@ read_unknown_chunk:
                 return res;
             }
 
+//            iff->avctx->seed                 = 0xFA1E1E51; // FATE test init seed
             st->codec->bits_per_coded_sample = 32;
 #if AV_HAVE_BIGENDIAN
             st->codec->codec_id              = CODEC_ID_PCM_S32BE;
@@ -2717,12 +2718,12 @@ static int iff_read_packet(AVFormatContext *s,
     if (iff->avctx) {
         int32_t row;
         uint16_t channel;
-        AVSequencerPlayerGlobals *player_globals = iff->avctx->player_globals;
-        AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel;
-        AVSequencerPlayerChannel *player_channel;
+        const AVSequencerPlayerGlobals *const player_globals = iff->avctx->player_globals;
+        const AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel;
+        const AVSequencerPlayerChannel *player_channel;
         char *buf;
         AVMixerData *mixer_data = iff->avctx->player_mixer_data;
-        int size = st->codec->channels * mixer_data->mix_buf_size << 2;
+        const int size = st->codec->channels * mixer_data->mix_buf_size << 2;
 
         avseq_mixer_do_mix(mixer_data, NULL);
 
@@ -2816,7 +2817,7 @@ static int iff_read_packet(AVFormatContext *s,
         channel        = 0;
 
         do {
-            AVSequencerPlayerHostChannel *player_host_channel = iff->avctx->player_host_channel + player_channel->host_channel;
+            player_host_channel = iff->avctx->player_host_channel + player_channel->host_channel;
 
             if (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
                 if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND)

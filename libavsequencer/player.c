@@ -2083,7 +2083,7 @@ static int16_t get_key_table(AVSequencerContext *avctx, const AVSequencerInstrum
     player_host_channel->sample_note = note;
     player_host_channel->instrument  = instrument;
 
-    if (!(keyboard = (AVSequencerKeyboard *) instrument->keyboard_defs))
+    if (!(keyboard = instrument->keyboard_defs))
         goto do_not_play_keyboard;
 
     i                                = --note;
@@ -2528,16 +2528,14 @@ static void init_new_sample(AVSequencerContext *avctx, AVSequencerPlayerHostChan
         player_channel->mixer.len  = samples;
         player_channel->mixer.data = sample->data;
         player_channel->mixer.rate = player_channel->frequency;
-
-        flags = sample->flags;
+        flags                      = sample->flags;
 
         if (flags & AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP) {
             player_channel->mixer.repeat_start  = sample->sustain_repeat;
             player_channel->mixer.repeat_length = sample->sustain_rep_len;
             player_channel->mixer.repeat_count  = sample->sustain_rep_count;
             repeat_mode                         = sample->sustain_repeat_mode;
-
-            flags >>= 1;
+            flags                             >>= 1;
         } else {
             player_channel->mixer.repeat_start  = sample->repeat;
             player_channel->mixer.repeat_length = sample->rep_len;
@@ -2552,7 +2550,7 @@ static void init_new_sample(AVSequencerContext *avctx, AVSequencerPlayerHostChan
         if (sample->flags & AVSEQ_SAMPLE_FLAG_REVERSE)
             playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
 
-        if ((flags & AVSEQ_SAMPLE_FLAG_LOOP) && samples) {
+        if ((flags & AVSEQ_SAMPLE_FLAG_LOOP) && player_channel->mixer.repeat_length) {
             playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
 
             if (repeat_mode & AVSEQ_SAMPLE_REP_MODE_PINGPONG)
@@ -2951,13 +2949,13 @@ static void play_key_off(AVSequencerPlayerChannel *player_channel)
 
     player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SUSTAIN;
 
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->vol_env, player_channel->vol_env.pos);
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->pan_env, player_channel->pan_env.pos);
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->slide_env, player_channel->slide_env.pos);
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->auto_vib_env, player_channel->auto_vib_env.pos);
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->auto_trem_env, player_channel->auto_trem_env.pos);
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->auto_pan_env, player_channel->auto_pan_env.pos);
-    set_envelope(player_channel, (AVSequencerPlayerEnvelope *) &player_channel->resonance_env, player_channel->resonance_env.pos);
+    set_envelope(player_channel, &player_channel->vol_env, player_channel->vol_env.pos);
+    set_envelope(player_channel, &player_channel->pan_env, player_channel->pan_env.pos);
+    set_envelope(player_channel, &player_channel->slide_env, player_channel->slide_env.pos);
+    set_envelope(player_channel, &player_channel->auto_vib_env, player_channel->auto_vib_env.pos);
+    set_envelope(player_channel, &player_channel->auto_trem_env, player_channel->auto_trem_env.pos);
+    set_envelope(player_channel, &player_channel->auto_pan_env, player_channel->auto_pan_env.pos);
+    set_envelope(player_channel, &player_channel->resonance_env, player_channel->resonance_env.pos);
 
     if ((!player_channel->vol_env.envelope) || (!player_channel->vol_env.tempo) || (player_channel->vol_env.flags & AVSEQ_PLAYER_ENVELOPE_FLAG_LOOPING))
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
@@ -3170,7 +3168,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(volume)
     if (instrument)
         *envelope = instrument->volume_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->vol_env;
+    *player_envelope = &player_channel->vol_env;
 
     return player_host_channel->prev_volume_env;
 }
@@ -3180,7 +3178,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(panning)
     if (instrument)
         *envelope = instrument->panning_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->pan_env;
+    *player_envelope = &player_channel->pan_env;
 
     return player_host_channel->prev_panning_env;
 }
@@ -3190,7 +3188,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(slide)
     if (instrument)
         *envelope = instrument->slide_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->slide_env;
+    *player_envelope = &player_channel->slide_env;
 
     return player_host_channel->prev_slide_env;
 }
@@ -3200,7 +3198,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(vibrato)
     if (instrument)
         *envelope = instrument->vibrato_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_host_channel->vibrato_env;
+    *player_envelope = &player_host_channel->vibrato_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3210,7 +3208,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(tremolo)
     if (instrument)
         *envelope = instrument->tremolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_host_channel->tremolo_env;
+    *player_envelope = &player_host_channel->tremolo_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3220,7 +3218,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(pannolo)
     if (instrument)
         *envelope = instrument->pannolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_host_channel->pannolo_env;
+    *player_envelope = &player_host_channel->pannolo_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3230,7 +3228,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(channolo)
     if (instrument)
         *envelope = instrument->channolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_host_channel->channolo_env;
+    *player_envelope = &player_host_channel->channolo_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3240,7 +3238,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(spenolo)
     if (instrument)
         *envelope = instrument->spenolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &avctx->player_globals->spenolo_env;
+    *player_envelope = &avctx->player_globals->spenolo_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3250,7 +3248,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(track_tremolo)
     if (instrument)
         *envelope = instrument->tremolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_host_channel->track_trem_env;
+    *player_envelope = &player_host_channel->track_trem_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3260,7 +3258,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(track_pannolo)
     if (instrument)
         *envelope = instrument->pannolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_host_channel->track_pan_env;
+    *player_envelope = &player_host_channel->track_pan_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3270,7 +3268,7 @@ ASSIGN_INSTRUMENT_ENVELOPE(global_tremolo)
     if (instrument)
         *envelope = instrument->tremolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &avctx->player_globals->tremolo_env;
+    *player_envelope = &avctx->player_globals->tremolo_env;
 
     return (*player_envelope)->envelope;
 }
@@ -3280,28 +3278,28 @@ ASSIGN_INSTRUMENT_ENVELOPE(global_pannolo)
     if (instrument)
         *envelope = instrument->pannolo_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &avctx->player_globals->pannolo_env;
+    *player_envelope = &avctx->player_globals->pannolo_env;
 
     return (*player_envelope)->envelope;
 }
 
 ASSIGN_SAMPLE_ENVELOPE(auto_vibrato)
 {
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->auto_vib_env;
+    *player_envelope = &player_channel->auto_vib_env;
 
     return sample->auto_vibrato_env;
 }
 
 ASSIGN_SAMPLE_ENVELOPE(auto_tremolo)
 {
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->auto_trem_env;
+    *player_envelope = &player_channel->auto_trem_env;
 
     return sample->auto_tremolo_env;
 }
 
 ASSIGN_SAMPLE_ENVELOPE(auto_pannolo)
 {
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->auto_pan_env;
+    *player_envelope = &player_channel->auto_pan_env;
 
     return sample->auto_pannolo_env;
 }
@@ -3311,94 +3309,94 @@ ASSIGN_INSTRUMENT_ENVELOPE(resonance)
     if (instrument)
         *envelope = instrument->resonance_env;
 
-    *player_envelope = (AVSequencerPlayerEnvelope *) &player_channel->resonance_env;
+    *player_envelope = &player_channel->resonance_env;
 
     return player_host_channel->prev_resonance_env;
 }
 
 USE_ENVELOPE(volume)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->vol_env;
+    return &player_channel->vol_env;
 }
 
 USE_ENVELOPE(panning)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->pan_env;
+    return &player_channel->pan_env;
 }
 
 USE_ENVELOPE(slide)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->slide_env;
+    return &player_channel->slide_env;
 }
 
 USE_ENVELOPE(vibrato)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->vibrato_env;
+    return &player_host_channel->vibrato_env;
 }
 
 USE_ENVELOPE(tremolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->tremolo_env;
+    return &player_host_channel->tremolo_env;
 }
 
 USE_ENVELOPE(pannolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->pannolo_env;
+    return &player_host_channel->pannolo_env;
 }
 
 USE_ENVELOPE(channolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->channolo_env;
+    return &player_host_channel->channolo_env;
 }
 
 USE_ENVELOPE(spenolo)
 {
-    return (AVSequencerPlayerEnvelope *) &avctx->player_globals->spenolo_env;
+    return &avctx->player_globals->spenolo_env;
 }
 
 USE_ENVELOPE(auto_vibrato)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->auto_vib_env;
+    return &player_channel->auto_vib_env;
 }
 
 USE_ENVELOPE(auto_tremolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->auto_trem_env;
+    return &player_channel->auto_trem_env;
 }
 
 USE_ENVELOPE(auto_pannolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->auto_pan_env;
+    return &player_channel->auto_pan_env;
 }
 
 USE_ENVELOPE(track_tremolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->track_trem_env;
+    return &player_host_channel->track_trem_env;
 }
 
 USE_ENVELOPE(track_pannolo)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->track_pan_env;
+    return &player_host_channel->track_pan_env;
 }
 
 USE_ENVELOPE(global_tremolo)
 {
-    return (AVSequencerPlayerEnvelope *) &avctx->player_globals->tremolo_env;
+    return &avctx->player_globals->tremolo_env;
 }
 
 USE_ENVELOPE(global_pannolo)
 {
-    return (AVSequencerPlayerEnvelope *) &avctx->player_globals->pannolo_env;
+    return &avctx->player_globals->pannolo_env;
 }
 
 USE_ENVELOPE(arpeggio)
 {
-    return (AVSequencerPlayerEnvelope *) &player_host_channel->arpepggio_env;
+    return &player_host_channel->arpepggio_env;
 }
 
 USE_ENVELOPE(resonance)
 {
-    return (AVSequencerPlayerEnvelope *) &player_channel->resonance_env;
+    return &player_channel->resonance_env;
 }
 
 static void run_effects(AVSequencerContext *avctx, AVSequencerPlayerHostChannel *player_host_channel, AVSequencerPlayerChannel *player_channel, uint16_t channel)
