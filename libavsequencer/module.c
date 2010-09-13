@@ -270,12 +270,12 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
         }
     }
 
-    avctx->player_globals       = player_globals;
-    avctx->player_host_channel  = player_host_channel;
-    avctx->player_channel       = player_channel;
-    avctx->player_module        = module;
-    avctx->player_song          = song;
-    avctx->player_mixer_data    = mixer_data;
+    avctx->player_globals      = player_globals;
+    avctx->player_host_channel = player_host_channel;
+    avctx->player_channel      = player_channel;
+    avctx->player_module       = module;
+    avctx->player_song         = song;
+    avctx->player_mixer_data   = mixer_data;
 
     if (new_gosub_stack && gosub_stack) {
         uint32_t *process_stack     = (uint32_t *) player_globals->gosub_stack;
@@ -343,9 +343,9 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
         av_free(loop_stack);
     }
 
-    player_globals->gosub_stack      = new_gosub_stack;
+    player_globals->gosub_stack      = new_gosub_stack ? new_gosub_stack : gosub_stack;
     player_globals->gosub_stack_size = song->gosub_stack_size;
-    player_globals->loop_stack       = new_loop_stack;
+    player_globals->loop_stack       = new_loop_stack ? new_loop_stack : loop_stack;
     player_globals->loop_stack_size  = song->loop_stack_size;
     player_globals->stack_channels   = song->channels;
     player_globals->virtual_channels = module->channels;
