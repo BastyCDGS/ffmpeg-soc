@@ -66,17 +66,6 @@ typedef struct AV_NULLMixerChannelInfo {
 } AV_NULLMixerChannelInfo;
 
 #if CONFIG_NULL_MIXER
-static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void *opaque);
-static av_cold int uninit(AVMixerData *mixer_data);
-static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate, uint32_t new_channels);
-static av_cold uint32_t set_tempo(AVMixerData *mixer_data, uint32_t new_tempo);
-static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels);
-static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
-static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
-static av_cold void set_channel_volume_panning_pitch(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
-static av_cold void set_channel_position_repeat_flags(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
-static av_cold void mix(AVMixerData *mixer_data, int32_t *buf);
-
 static const char *null_mixer_name(void *p)
 {
     AVMixerContext *mixctx = p;
@@ -91,17 +80,234 @@ static const AVClass avseq_null_mixer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-static void mix_sample(AV_NULLMixerData *const mixer_data, const uint32_t len);
-static void set_sample_mix_rate(const AV_NULLMixerData *const mixer_data, struct ChannelBlock *const channel_block, const uint32_t rate);
-
 #define MIX(type)                                                                               \
     static void mix_##type(const AV_NULLMixerData *const mixer_data,                            \
                            const struct ChannelBlock *const channel_block,                      \
                            uint32_t *const offset, uint32_t *const fraction,                    \
                            const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 
-MIX(skip);
-MIX(skip_backwards);
+MIX(skip)
+{
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
+
+    skip_div     = skip_len >> 32;
+    curr_offset += skip_div;
+    skip_div     = skip_len;
+    curr_frac   += skip_div;
+
+    if (curr_frac < skip_div)
+        curr_offset++;
+
+    *offset   = curr_offset;
+    *fraction = curr_frac;
+}
+
+MIX(skip_backwards)
+{
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
+
+    skip_div     = skip_len >> 32;
+    curr_offset -= skip_div;
+    skip_div     = skip_len;
+    curr_frac   += skip_div;
+
+    if (curr_frac < skip_div)
+        curr_offset--;
+
+    *offset   = curr_offset;
+    *fraction = curr_frac;
+}
+
+static void mix_sample(AV_NULLMixerData *const mixer_data, const uint32_t len)
+{
+    AV_NULLMixerChannelInfo *channel_info = mixer_data->channel_info;
+    uint16_t i;
+
+    for (i = mixer_data->channels_in; i > 0; i--) {
+        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
+            uint32_t offset     = channel_info->current.offset;
+            uint32_t fraction   = channel_info->current.fraction;
+            uint32_t advance    = channel_info->current.advance;
+            uint32_t adv_frac   = channel_info->current.advance_frac;
+            uint32_t remain_len = len, remain_mix;
+            uint32_t counted;
+            uint32_t count_restart;
+            uint64_t calc_mix;
+
+            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+mix_sample_backwards:
+                for (;;) {
+                    calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
+
+                    if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
+                        if ((uint32_t) calc_mix < remain_mix) {
+                            mix_skip_backwards(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, remain_len);
+
+                            if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
+                                remain_len = 0;
+                            else
+                                break;
+                        } else {
+                            calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
+                            remain_len -= (uint32_t) calc_mix;
+
+                            mix_skip_backwards(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+
+                            if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
+                                break;
+                        }
+                    }
+
+                    if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
+                        counted = channel_info->current.counted++;
+
+                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                            channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+                            channel_info->current.end_offset = -1;
+
+                            goto mix_sample_synth;
+                        } else {
+                            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
+                                if (channel_info->next.data) {
+                                    memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
+
+                                    channel_info->next.data = NULL;
+                                }
+
+                                channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+                                remain_mix                               = channel_info->current.end_offset;
+                                offset                                  -= remain_mix;
+                                offset                                   = -offset + remain_mix;
+                                remain_mix                              += channel_info->current.restart_offset;
+                                channel_info->current.end_offset         = remain_mix;
+
+                                if ((int32_t) remain_len > 0)
+                                    goto mix_sample_forwards;
+
+                                break;
+                            } else {
+                                offset += channel_info->current.restart_offset;
+
+                                if (channel_info->next.data)
+                                    goto mix_sample_synth;
+
+                                if ((int32_t) remain_len > 0)
+                                    continue;
+
+                                break;
+                            }
+                        }
+                    } else {
+                        if (channel_info->next.data)
+                            goto mix_sample_synth;
+                        else
+                            channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+
+                        break;
+                    }
+                }
+            } else {
+mix_sample_forwards:
+                for (;;) {
+                    calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
+
+                    if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
+                        if ((uint32_t) calc_mix < remain_mix) {
+                            mix_skip(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, remain_len);
+
+                            if (offset >= channel_info->current.end_offset)
+                                remain_len = 0;
+                            else
+                                break;
+                        } else {
+                            calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
+                            remain_len -= (uint32_t) calc_mix;
+
+                            mix_skip(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+
+                            if ((offset < channel_info->current.end_offset) && !remain_len)
+                                break;
+                        }
+                    }
+
+                    if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
+                        counted = channel_info->current.counted++;
+
+                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                            channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+                            channel_info->current.end_offset = channel_info->current.len;
+
+                            goto mix_sample_synth;
+                        } else {
+                            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
+                                if (channel_info->next.data) {
+                                    memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
+
+                                    channel_info->next.data = NULL;
+                                }
+
+                                channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+                                remain_mix                               = channel_info->current.end_offset;
+                                offset                                  -= remain_mix;
+                                offset                                   = -offset + remain_mix;
+                                remain_mix                              -= channel_info->current.restart_offset;
+                                channel_info->current.end_offset         = remain_mix;
+
+                                if (remain_len)
+                                    goto mix_sample_backwards;
+
+                                break;
+                            } else {
+                                offset -= channel_info->current.restart_offset;
+
+                                if (channel_info->next.data) {
+                                    memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
+
+                                    channel_info->next.data = NULL;
+                                }
+
+                                if ((int32_t) remain_len > 0)
+                                    continue;
+
+                                break;
+                            }
+                        }
+                    } else {
+                        if (channel_info->next.data) {
+mix_sample_synth:
+                            memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
+
+                            channel_info->next.data = NULL;
+
+                            if ((int32_t) remain_len > 0)
+                                continue;
+                        } else {
+                            channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            channel_info->current.offset   = offset;
+            channel_info->current.fraction = fraction;
+        }
+
+        channel_info++;
+    }
+}
+
+static void set_sample_mix_rate(const AV_NULLMixerData *const mixer_data, struct ChannelBlock *const channel_block, const uint32_t rate)
+{
+    const uint32_t mix_rate = mixer_data->mix_rate;
+
+    channel_block->rate         = rate;
+    channel_block->advance      = rate / mix_rate;
+    channel_block->advance_frac = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
+}
 
 static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void *opaque)
 {
@@ -171,6 +377,20 @@ static av_cold int uninit(AVMixerData *mixer_data)
     return 0;
 }
 
+static av_cold uint32_t set_tempo(AVMixerData *mixer_data, uint32_t new_tempo)
+{
+    AV_NULLMixerData *const null_mixer_data = (AV_NULLMixerData *) mixer_data;
+    const uint32_t channel_rate             = null_mixer_data->mix_rate * 10;
+    uint64_t pass_value;
+
+    null_mixer_data->mixer_data.tempo = new_tempo;
+    pass_value                        = ((uint64_t) channel_rate << 16) + ((uint64_t) null_mixer_data->mix_rate_frac >> 16);
+    null_mixer_data->pass_len         = (uint64_t) pass_value / null_mixer_data->mixer_data.tempo;
+    null_mixer_data->pass_len_frac    = (((uint64_t) pass_value % null_mixer_data->mixer_data.tempo) << 32) / null_mixer_data->mixer_data.tempo;
+
+    return new_tempo;
+}
+
 static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate, uint32_t new_channels)
 {
     AV_NULLMixerData *const null_mixer_data = (AV_NULLMixerData *) mixer_data;
@@ -226,20 +446,6 @@ static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
     // TODO: Inform libavfilter that the target mixing rate has been changed.
 
     return new_mix_rate;
-}
-
-static av_cold uint32_t set_tempo(AVMixerData *mixer_data, uint32_t new_tempo)
-{
-    AV_NULLMixerData *const null_mixer_data = (AV_NULLMixerData *) mixer_data;
-    const uint32_t channel_rate             = null_mixer_data->mix_rate * 10;
-    uint64_t pass_value;
-
-    null_mixer_data->mixer_data.tempo = new_tempo;
-    pass_value                        = ((uint64_t) channel_rate << 16) + ((uint64_t) null_mixer_data->mix_rate_frac >> 16);
-    null_mixer_data->pass_len         = (uint64_t) pass_value / null_mixer_data->mixer_data.tempo;
-    null_mixer_data->pass_len_frac    = (((uint64_t) pass_value % null_mixer_data->mixer_data.tempo) << 32) / null_mixer_data->mixer_data.tempo;
-
-    return new_tempo;
 }
 
 static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels)
@@ -504,229 +710,6 @@ static av_cold void mix(AVMixerData *mixer_data, int32_t *buf)
         null_mixer_data->current_left      = current_left;
         null_mixer_data->current_left_frac = current_left_frac;
     }
-}
-
-static void mix_sample(AV_NULLMixerData *const mixer_data, const uint32_t len)
-{
-    AV_NULLMixerChannelInfo *channel_info = mixer_data->channel_info;
-    uint16_t i;
-
-    for (i = mixer_data->channels_in; i > 0; i--) {
-        if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
-            uint32_t offset     = channel_info->current.offset;
-            uint32_t fraction   = channel_info->current.fraction;
-            uint32_t advance    = channel_info->current.advance;
-            uint32_t adv_frac   = channel_info->current.advance_frac;
-            uint32_t remain_len = len, remain_mix;
-            uint32_t counted;
-            uint32_t count_restart;
-            uint64_t calc_mix;
-
-            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
-mix_sample_backwards:
-                for (;;) {
-                    calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
-
-                    if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
-                        if ((uint32_t) calc_mix < remain_mix) {
-                            mix_skip_backwards(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, remain_len);
-
-                            if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
-                                remain_len = 0;
-                            else
-                                break;
-                        } else {
-                            calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
-                            remain_len -= (uint32_t) calc_mix;
-
-                            mix_skip_backwards(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
-
-                            if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
-                                break;
-                        }
-                    }
-
-                    if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-                        counted = channel_info->current.counted++;
-
-                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
-                            channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
-                            channel_info->current.end_offset = -1;
-
-                            goto mix_sample_synth;
-                        } else {
-                            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                if (channel_info->next.data) {
-                                    memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
-
-                                    channel_info->next.data = NULL;
-                                }
-
-                                channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
-                                remain_mix                               = channel_info->current.end_offset;
-                                offset                                  -= remain_mix;
-                                offset                                   = -offset + remain_mix;
-                                remain_mix                              += channel_info->current.restart_offset;
-                                channel_info->current.end_offset         = remain_mix;
-
-                                if ((int32_t) remain_len > 0)
-                                    goto mix_sample_forwards;
-
-                                break;
-                            } else {
-                                offset += channel_info->current.restart_offset;
-
-                                if (channel_info->next.data)
-                                    goto mix_sample_synth;
-
-                                if ((int32_t) remain_len > 0)
-                                    continue;
-
-                                break;
-                            }
-                        }
-                    } else {
-                        if (channel_info->next.data)
-                            goto mix_sample_synth;
-                        else
-                            channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
-
-                        break;
-                    }
-                }
-            } else {
-mix_sample_forwards:
-                for (;;) {
-                    calc_mix = (((((uint64_t) advance << 32) + adv_frac) * remain_len) + fraction) >> 32;
-
-                    if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
-                        if ((uint32_t) calc_mix < remain_mix) {
-                            mix_skip(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, remain_len);
-
-                            if (offset >= channel_info->current.end_offset)
-                                remain_len = 0;
-                            else
-                                break;
-                        } else {
-                            calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
-                            remain_len -= (uint32_t) calc_mix;
-
-                            mix_skip(mixer_data, &channel_info->current, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
-
-                            if ((offset < channel_info->current.end_offset) && !remain_len)
-                                break;
-                        }
-                    }
-
-                    if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-                        counted = channel_info->current.counted++;
-
-                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
-                            channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
-                            channel_info->current.end_offset = channel_info->current.len;
-
-                            goto mix_sample_synth;
-                        } else {
-                            if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                if (channel_info->next.data) {
-                                    memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
-
-                                    channel_info->next.data = NULL;
-                                }
-
-                                channel_info->current.flags             ^= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
-                                remain_mix                               = channel_info->current.end_offset;
-                                offset                                  -= remain_mix;
-                                offset                                   = -offset + remain_mix;
-                                remain_mix                              -= channel_info->current.restart_offset;
-                                channel_info->current.end_offset         = remain_mix;
-
-                                if (remain_len)
-                                    goto mix_sample_backwards;
-
-                                break;
-                            } else {
-                                offset -= channel_info->current.restart_offset;
-
-                                if (channel_info->next.data) {
-                                    memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
-
-                                    channel_info->next.data = NULL;
-                                }
-
-                                if ((int32_t) remain_len > 0)
-                                    continue;
-
-                                break;
-                            }
-                        }
-                    } else {
-                        if (channel_info->next.data) {
-mix_sample_synth:
-                            memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
-
-                            channel_info->next.data = NULL;
-
-                            if ((int32_t) remain_len > 0)
-                                continue;
-                        } else {
-                            channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
-                        }
-
-                        break;
-                    }
-                }
-            }
-
-            channel_info->current.offset   = offset;
-            channel_info->current.fraction = fraction;
-        }
-
-        channel_info++;
-    }
-}
-
-static void set_sample_mix_rate(const AV_NULLMixerData *const mixer_data, struct ChannelBlock *const channel_block, const uint32_t rate)
-{
-    const uint32_t mix_rate = mixer_data->mix_rate;
-
-    channel_block->rate         = rate;
-    channel_block->advance      = rate / mix_rate;
-    channel_block->advance_frac = (((uint64_t) rate % mix_rate) << 32) / mix_rate;
-}
-
-MIX(skip)
-{
-    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
-    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
-
-    skip_div     = skip_len >> 32;
-    curr_offset += skip_div;
-    skip_div     = skip_len;
-    curr_frac   += skip_div;
-
-    if (curr_frac < skip_div)
-        curr_offset++;
-
-    *offset   = curr_offset;
-    *fraction = curr_frac;
-}
-
-MIX(skip_backwards)
-{
-    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
-    const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
-
-    skip_div     = skip_len >> 32;
-    curr_offset -= skip_div;
-    skip_div     = skip_len;
-    curr_frac   += skip_div;
-
-    if (curr_frac < skip_div)
-        curr_offset--;
-
-    *offset   = curr_offset;
-    *fraction = curr_frac;
 }
 
 AVMixerContext null_mixer = {

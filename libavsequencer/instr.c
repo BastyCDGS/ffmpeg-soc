@@ -189,32 +189,6 @@ static const AVClass avseq_envelope_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-#define CREATE_ENVELOPE(env_type) \
-    static void create_##env_type##_envelope (AVSequencerContext *avctx,  \
-                                              int16_t *data,              \
-                                              uint32_t points,            \
-                                              uint32_t scale,             \
-                                              uint32_t scale_type,        \
-                                              uint32_t y_offset)
-
-CREATE_ENVELOPE(empty);
-CREATE_ENVELOPE(sine);
-CREATE_ENVELOPE(cosine);
-CREATE_ENVELOPE(ramp);
-CREATE_ENVELOPE(triangle);
-CREATE_ENVELOPE(square);
-CREATE_ENVELOPE(sawtooth);
-
-static const void *create_env_lut[] = {
-    create_empty_envelope,
-    create_sine_envelope,
-    create_cosine_envelope,
-    create_ramp_envelope,
-    create_triangle_envelope,
-    create_square_envelope,
-    create_sawtooth_envelope
-};
-
 AVSequencerEnvelope *avseq_envelope_create(void)
 {
     return av_mallocz(sizeof(AVSequencerEnvelope) + FF_INPUT_BUFFER_PADDING_SIZE);
@@ -425,184 +399,13 @@ void avseq_envelope_close(AVSequencerModule *module, AVSequencerEnvelope *envelo
     avseq_envelope_data_close(envelope);
 }
 
-int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *envelope,
-                             uint32_t points, uint32_t type, uint32_t scale,
-                             uint32_t y_offset, uint32_t nodes)
-{
-    uint32_t scale_type;
-    void (**create_env_func)(AVSequencerContext *avctx, int16_t *data, uint32_t points, uint32_t scale, uint32_t scale_type, uint32_t y_offset);
-    int16_t *data;
-
-    if (!envelope)
-        return AVERROR_INVALIDDATA;
-
-    if (!points)
-        points = 64;
-
-    if (points >= 0x10000)
-        return AVERROR_INVALIDDATA;
-
-    data = envelope->data;
-
-    if (!(data = av_realloc(data, (points * sizeof(int16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-        av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope points.\n");
-        return AVERROR(ENOMEM);
-    }
-
-    if (!type) {
-        if (points > envelope->points)
-            memset(data + envelope->points, 0, (points - envelope->points) * sizeof(int16_t));
-
-        if (nodes) {
-            uint16_t *node;
-            uint16_t old_nodes;
-
-            if (!nodes)
-                nodes = 12;
-
-            if (nodes == 1)
-                nodes++;
-
-            if (nodes >= 0x10000)
-                return AVERROR_INVALIDDATA;
-
-            old_nodes = envelope->nodes;
-            node      = envelope->node_points;
-
-            if (!(node = av_realloc(node, (nodes * sizeof(uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-                av_free(data);
-                av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
-                return AVERROR(ENOMEM);
-            }
-
-            envelope->node_points = node;
-            envelope->nodes       = nodes;
-
-            if (nodes > old_nodes) {
-                uint32_t node_div, node_mod, value, count, i;
-
-                if (old_nodes)
-                    value = node[old_nodes - 1];
-                else
-                    value = 0;
-
-                nodes -= old_nodes;
-                count  = 0;
-
-                if (nodes > points)
-                    nodes = points;
-
-                node    += old_nodes;
-                node_div = points / nodes;
-                node_mod = points % nodes;
-
-                for (i = nodes; i > 0; i--) {
-                    *node++ = value;
-                    value  += node_div;
-                    count  += node_mod;
-
-                    if (count >= nodes) {
-                        count -= nodes;
-                        value++;
-                    }
-                }
-
-                *--node = points - 1;
-            } else {
-                node[nodes - 1] = points - 1;
-            }
-        }
-    } else {
-        if (type > 7)
-            type = 0;
-        else
-            type--;
-
-        scale_type = scale & 0x80000000;
-        scale     &= 0x7FFFFFFF;
-
-        if (scale > 0x7FFF)
-            scale = 0x7FFF;
-
-        create_env_func = (void *) &(create_env_lut);
-        create_env_func[type](avctx, data, points, scale, scale_type, y_offset);
-
-        if (nodes) {
-            uint32_t node_div, node_mod, value = 0, count = 0, i;
-            uint16_t *node;
-
-            if (!nodes)
-                nodes = 12;
-
-            if (nodes == 1)
-                nodes++;
-
-            if (nodes >= 0x10000)
-                return AVERROR_INVALIDDATA;
-
-            node = envelope->node_points;
-
-            if (!(node = av_realloc(node, (nodes * sizeof(uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-                av_free(data);
-                av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
-                return AVERROR(ENOMEM);
-            }
-
-            envelope->node_points = node;
-            envelope->nodes       = nodes;
-
-            if (nodes > points)
-                nodes = points;
-
-            node_div = points / nodes;
-            node_mod = points % nodes;
-
-            for (i = nodes; i > 0; i--) {
-                *node++ = value;
-                value  += node_div;
-                count  += node_mod;
-
-                if (count >= nodes) {
-                    count -= nodes;
-                    value++;
-                }
-            }
-
-            *--node = points - 1;
-        }
-    }
-
-    envelope->data   = data;
-    envelope->points = points;
-
-    return 0;
-}
-
-void avseq_envelope_data_close(AVSequencerEnvelope *envelope)
-{
-    if (envelope) {
-        av_freep(&envelope->node_points);
-        av_freep(&envelope->data);
-
-        envelope->nodes         = 0;
-        envelope->points        = 0;
-        envelope->sustain_start = 0;
-        envelope->sustain_end   = 0;
-        envelope->loop_start    = 0;
-        envelope->loop_end      = 0;
-    }
-}
-
-AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope)
-{
-    if (!(module && envelope))
-        return NULL;
-
-    if (envelope > module->envelopes)
-        return NULL;
-
-    return module->envelope_list[--envelope];
-}
+#define CREATE_ENVELOPE(env_type) \
+    static void create_##env_type##_envelope (AVSequencerContext *avctx,  \
+                                              int16_t *data,              \
+                                              uint32_t points,            \
+                                              uint32_t scale,             \
+                                              uint32_t scale_type,        \
+                                              uint32_t y_offset)
 
 CREATE_ENVELOPE(empty)
 {
@@ -847,6 +650,195 @@ CREATE_ENVELOPE(sawtooth)
         value  += y_offset;
         *data++ = value;
     }
+}
+
+static const void *create_env_lut[] = {
+    create_empty_envelope,
+    create_sine_envelope,
+    create_cosine_envelope,
+    create_ramp_envelope,
+    create_triangle_envelope,
+    create_square_envelope,
+    create_sawtooth_envelope
+};
+
+int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *envelope,
+                             uint32_t points, uint32_t type, uint32_t scale,
+                             uint32_t y_offset, uint32_t nodes)
+{
+    uint32_t scale_type;
+    void (**create_env_func)(AVSequencerContext *avctx, int16_t *data, uint32_t points, uint32_t scale, uint32_t scale_type, uint32_t y_offset);
+    int16_t *data;
+
+    if (!envelope)
+        return AVERROR_INVALIDDATA;
+
+    if (!points)
+        points = 64;
+
+    if (points >= 0x10000)
+        return AVERROR_INVALIDDATA;
+
+    data = envelope->data;
+
+    if (!(data = av_realloc(data, (points * sizeof(int16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+        av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope points.\n");
+        return AVERROR(ENOMEM);
+    }
+
+    if (!type) {
+        if (points > envelope->points)
+            memset(data + envelope->points, 0, (points - envelope->points) * sizeof(int16_t));
+
+        if (nodes) {
+            uint16_t *node;
+            uint16_t old_nodes;
+
+            if (!nodes)
+                nodes = 12;
+
+            if (nodes == 1)
+                nodes++;
+
+            if (nodes >= 0x10000)
+                return AVERROR_INVALIDDATA;
+
+            old_nodes = envelope->nodes;
+            node      = envelope->node_points;
+
+            if (!(node = av_realloc(node, (nodes * sizeof(uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                av_free(data);
+                av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
+                return AVERROR(ENOMEM);
+            }
+
+            envelope->node_points = node;
+            envelope->nodes       = nodes;
+
+            if (nodes > old_nodes) {
+                uint32_t node_div, node_mod, value, count, i;
+
+                if (old_nodes)
+                    value = node[old_nodes - 1];
+                else
+                    value = 0;
+
+                nodes -= old_nodes;
+                count  = 0;
+
+                if (nodes > points)
+                    nodes = points;
+
+                node    += old_nodes;
+                node_div = points / nodes;
+                node_mod = points % nodes;
+
+                for (i = nodes; i > 0; i--) {
+                    *node++ = value;
+                    value  += node_div;
+                    count  += node_mod;
+
+                    if (count >= nodes) {
+                        count -= nodes;
+                        value++;
+                    }
+                }
+
+                *--node = points - 1;
+            } else {
+                node[nodes - 1] = points - 1;
+            }
+        }
+    } else {
+        if (type > 7)
+            type = 0;
+        else
+            type--;
+
+        scale_type = scale & 0x80000000;
+        scale     &= 0x7FFFFFFF;
+
+        if (scale > 0x7FFF)
+            scale = 0x7FFF;
+
+        create_env_func = (void *) &(create_env_lut);
+        create_env_func[type](avctx, data, points, scale, scale_type, y_offset);
+
+        if (nodes) {
+            uint32_t node_div, node_mod, value = 0, count = 0, i;
+            uint16_t *node;
+
+            if (!nodes)
+                nodes = 12;
+
+            if (nodes == 1)
+                nodes++;
+
+            if (nodes >= 0x10000)
+                return AVERROR_INVALIDDATA;
+
+            node = envelope->node_points;
+
+            if (!(node = av_realloc(node, (nodes * sizeof(uint16_t)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                av_free(data);
+                av_log(envelope, AV_LOG_ERROR, "Cannot allocate envelope node data.\n");
+                return AVERROR(ENOMEM);
+            }
+
+            envelope->node_points = node;
+            envelope->nodes       = nodes;
+
+            if (nodes > points)
+                nodes = points;
+
+            node_div = points / nodes;
+            node_mod = points % nodes;
+
+            for (i = nodes; i > 0; i--) {
+                *node++ = value;
+                value  += node_div;
+                count  += node_mod;
+
+                if (count >= nodes) {
+                    count -= nodes;
+                    value++;
+                }
+            }
+
+            *--node = points - 1;
+        }
+    }
+
+    envelope->data   = data;
+    envelope->points = points;
+
+    return 0;
+}
+
+void avseq_envelope_data_close(AVSequencerEnvelope *envelope)
+{
+    if (envelope) {
+        av_freep(&envelope->node_points);
+        av_freep(&envelope->data);
+
+        envelope->nodes         = 0;
+        envelope->points        = 0;
+        envelope->sustain_start = 0;
+        envelope->sustain_end   = 0;
+        envelope->loop_start    = 0;
+        envelope->loop_end      = 0;
+    }
+}
+
+AVSequencerEnvelope *avseq_envelope_get_address(AVSequencerModule *module, uint32_t envelope)
+{
+    if (!(module && envelope))
+        return NULL;
+
+    if (envelope > module->envelopes)
+        return NULL;
+
+    return module->envelope_list[--envelope];
 }
 
 AVSequencerKeyboard *avseq_keyboard_create(void)

@@ -314,7 +314,7 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
 
             for (i = module->channels; i > 0; i--) {
                 if (mixer_data->mixctx->set_channel_position_repeat_flags)
-                    mixer_data->mixctx->set_channel_position_repeat_flags(mixer_data, (AVMixerChannel *) &(player_channel[channel].mixer), channel);
+                    mixer_data->mixctx->set_channel_position_repeat_flags(mixer_data, &(player_channel[channel].mixer), channel);
 
                 channel++;
             }
@@ -380,93 +380,6 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
     } else if (!avctx->player_globals->tempo) {
         av_log(song, AV_LOG_ERROR, "Absolute song speed is invalid!\n");
         return AVERROR_INVALIDDATA;
-    }
-
-    return 0;
-}
-
-static int set_new_channel_stack(AVSequencerContext *avctx, AVSequencerSong *song, uint16_t gosub_stack, uint16_t loop_stack, uint16_t channels);
-
-int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
-                            uint32_t channels)
-{
-    if (!(avctx && song))
-        return AVERROR_INVALIDDATA;
-
-    if (!channels)
-        channels = 16;
-
-    if (channels > 256)
-        channels = 256;
-
-    if (channels != song->channels) {
-        AVSequencerPlayerHostChannel *player_host_channel;
-        AVSequencerOrderList *order_list = song->order_list;
-        int res;
-
-        if ((channels == 0) || (channels > 256)) {
-            return AVERROR_INVALIDDATA;
-        } else if (!(order_list = av_realloc(order_list, (channels * sizeof(AVSequencerOrderList)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-            av_log(song, AV_LOG_ERROR, "Cannot allocate order list storage container.\n");
-            return AVERROR(ENOMEM);
-        }
-
-        if ((song == avctx->player_song) && (player_host_channel = avctx->player_host_channel)) {
-            AVSequencerModule *module;
-            AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
-            uint16_t i;
-
-            if (!(player_host_channel = av_realloc(player_host_channel, (song->channels * sizeof(AVSequencerPlayerHostChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
-                av_free(order_list);
-                av_log(song, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
-                return AVERROR(ENOMEM);
-            }
-
-            if (channels > song->channels)
-                memset(player_host_channel + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerPlayerHostChannel));
-
-            if ((module = avctx->player_module)) {
-                AVSequencerPlayerChannel *player_channel;
-
-                if ((player_channel = avctx->player_channel)) {
-                    for (i = module->channels; i > 0; i--) {
-                        if (player_channel->host_channel >= channels)
-                            player_channel->mixer.flags = 0;
-
-                        if (player_globals)
-                            player_globals->channels--;
-                    }
-                }
-            }
-
-            if ((res = set_new_channel_stack(avctx, song, song->gosub_stack_size, song->loop_stack_size, channels)) < 0) {
-                av_freep(&player_host_channel);
-                av_free(order_list);
-                return res;
-            }
-
-            if (player_globals)
-                player_globals->stack_channels = channels;
-
-            if (player_host_channel)
-                avctx->player_host_channel = player_host_channel;
-        }
-
-        if (channels > song->channels) {
-            uint16_t channel = channels;
-
-            memset(order_list + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerOrderList));
-
-            while (channel-- != song->channels) {
-                order_list[channel].av_class        = order_list[0].av_class;
-                order_list[channel].volume          = 255;
-                order_list[channel].track_panning   = -128;
-                order_list[channel].channel_panning = -128;
-            }
-        }
-
-        song->order_list = order_list;
-        song->channels   = channels;
     }
 
     return 0;
@@ -580,6 +493,91 @@ static int set_new_channel_stack(AVSequencerContext *avctx, AVSequencerSong *son
 
     song->gosub_stack_size = gosub_stack;
     song->loop_stack_size  = loop_stack;
+
+    return 0;
+}
+
+int avseq_song_set_channels(AVSequencerContext *avctx, AVSequencerSong *song,
+                            uint32_t channels)
+{
+    if (!(avctx && song))
+        return AVERROR_INVALIDDATA;
+
+    if (!channels)
+        channels = 16;
+
+    if (channels > 256)
+        channels = 256;
+
+    if (channels != song->channels) {
+        AVSequencerPlayerHostChannel *player_host_channel;
+        AVSequencerOrderList *order_list = song->order_list;
+        int res;
+
+        if ((channels == 0) || (channels > 256)) {
+            return AVERROR_INVALIDDATA;
+        } else if (!(order_list = av_realloc(order_list, (channels * sizeof(AVSequencerOrderList)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            av_log(song, AV_LOG_ERROR, "Cannot allocate order list storage container.\n");
+            return AVERROR(ENOMEM);
+        }
+
+        if ((song == avctx->player_song) && (player_host_channel = avctx->player_host_channel)) {
+            AVSequencerModule *module;
+            AVSequencerPlayerGlobals *player_globals = avctx->player_globals;
+            uint16_t i;
+
+            if (!(player_host_channel = av_realloc(player_host_channel, (song->channels * sizeof(AVSequencerPlayerHostChannel)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
+                av_free(order_list);
+                av_log(song, AV_LOG_ERROR, "Cannot allocate player host channel data.\n");
+                return AVERROR(ENOMEM);
+            }
+
+            if (channels > song->channels)
+                memset(player_host_channel + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerPlayerHostChannel));
+
+            if ((module = avctx->player_module)) {
+                AVSequencerPlayerChannel *player_channel;
+
+                if ((player_channel = avctx->player_channel)) {
+                    for (i = module->channels; i > 0; i--) {
+                        if (player_channel->host_channel >= channels)
+                            player_channel->mixer.flags = 0;
+
+                        if (player_globals)
+                            player_globals->channels--;
+                    }
+                }
+            }
+
+            if ((res = set_new_channel_stack(avctx, song, song->gosub_stack_size, song->loop_stack_size, channels)) < 0) {
+                av_freep(&player_host_channel);
+                av_free(order_list);
+                return res;
+            }
+
+            if (player_globals)
+                player_globals->stack_channels = channels;
+
+            if (player_host_channel)
+                avctx->player_host_channel = player_host_channel;
+        }
+
+        if (channels > song->channels) {
+            uint16_t channel = channels;
+
+            memset(order_list + song->channels, 0, (channels - song->channels) * sizeof(AVSequencerOrderList));
+
+            while (channel-- != song->channels) {
+                order_list[channel].av_class        = order_list[0].av_class;
+                order_list[channel].volume          = 255;
+                order_list[channel].track_panning   = -128;
+                order_list[channel].channel_panning = -128;
+            }
+        }
+
+        song->order_list = order_list;
+        song->channels   = channels;
+    }
 
     return 0;
 }

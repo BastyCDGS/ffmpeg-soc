@@ -247,6 +247,7 @@ void avseq_order_data_close(AVSequencerSong *song, AVSequencerOrderList *order_l
 AVSequencerOrderData *avseq_order_get_address(AVSequencerSong *song, uint32_t channel, uint32_t order)
 {
     AVSequencerOrderList *order_list;
+
     if (!(song && order))
         return NULL;
 
