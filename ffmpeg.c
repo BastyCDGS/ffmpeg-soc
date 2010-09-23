@@ -867,9 +867,9 @@ need_realloc:
 
     if(audio_sync_method){
         double delta = get_sync_ipts(ost) * enc->sample_rate - ost->sync_opts
-                - av_fifo_size(ost->fifo)/(ost->st->codec->channels * 2);
-        double idelta= delta*ist->st->codec->sample_rate / enc->sample_rate;
-        int byte_delta= ((int)idelta)*2*ist->st->codec->channels;
+                - av_fifo_size(ost->fifo)/(enc->channels * 2);
+        double idelta= delta*dec->sample_rate / enc->sample_rate;
+        int byte_delta= ((int)idelta)*2*dec->channels;
 
         //FIXME resample delay
         if(fabs(delta) > 50){
@@ -911,13 +911,13 @@ need_realloc:
         }
     }else
         ost->sync_opts= lrintf(get_sync_ipts(ost) * enc->sample_rate)
-                        - av_fifo_size(ost->fifo)/(ost->st->codec->channels * 2); //FIXME wrong
+                        - av_fifo_size(ost->fifo)/(enc->channels * 2); //FIXME wrong
 
     if (ost->audio_resample) {
         buftmp = audio_buf;
         size_out = audio_resample(ost->resample,
                                   (short *)buftmp, (short *)buf,
-                                  size / (ist->st->codec->channels * isize));
+                                  size / (dec->channels * isize));
         size_out = size_out * enc->channels * osize;
     } else {
         buftmp = buf;
@@ -972,7 +972,7 @@ need_realloc:
             if(enc->coded_frame && enc->coded_frame->pts != AV_NOPTS_VALUE)
                 pkt.pts= av_rescale_q(enc->coded_frame->pts, enc->time_base, ost->st->time_base);
             pkt.flags |= AV_PKT_FLAG_KEY;
-            write_frame(s, &pkt, ost->st->codec, bitstream_filters[ost->file_index][pkt.stream_index]);
+            write_frame(s, &pkt, enc, bitstream_filters[ost->file_index][pkt.stream_index]);
 
             ost->sync_opts += enc->frame_size;
         }
@@ -1007,7 +1007,7 @@ need_realloc:
         if(enc->coded_frame && enc->coded_frame->pts != AV_NOPTS_VALUE)
             pkt.pts= av_rescale_q(enc->coded_frame->pts, enc->time_base, ost->st->time_base);
         pkt.flags |= AV_PKT_FLAG_KEY;
-        write_frame(s, &pkt, ost->st->codec, bitstream_filters[ost->file_index][pkt.stream_index]);
+        write_frame(s, &pkt, enc, bitstream_filters[ost->file_index][pkt.stream_index]);
     }
 }
 
@@ -3868,15 +3868,6 @@ static void opt_intra_matrix(const char *arg)
 {
     intra_matrix = av_mallocz(sizeof(uint16_t) * 64);
     parse_matrix_coeffs(intra_matrix, arg);
-}
-
-/**
- * Trivial log callback.
- * Only suitable for show_help and similar since it lacks prefix handling.
- */
-static void log_callback_help(void* ptr, int level, const char* fmt, va_list vl)
-{
-    vfprintf(stdout, fmt, vl);
 }
 
 static void show_usage(void)

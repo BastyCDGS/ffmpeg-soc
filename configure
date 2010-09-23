@@ -988,6 +988,7 @@ HAVE_LIST="
     $ARCH_EXT_LIST
     $HAVE_LIST_PUB
     $THREADS_LIST
+    aligned_stack
     alsa_asoundlib_h
     altivec_h
     arpa_inet_h
@@ -1171,6 +1172,7 @@ mmx2_deps="mmx"
 sse_deps="mmx"
 ssse3_deps="sse"
 
+aligned_stack_if_any="ppc x86"
 fast_64bit_if_any="alpha ia64 mips64 parisc64 ppc64 sparc64 x86_64"
 fast_clz_if_any="alpha armv5te avr32 mips ppc x86"
 fast_unaligned_if_any="armv6 ppc x86"
@@ -1847,6 +1849,7 @@ elif $cc --version 2>/dev/null | grep -q Intel; then
     cc_type=icc
     cc_version="AV_STRINGIFY(__INTEL_COMPILER)"
     cc_ident=$($cc --version | head -n1)
+    icc_version=$($cc -dumpversion)
     CC_DEPFLAGS='-MMD'
     AS_DEPFLAGS='-MMD'
     speed_cflags='-O3'
@@ -2731,7 +2734,7 @@ enabled libdirac   && add_cflags $(pkg-config --cflags dirac) &&
                       require  libdirac libdirac_encoder/dirac_encoder.h dirac_encoder_init $(pkg-config --libs dirac)
 enabled libfaac    && require2 libfaac "stdint.h faac.h" faacEncGetVersion -lfaac
 enabled libgsm     && require  libgsm gsm/gsm.h gsm_create -lgsm
-enabled libmp3lame && require  libmp3lame lame/lame.h hip_decode_init -lmp3lame
+enabled libmp3lame && require  "libmp3lame >= 3.98.3" lame/lame.h hip_decode_init -lmp3lame
 enabled libnut     && require  libnut libnut.h nut_demuxer_init -lnut
 enabled libopencore_amrnb  && require libopencore_amrnb opencore-amrnb/interf_dec.h Decoder_Interface_init -lopencore-amrnb
 enabled libopencore_amrwb  && require libopencore_amrwb opencore-amrwb/dec_if.h D_IF_init -lopencore-amrwb
@@ -2907,6 +2910,11 @@ if enabled icc; then
     check_ldflags -march=$cpu
     # icc 11.0 and 11.1 work with ebp_available, but don't pass the test
     enable ebp_available
+    if enabled x86_32; then
+        test ${icc_version%%.*} -ge 11 && \
+            check_cflags -falign-stack=maintain-16-byte || \
+            disable aligned_stack
+    fi
 elif enabled ccc; then
     # disable some annoying warnings
     add_cflags -msg_disable cvtu32to64
