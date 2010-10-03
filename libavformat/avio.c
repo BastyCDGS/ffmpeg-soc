@@ -23,7 +23,7 @@
 #define _XOPEN_SOURCE 600
 #include <unistd.h>
 #include "libavutil/avstring.h"
-#include "libavcodec/opt.h"
+#include "libavutil/opt.h"
 #include "os_support.h"
 #include "avformat.h"
 #if CONFIG_NETWORK
@@ -90,7 +90,7 @@ int av_register_protocol(URLProtocol *protocol)
 
 int register_protocol(URLProtocol *protocol)
 {
-    return av_register_protocol(protocol);
+    return av_register_protocol2(protocol, sizeof(struct URLProtocol_compat));
 }
 #endif
 

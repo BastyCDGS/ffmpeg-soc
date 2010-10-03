@@ -25,7 +25,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVFILTER_VERSION_MAJOR  1
-#define LIBAVFILTER_VERSION_MINOR 39
+#define LIBAVFILTER_VERSION_MINOR 48
 #define LIBAVFILTER_VERSION_MICRO  0
 
 #define LIBAVFILTER_VERSION_INT AV_VERSION_INT(LIBAVFILTER_VERSION_MAJOR, \
@@ -556,10 +556,10 @@ struct AVFilterContext {
  */
 struct AVFilterLink {
     AVFilterContext *src;       ///< source filter
-    unsigned int srcpad;        ///< index of the output pad on the source filter
+    AVFilterPad *srcpad;        ///< output pad on the source filter
 
     AVFilterContext *dst;       ///< dest filter
-    unsigned int dstpad;        ///< index of the input pad on the dest filter
+    AVFilterPad *dstpad;        ///< input pad on the dest filter
 
     /** stage of the initialization of the link properties (dimensions, etc) */
     enum {
@@ -645,7 +645,7 @@ AVFilterBufferRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
  * @param channel_layout the number and type of channels per sample in the buffer to allocate
  * @param planar         audio data layout - planar or packed
  * @return               A reference to the samples. This must be unreferenced with
- *                       avfilter_unref_samples when you are finished with it.
+ *                       avfilter_unref_buffer when you are finished with it.
  */
 AVFilterBufferRef *avfilter_get_audio_buffer(AVFilterLink *link, int perms,
                                              enum SampleFormat sample_fmt, int size,
@@ -783,12 +783,12 @@ void avfilter_destroy(AVFilterContext *filter);
  *
  * @param link the link into which the filter should be inserted
  * @param filt the filter to be inserted
- * @param in   the input pad on the filter to connect
- * @param out  the output pad on the filter to connect
+ * @param filt_srcpad_idx the input pad on the filter to connect
+ * @param filt_dstpad_idx the output pad on the filter to connect
  * @return     zero on success
  */
 int avfilter_insert_filter(AVFilterLink *link, AVFilterContext *filt,
-                           unsigned in, unsigned out);
+                           unsigned filt_srcpad_idx, unsigned filt_dstpad_idx);
 
 /**
  * Insert a new pad.

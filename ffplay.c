@@ -207,10 +207,7 @@ typedef struct VideoState {
     char filename[1024];
     int width, height, xleft, ytop;
 
-    int64_t faulty_pts;
-    int64_t faulty_dts;
-    int64_t last_dts_for_fault_detection;
-    int64_t last_pts_for_fault_detection;
+    PtsCorrectionContext pts_ctx;
 
 #if CONFIG_AVFILTER
     AVFilterContext *out_video_filter;          ///<the last filter in the video chain
@@ -1286,7 +1283,7 @@ retry:
             if (is->audio_st && is->video_st)
                 av_diff = get_audio_clock(is) - get_video_clock(is);
             printf("%7.2f A-V:%7.3f s:%3.1f aq=%5dKB vq=%5dKB sq=%5dB f=%"PRId64"/%"PRId64"   \r",
-                   get_master_clock(is), av_diff, FFMAX(is->skip_frames-1, 0), aqsize / 1024, vqsize / 1024, sqsize, is->faulty_dts, is->faulty_pts);
+                   get_master_clock(is), av_diff, FFMAX(is->skip_frames-1, 0), aqsize / 1024, vqsize / 1024, sqsize, is->pts_ctx.num_faulty_dts, is->pts_ctx.num_faulty_pts);
             fflush(stdout);
             last_time = cur_time;
         }
@@ -1329,21 +1326,18 @@ static void stream_close(VideoState *is)
 
 static void do_exit(void)
 {
-    int i;
     if (cur_stream) {
         stream_close(cur_stream);
         cur_stream = NULL;
     }
-    for (i = 0; i < AVMEDIA_TYPE_NB; i++)
-        av_free(avcodec_opts[i]);
-    av_free(avformat_opts);
-    av_free(sws_opts);
+    uninit_opts();
 #if CONFIG_AVFILTER
     avfilter_uninit();
 #endif
     if (show_status)
         printf("\n");
     SDL_Quit();
+    av_log(NULL, AV_LOG_QUIET, "");
     exit(0);
 }
 
@@ -1564,8 +1558,7 @@ static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacke
             is->video_current_pos= -1;
             SDL_UnlockMutex(is->pictq_mutex);
 
-            is->last_dts_for_fault_detection=
-            is->last_pts_for_fault_detection= INT64_MIN;
+            init_pts_correction(&is->pts_ctx);
             is->frame_last_pts= AV_NOPTS_VALUE;
             is->frame_last_delay = 0;
             is->frame_timer = (double)av_gettime() / 1000000.0;
@@ -1582,25 +1575,18 @@ static int get_video_frame(VideoState *is, AVFrame *frame, int64_t *pts, AVPacke
                                     pkt);
 
         if (got_picture) {
-            if(pkt->dts != AV_NOPTS_VALUE){
-                is->faulty_dts += pkt->dts <= is->last_dts_for_fault_detection;
-                is->last_dts_for_fault_detection= pkt->dts;
+            if (decoder_reorder_pts == -1) {
+                *pts = guess_correct_pts(&is->pts_ctx, frame->reordered_opaque, pkt->dts);
+            } else if (decoder_reorder_pts) {
+                *pts = frame->reordered_opaque;
+            } else {
+                *pts = pkt->dts;
             }
-            if(frame->reordered_opaque != AV_NOPTS_VALUE){
-                is->faulty_pts += frame->reordered_opaque <= is->last_pts_for_fault_detection;
-                is->last_pts_for_fault_detection= frame->reordered_opaque;
+
+            if (*pts == AV_NOPTS_VALUE) {
+                *pts = 0;
             }
         }
-
-        if(   (   decoder_reorder_pts==1
-               || (decoder_reorder_pts && is->faulty_pts<is->faulty_dts)
-               || pkt->dts == AV_NOPTS_VALUE)
-           && frame->reordered_opaque != AV_NOPTS_VALUE)
-            *pts= frame->reordered_opaque;
-        else if(pkt->dts != AV_NOPTS_VALUE)
-            *pts= pkt->dts;
-        else
-            *pts= 0;
 
 //            if (len1 < 0)
 //                break;
@@ -2290,7 +2276,7 @@ static int stream_component_open(VideoState *is, int stream_index)
     avctx->error_concealment= error_concealment;
     avcodec_thread_init(avctx, thread_count);
 
-    set_context_opts(avctx, avcodec_opts[avctx->codec_type], 0);
+    set_context_opts(avctx, avcodec_opts[avctx->codec_type], 0, codec);
 
     if (!codec ||
         avcodec_open(avctx, codec) < 0)
@@ -2468,7 +2454,7 @@ static int decode_thread(void *arg)
     ap->time_base= (AVRational){1, 25};
     ap->pix_fmt = frame_pix_fmt;
 
-    set_context_opts(ic, avformat_opts, AV_OPT_FLAG_DECODING_PARAM);
+    set_context_opts(ic, avformat_opts, AV_OPT_FLAG_DECODING_PARAM, NULL);
 
     err = av_open_input_file(&ic, is->filename, is->iformat, 0, ap);
     if (err < 0) {
@@ -3103,11 +3089,23 @@ static void show_usage(void)
 
 static void show_help(void)
 {
+    av_log_set_callback(log_callback_help);
     show_usage();
     show_help_options(options, "Main options:\n",
                       OPT_EXPERT, 0);
     show_help_options(options, "\nAdvanced options:\n",
                       OPT_EXPERT, OPT_EXPERT);
+    printf("\n");
+    av_opt_show2(avcodec_opts[0], NULL,
+                 AV_OPT_FLAG_DECODING_PARAM, 0);
+    printf("\n");
+    av_opt_show2(avformat_opts, NULL,
+                 AV_OPT_FLAG_DECODING_PARAM, 0);
+#if !CONFIG_AVFILTER
+    printf("\n");
+    av_opt_show2(sws_opts, NULL,
+                 AV_OPT_FLAG_ENCODING_PARAM, 0);
+#endif
     printf("\nWhile playing:\n"
            "q, ESC              quit\n"
            "f                   toggle full screen\n"
@@ -3138,7 +3136,9 @@ static void opt_input_file(const char *filename)
 /* Called from the main */
 int main(int argc, char **argv)
 {
-    int flags, i;
+    int flags;
+
+    av_log_set_flags(AV_LOG_SKIP_REPEATED);
 
     /* register all codecs, demux and protocols */
     avcodec_register_all();
@@ -3150,13 +3150,7 @@ int main(int argc, char **argv)
 #endif
     av_register_all();
 
-    for(i=0; i<AVMEDIA_TYPE_NB; i++){
-        avcodec_opts[i]= avcodec_alloc_context2(i);
-    }
-    avformat_opts = avformat_alloc_context();
-#if !CONFIG_AVFILTER
-    sws_opts = sws_getContext(16,16,0, 16,16,0, sws_flags, NULL,NULL,NULL);
-#endif
+    init_opts();
 
     show_banner();
 

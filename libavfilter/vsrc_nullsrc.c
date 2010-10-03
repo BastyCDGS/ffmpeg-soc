@@ -39,7 +39,7 @@ static int init(AVFilterContext *ctx, const char *args, void *opaque)
 
     if (priv->w <= 0 || priv->h <= 0) {
         av_log(ctx, AV_LOG_ERROR, "Non-positive size values are not acceptable.\n");
-        return -1;
+        return AVERROR(EINVAL);
     }
 
     return 0;
@@ -64,7 +64,7 @@ static int request_frame(AVFilterLink *link)
 
 AVFilter avfilter_vsrc_nullsrc = {
     .name        = "nullsrc",
-    .description = "Null video source, never return images.",
+    .description = NULL_IF_CONFIG_SMALL("Null video source, never return images."),
 
     .init       = init,
     .priv_size = sizeof(NullContext),

@@ -167,6 +167,7 @@ Configuration options:
 External library support:
   --enable-avisynth        enable reading of AVISynth script files [no]
   --enable-bzlib           enable bzlib [autodetect]
+  --enable-frei0r          enable frei0r video filtering
   --enable-libopencore-amrnb enable AMR-NB de/encoding via libopencore-amrnb [no]
   --enable-libopencore-amrwb enable AMR-WB decoding via libopencore-amrwb [no]
   --enable-libopencv       enable video filtering via libopencv [no]
@@ -880,6 +881,7 @@ CONFIG_LIST="
     ffprobe
     ffserver
     fft
+    frei0r
     golomb
     gpl
     gray
@@ -1057,6 +1059,7 @@ HAVE_LIST="
     poll_h
     setrlimit
     strerror_r
+    strtok_r
     struct_addrinfo
     struct_ipv6_mreq
     struct_sockaddr_in6
@@ -1402,7 +1405,10 @@ tcp_protocol_deps="network"
 udp_protocol_deps="network"
 
 # filters
+blackframe_filter_deps="gpl"
+frei0r_filter_deps="frei0r dlopen strtok_r"
 ocv_smooth_filter_deps="libopencv"
+yadif_filter_deps="gpl"
 
 # libraries
 avdevice_deps="avcodec avformat"
@@ -2608,14 +2614,23 @@ EOF
 
     check_asm bswap '"bswap %%eax" ::: "%eax"'
 
-    YASMFLAGS="-f $objformat"
-    enabled     x86_64        && append YASMFLAGS "-m amd64"
-    enabled     pic           && append YASMFLAGS "-DPIC"
-    test -n "$extern_prefix"  && append YASMFLAGS "-DPREFIX"
-    case "$objformat" in
-        elf) enabled debug && append YASMFLAGS "-g dwarf2" ;;
-    esac
     if ! disabled_any asm mmx yasm; then
+        if check_cmd $yasmexe --version; then
+            enabled x86_64 && yasm_extra="-m amd64"
+            yasm_debug="-g dwarf2"
+        elif check_cmd nasm -v; then
+            yasmexe=nasm
+            yasm_debug="-g -F dwarf"
+            enabled x86_64 && test "$objformat" = elf && objformat=elf64
+        fi
+
+        YASMFLAGS="-f $objformat $yasm_extra"
+        enabled pic               && append YASMFLAGS "-DPIC"
+        test -n "$extern_prefix"  && append YASMFLAGS "-DPREFIX"
+        case "$objformat" in
+            elf*) enabled debug && append YASMFLAGS $yasm_debug ;;
+        esac
+
         check_yasm "pabsw xmm0, xmm0" && enable yasm ||
             die "yasm not found, use --disable-yasm for a crippled build"
     fi
@@ -2656,6 +2671,7 @@ check_func  mkstemp
 check_func  ${malloc_prefix}posix_memalign      && enable posix_memalign
 check_func  setrlimit
 check_func  strerror_r
+check_func  strtok_r
 check_func_headers io.h setmode
 check_func_headers lzo/lzo1x.h lzo1x_999_compress
 check_lib2 "windows.h psapi.h" GetProcessMemoryInfo -lpsapi
@@ -2729,6 +2745,7 @@ check_mathfunc truncf
 
 # these are off by default, so fail if requested and not available
 enabled avisynth   && require2 vfw32 "windows.h vfw.h" AVIFileInit -lavifil32
+enabled frei0r     && { check_header frei0r.h || die "ERROR: frei0r.h header not found"; }
 enabled libdirac   && add_cflags $(pkg-config --cflags dirac) &&
                       require  libdirac libdirac_decoder/dirac_parser.h dirac_decoder_init $(pkg-config --libs dirac) &&
                       require  libdirac libdirac_encoder/dirac_encoder.h dirac_encoder_init $(pkg-config --libs dirac)
@@ -3023,6 +3040,7 @@ echo "threading support         ${thread_type-no}"
 echo "SDL support               ${sdl-no}"
 echo "Sun medialib support      ${mlib-no}"
 echo "AVISynth enabled          ${avisynth-no}"
+echo "frei0r enabled            ${frei0r-no}"
 echo "libdc1394 support         ${libdc1394-no}"
 echo "libdirac enabled          ${libdirac-no}"
 echo "libfaac enabled           ${libfaac-no}"
@@ -3077,6 +3095,7 @@ if enabled source_path_used; then
         libavcore
         libavdevice
         libavfilter
+        libavfilter/$arch
         libavformat
         libavsequencer
         libavutil
@@ -3097,6 +3116,7 @@ if enabled source_path_used; then
         libavcore/Makefile
         libavdevice/Makefile
         libavfilter/Makefile
+        libavfilter/${arch}/Makefile
         libavformat/Makefile
         libavsequencer/Makefile
         libavutil/Makefile
@@ -3217,6 +3237,7 @@ cat > $TMPH <<EOF
 #define ASMALIGN(ZEROBITS) ".p2align " #ZEROBITS "\\n\\t"
 #define EXTERN_PREFIX "${extern_prefix}"
 #define EXTERN_ASM ${extern_prefix}
+#define SLIBSUF "$SLIBSUF"
 EOF
 
 test -n "$malloc_prefix" &&

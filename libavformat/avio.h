@@ -165,6 +165,11 @@ int url_close(URLContext *h);
  */
 int url_exist(const char *url);
 
+/**
+ * Return the filesize of the resource accessed by h, AVERROR(ENOSYS)
+ * if the operation is not supported by h, or another negative value
+ * corresponding to an AVERROR error code in case of failure.
+ */
 int64_t url_filesize(URLContext *h);
 
 /**
@@ -185,6 +190,12 @@ int url_get_file_handle(URLContext *h);
  * @return maximum packet size in bytes
  */
 int url_get_max_packet_size(URLContext *h);
+
+/**
+ * Copy the filename of the resource accessed by h to buf.
+ *
+ * @param buf_size size in bytes of buf
+ */
 void url_get_filename(URLContext *h, char *buf, int buf_size);
 
 /**
