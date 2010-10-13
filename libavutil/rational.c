@@ -100,6 +100,8 @@ AVRational av_d2q(double d, int max){
     int64_t den;
     if (isnan(d))
         return (AVRational){0,0};
+    if (isinf(d))
+        return (AVRational){ d<0 ? -1:1, 0 };
     exponent = FFMAX( (int)(log(fabs(d) + 1e-20)/LOG2), 0);
     den = 1LL << (61 - exponent);
     av_reduce(&a.num, &a.den, (int64_t)(d * den + 0.5), den, max);
@@ -131,3 +133,23 @@ int av_find_nearest_q_idx(AVRational q, const AVRational* q_list)
 
     return nearest_q_idx;
 }
+
+#ifdef TEST
+main(){
+    AVRational a,b;
+    for(a.num=-2; a.num<=2; a.num++){
+        for(a.den=-2; a.den<=2; a.den++){
+            for(b.num=-2; b.num<=2; b.num++){
+                for(b.den=-2; b.den<=2; b.den++){
+                    int c= av_cmp_q(a,b);
+                    double d= av_q2d(a) == av_q2d(b) ? 0 : (av_q2d(a) - av_q2d(b));
+                    if(d>0) d=1;
+                    else if(d<0) d=-1;
+                    else if(d != d) d= INT_MIN;
+                    if(c!=d) av_log(0, AV_LOG_ERROR, "%d/%d %d/%d, %d %f\n", a.num, a.den, b.num, b.den, c,d);
+                }
+            }
+        }
+    }
+}
+#endif

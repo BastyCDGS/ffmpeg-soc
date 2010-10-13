@@ -1081,6 +1081,7 @@ HAVE_LIST="
     VirtualAlloc
     winsock2_h
     xform_asm
+    xmm_clobbers
     yasm
 "
 
@@ -1367,11 +1368,11 @@ mpegtsraw_demuxer_select="mpegts_demuxer"
 mxf_d10_muxer_select="mxf_muxer"
 ogg_demuxer_select="golomb"
 psp_muxer_select="mov_muxer"
-rtsp_demuxer_deps="sdp_demuxer"
-rtsp_muxer_deps="sdp_demuxer"
-rtsp_muxer_select="rtp_muxer"
-sdp_demuxer_deps="rtp_protocol mpegts_demuxer"
-sdp_demuxer_select="asf_demuxer rm_demuxer"
+rtsp_demuxer_select="http_protocol sdp_demuxer"
+rtsp_muxer_select="rtp_muxer http_protocol sdp_demuxer"
+sap_demuxer_select="sdp_demuxer"
+sap_muxer_select="rtp_muxer rtp_protocol"
+sdp_demuxer_select="asf_demuxer rm_demuxer rtp_protocol mpegts_demuxer mov_demuxer"
 spdif_muxer_select="aac_parser"
 tg2_muxer_select="mov_muxer"
 tgp_muxer_select="mov_muxer"
@@ -1406,6 +1407,7 @@ udp_protocol_deps="network"
 
 # filters
 blackframe_filter_deps="gpl"
+cropdetect_filter_deps="gpl"
 frei0r_filter_deps="frei0r dlopen strtok_r"
 ocv_smooth_filter_deps="libopencv"
 yadif_filter_deps="gpl"
@@ -2596,6 +2598,9 @@ EOF
     check_asm ebx_available '""::"b"(0)' &&
         check_asm ebx_available '"":::"%ebx"'
 
+    # check whether xmm clobbers are supported
+    check_asm xmm_clobbers '"":::"%xmm0"'
+
     # check whether more than 10 operands are supported
     check_cc <<EOF && enable ten_operands
 int main(void) {
@@ -2751,7 +2756,7 @@ enabled libdirac   && add_cflags $(pkg-config --cflags dirac) &&
                       require  libdirac libdirac_encoder/dirac_encoder.h dirac_encoder_init $(pkg-config --libs dirac)
 enabled libfaac    && require2 libfaac "stdint.h faac.h" faacEncGetVersion -lfaac
 enabled libgsm     && require  libgsm gsm/gsm.h gsm_create -lgsm
-enabled libmp3lame && require  "libmp3lame >= 3.98.3" lame/lame.h hip_decode_init -lmp3lame
+enabled libmp3lame && require  "libmp3lame >= 3.98.3" lame/lame.h lame_set_VBR_quality -lmp3lame
 enabled libnut     && require  libnut libnut.h nut_demuxer_init -lnut
 enabled libopencore_amrnb  && require libopencore_amrnb opencore-amrnb/interf_dec.h Decoder_Interface_init -lopencore-amrnb
 enabled libopencore_amrwb  && require libopencore_amrwb opencore-amrwb/dec_if.h D_IF_init -lopencore-amrwb
@@ -2801,7 +2806,7 @@ texi2html -version > /dev/null 2>&1 && enable texi2html || disable texi2html
 if enabled network; then
     check_type "sys/types.h sys/socket.h" socklen_t
     check_type netdb.h "struct addrinfo"
-    check_type netinet/in.h "struct ipv6_mreq"
+    check_type netinet/in.h "struct ipv6_mreq" -D_DARWIN_C_SOURCE
     check_type netinet/in.h "struct sockaddr_in6"
     check_type "sys/types.h sys/socket.h" "struct sockaddr_storage"
     check_struct "sys/types.h sys/socket.h" "struct sockaddr" sa_len

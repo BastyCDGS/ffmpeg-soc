@@ -190,6 +190,41 @@ crop=in_w-100:in_h-100:100:100
 "crop=in_w/2:in_h/2:y:10+10*sin(n/10)"
 @end example
 
+@section cropdetect
+
+Auto-detect crop size.
+
+Calculate necessary cropping parameters and prints the recommended
+parameters through the logging system. The detected dimensions
+correspond to the non-black area of the input video.
+
+It accepts the syntax:
+@example
+cropdetect[=@var{limit}:@var{round}[:@var{reset}]]
+@end example
+
+@table @option
+
+@item limit
+Threshold, which can be optionally specified from nothing (0) to
+everything (255), defaults to 24.
+
+@item round
+Value which the width/height should be divisible by, defaults to
+16. The offset is automatically adjusted to center the video. Use 2 to
+get only even dimensions (needed for 4:2:2 video). 16 is best when
+encoding to most video codecs.
+
+@item reset
+Counter that determines after how many frames cropdetect will reset
+the previously detected largest video area and start over to detect
+the current optimal crop area. Defaults to 0.
+
+This can be useful when channel logos distort the video area. 0
+indicates never reset and return the largest area encountered during
+playback.
+@end table
+
 @section drawbox
 
 Draw a colored box on the input image.
@@ -428,6 +463,36 @@ ratio of the input image.
 
 The default value of @var{width} and @var{height} is 0.
 
+@section settb
+
+Set the timebase to use for the output frames timestamps.
+It is mainly useful for testing timebase configuration.
+
+It accepts in input an arithmetic expression representing a rational.
+The expression can contain the constants "PI", "E", "PHI", "AVTB" (the
+default timebase), and "intb" (the input timebase).
+
+The default value for the input is "intb".
+
+Follow some examples.
+
+@example
+# set the timebase to 1/25
+settb=1/25
+
+# set the timebase to 1/10
+settb=0.1
+
+#set the timebase to 1001/1000
+settb=1+0.001
+
+#set the timebase to 2*intb
+settb=2*intb
+
+#set the default timebase value
+settb=AVTB
+@end example
+
 @section slicify
 
 Pass the images of input video on to next video filter as multiple
@@ -546,7 +611,7 @@ This source is mainly intended for a programmatic use, in particular
 through the interface defined in @file{libavfilter/vsrc_buffer.h}.
 
 It accepts the following parameters:
-@var{width}:@var{height}:@var{pix_fmt_string}
+@var{width}:@var{height}:@var{pix_fmt_string}:@var{timebase_num}:@var{timebase_den}
 
 All the parameters need to be explicitely defined.
 
@@ -558,24 +623,27 @@ Follows the list of the accepted parameters.
 Specify the width and height of the buffered video frames.
 
 @item pix_fmt_string
-
 A string representing the pixel format of the buffered video frames.
 It may be a number corresponding to a pixel format, or a pixel format
 name.
 
+@item timebase_num, timebase_den
+Specify numerator and denomitor of the timebase assumed by the
+timestamps of the buffered frames.
 @end table
 
 For example:
 @example
-buffer=320:240:yuv410p
+buffer=320:240:yuv410p:1:24
 @end example
 
 will instruct the source to accept video frames with size 320x240 and
-with format "yuv410p". Since the pixel format with name "yuv410p"
-corresponds to the number 6 (check the enum PixelFormat definition in
-@file{libavutil/pixfmt.h}), this example corresponds to:
+with format "yuv410p" and assuming 1/24 as the timestamps timebase.
+Since the pixel format with name "yuv410p" corresponds to the number 6
+(check the enum PixelFormat definition in @file{libavutil/pixfmt.h}),
+this example corresponds to:
 @example
-buffer=320:240:6
+buffer=320:240:6:1:24
 @end example
 
 @section color
@@ -623,11 +691,15 @@ Null video source, never return images. It is mainly useful as a
 template and to be employed in analysis / debugging tools.
 
 It accepts as optional parameter a string of the form
-@var{width}:@var{height}, where @var{width} and @var{height} specify the size of
-the configured source.
+@var{width}:@var{height}:@var{timebase}.
 
-The default values of @var{width} and @var{height} are respectively 352
-and 288 (corresponding to the CIF size format).
+@var{width} and @var{height} specify the size of the configured
+source. The default values of @var{width} and @var{height} are
+respectively 352 and 288 (corresponding to the CIF size format).
+
+@var{timebase} specifies an arithmetic expression representing a
+timebase. The expression can contain the constants "PI", "E", "PHI",
+"AVTB" (the default timebase), and defaults to the value "AVTB".
 
 @c man end VIDEO SOURCES
 

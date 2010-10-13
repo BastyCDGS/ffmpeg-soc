@@ -312,6 +312,7 @@ typedef struct AVInputStream {
     int64_t       next_pts;  /* synthetic pts for cases where pkt.pts
                                 is not defined */
     int64_t       pts;       /* current pts */
+    PtsCorrectionContext pts_ctx;
     int is_start;            /* is 1 at the start and after a discontinuity */
     int showed_multi_packet_warning;
     int is_past_recording_time;
@@ -338,34 +339,6 @@ static struct termios oldtty;
 #endif
 
 #if CONFIG_AVFILTER
-typedef struct {
-    int pix_fmt;
-} FilterOutPriv;
-
-
-static int output_init(AVFilterContext *ctx, const char *args, void *opaque)
-{
-    FilterOutPriv *priv = ctx->priv;
-
-    if(!opaque) return -1;
-
-    priv->pix_fmt = *((int *)opaque);
-
-    return 0;
-}
-
-static void output_end_frame(AVFilterLink *link)
-{
-}
-
-static int output_query_formats(AVFilterContext *ctx)
-{
-    FilterOutPriv *priv = ctx->priv;
-    enum PixelFormat pix_fmts[] = { priv->pix_fmt, PIX_FMT_NONE };
-
-    avfilter_set_common_formats(ctx, avfilter_make_format_list(pix_fmts));
-    return 0;
-}
 
 static int get_filtered_video_pic(AVFilterContext *ctx,
                                   AVFilterBufferRef **picref, AVFrame *pic2,
@@ -390,29 +363,13 @@ static int get_filtered_video_pic(AVFilterContext *ctx,
     return 1;
 }
 
-static AVFilter output_filter =
-{
-    .name      = "ffmpeg_output",
-
-    .priv_size = sizeof(FilterOutPriv),
-    .init      = output_init,
-
-    .query_formats = output_query_formats,
-
-    .inputs    = (AVFilterPad[]) {{ .name          = "default",
-                                    .type          = AVMEDIA_TYPE_VIDEO,
-                                    .end_frame     = output_end_frame,
-                                    .min_perms     = AV_PERM_READ, },
-                                  { .name = NULL }},
-    .outputs   = (AVFilterPad[]) {{ .name = NULL }},
-};
-
 static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
 {
     AVFilterContext *last_filter, *filter;
     /** filter graph containing all filters including input & output */
     AVCodecContext *codec = ost->st->codec;
     AVCodecContext *icodec = ist->st->codec;
+    FFSinkContext ffsink_ctx = { .pix_fmt = codec->pix_fmt };
     char args[255];
     int ret;
 
@@ -420,14 +377,15 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
 
     if ((ret = avfilter_open(&ist->input_video_filter, avfilter_get_by_name("buffer"), "src")) < 0)
         return ret;
-    if ((ret = avfilter_open(&ist->output_video_filter, &output_filter, "out")) < 0)
+    if ((ret = avfilter_open(&ist->output_video_filter, &ffsink, "out")) < 0)
         return ret;
 
-    snprintf(args, 255, "%d:%d:%d", ist->st->codec->width,
-             ist->st->codec->height, ist->st->codec->pix_fmt);
+    snprintf(args, 255, "%d:%d:%d:%d:%d", ist->st->codec->width,
+             ist->st->codec->height, ist->st->codec->pix_fmt,
+             ist->st->time_base.num, ist->st->time_base.den);
     if ((ret = avfilter_init_filter(ist->input_video_filter, args, NULL)) < 0)
         return ret;
-    if ((ret = avfilter_init_filter(ist->output_video_filter, NULL, &codec->pix_fmt)) < 0)
+    if ((ret = avfilter_init_filter(ist->output_video_filter, NULL, &ffsink_ctx)) < 0)
         return ret;
 
     /* add input and output filters to the overall graph */
@@ -600,6 +558,7 @@ static int ffmpeg_exit(int ret)
         for(j=0;j<s->nb_streams;j++) {
             av_metadata_free(&s->streams[j]->metadata);
             av_free(s->streams[j]->codec);
+            av_free(s->streams[j]->info);
             av_free(s->streams[j]);
         }
         for(j=0;j<s->nb_programs;j++) {
@@ -1541,6 +1500,7 @@ static int output_packet(AVInputStream *ist, int ist_index,
     void *buffer_to_free;
     static unsigned int samples_size= 0;
     AVSubtitle subtitle, *subtitle_to_free;
+    int64_t pkt_pts = AV_NOPTS_VALUE;
 #if CONFIG_AVFILTER
     int frame_available;
 #endif
@@ -1563,6 +1523,8 @@ static int output_packet(AVInputStream *ist, int ist_index,
 
     if(pkt->dts != AV_NOPTS_VALUE)
         ist->next_pts = ist->pts = av_rescale_q(pkt->dts, ist->st->time_base, AV_TIME_BASE_Q);
+    if(pkt->pts != AV_NOPTS_VALUE)
+        pkt_pts = av_rescale_q(pkt->pts, ist->st->time_base, AV_TIME_BASE_Q);
 
     //while we have more to decode or while the decoder did output something on EOF
     while (avpkt.size > 0 || (!pkt && ist->next_pts != ist->pts)) {
@@ -1615,6 +1577,8 @@ static int output_packet(AVInputStream *ist, int ist_index,
                     decoded_data_size = (ist->st->codec->width * ist->st->codec->height * 3) / 2;
                     /* XXX: allocate picture correctly */
                     avcodec_get_frame_defaults(&picture);
+                    ist->st->codec->reordered_opaque = pkt_pts;
+                    pkt_pts = AV_NOPTS_VALUE;
 
                     ret = avcodec_decode_video2(ist->st->codec,
                                                 &picture, &got_picture, &avpkt);
@@ -1625,6 +1589,7 @@ static int output_packet(AVInputStream *ist, int ist_index,
                         /* no picture yet */
                         goto discard_packet;
                     }
+                    ist->next_pts = ist->pts = guess_correct_pts(&ist->pts_ctx, picture.reordered_opaque, ist->pts);
                     if (ist->st->codec->time_base.num != 0) {
                         int ticks= ist->st->parser ? ist->st->parser->repeat_pict+1 : ist->st->codec->ticks_per_frame;
                         ist->next_pts += ((int64_t)AV_TIME_BASE *
@@ -2197,6 +2162,8 @@ static int transcode(AVFormatContext **output_files,
             }
 
             codec->bit_rate = icodec->bit_rate;
+            codec->rc_max_rate    = icodec->rc_max_rate;
+            codec->rc_buffer_size = icodec->rc_buffer_size;
             codec->extradata= av_mallocz(extra_size);
             if (!codec->extradata)
                 goto fail;
@@ -2411,6 +2378,7 @@ static int transcode(AVFormatContext **output_files,
         st= ist->st;
         ist->pts = st->avg_frame_rate.num ? - st->codec->has_b_frames*AV_TIME_BASE / av_q2d(st->avg_frame_rate) : 0;
         ist->next_pts = AV_NOPTS_VALUE;
+        init_pts_correction(&ist->pts_ctx);
         ist->is_start = 1;
     }
 
@@ -3388,7 +3356,7 @@ static void check_audio_video_sub_inputs(int *has_video_ptr, int *has_audio_ptr,
     *has_subtitle_ptr = has_subtitle;
 }
 
-static void new_video_stream(AVFormatContext *oc)
+static void new_video_stream(AVFormatContext *oc, int file_idx)
 {
     AVStream *st;
     AVCodecContext *video_enc;
@@ -3415,8 +3383,11 @@ static void new_video_stream(AVFormatContext *oc)
     }
 
     avcodec_get_context_defaults3(st->codec, codec);
-    bitstream_filters[nb_output_files] = grow_array(bitstream_filters[nb_output_files], sizeof(*bitstream_filters[nb_output_files]), &nb_bitstream_filters[nb_output_files], oc->nb_streams);
-    bitstream_filters[nb_output_files][oc->nb_streams - 1]= video_bitstream_filters;
+    bitstream_filters[file_idx] =
+        grow_array(bitstream_filters[file_idx],
+                   sizeof(*bitstream_filters[file_idx]),
+                   &nb_bitstream_filters[file_idx], oc->nb_streams);
+    bitstream_filters[file_idx][oc->nb_streams - 1]= video_bitstream_filters;
     video_bitstream_filters= NULL;
 
     avcodec_thread_init(st->codec, thread_count);
@@ -3529,7 +3500,7 @@ static void new_video_stream(AVFormatContext *oc)
     frame_pix_fmt = PIX_FMT_NONE;
 }
 
-static void new_audio_stream(AVFormatContext *oc)
+static void new_audio_stream(AVFormatContext *oc, int file_idx)
 {
     AVStream *st;
     AVCodec *codec= NULL;
@@ -3557,8 +3528,11 @@ static void new_audio_stream(AVFormatContext *oc)
 
     avcodec_get_context_defaults3(st->codec, codec);
 
-    bitstream_filters[nb_output_files] = grow_array(bitstream_filters[nb_output_files], sizeof(*bitstream_filters[nb_output_files]), &nb_bitstream_filters[nb_output_files], oc->nb_streams);
-    bitstream_filters[nb_output_files][oc->nb_streams - 1]= audio_bitstream_filters;
+    bitstream_filters[file_idx] =
+        grow_array(bitstream_filters[file_idx],
+                   sizeof(*bitstream_filters[file_idx]),
+                   &nb_bitstream_filters[file_idx], oc->nb_streams);
+    bitstream_filters[file_idx][oc->nb_streams - 1]= audio_bitstream_filters;
     audio_bitstream_filters= NULL;
 
     avcodec_thread_init(st->codec, thread_count);
@@ -3606,7 +3580,7 @@ static void new_audio_stream(AVFormatContext *oc)
     audio_stream_copy = 0;
 }
 
-static void new_subtitle_stream(AVFormatContext *oc)
+static void new_subtitle_stream(AVFormatContext *oc, int file_idx)
 {
     AVStream *st;
     AVCodec *codec=NULL;
@@ -3626,8 +3600,11 @@ static void new_subtitle_stream(AVFormatContext *oc)
     }
     avcodec_get_context_defaults3(st->codec, codec);
 
-    bitstream_filters[nb_output_files] = grow_array(bitstream_filters[nb_output_files], sizeof(*bitstream_filters[nb_output_files]), &nb_bitstream_filters[nb_output_files], oc->nb_streams);
-    bitstream_filters[nb_output_files][oc->nb_streams - 1]= subtitle_bitstream_filters;
+    bitstream_filters[file_idx] =
+        grow_array(bitstream_filters[file_idx],
+                   sizeof(*bitstream_filters[file_idx]),
+                   &nb_bitstream_filters[file_idx], oc->nb_streams);
+    bitstream_filters[file_idx][oc->nb_streams - 1]= subtitle_bitstream_filters;
     subtitle_bitstream_filters= NULL;
 
     subtitle_enc->codec_type = AVMEDIA_TYPE_SUBTITLE;
@@ -3651,23 +3628,25 @@ static void new_subtitle_stream(AVFormatContext *oc)
     subtitle_stream_copy = 0;
 }
 
-static void opt_new_stream(const char *opt, const char *arg)
+static int opt_new_stream(const char *opt, const char *arg)
 {
     AVFormatContext *oc;
+    int file_idx = nb_output_files - 1;
     if (nb_output_files <= 0) {
         fprintf(stderr, "At least one output file must be specified\n");
         ffmpeg_exit(1);
     }
-    oc = output_files[nb_output_files - 1];
+    oc = output_files[file_idx];
 
-    if      (!strcmp(opt, "newvideo"   )) new_video_stream   (oc);
-    else if (!strcmp(opt, "newaudio"   )) new_audio_stream   (oc);
-    else if (!strcmp(opt, "newsubtitle")) new_subtitle_stream(oc);
+    if      (!strcmp(opt, "newvideo"   )) new_video_stream   (oc, file_idx);
+    else if (!strcmp(opt, "newaudio"   )) new_audio_stream   (oc, file_idx);
+    else if (!strcmp(opt, "newsubtitle")) new_subtitle_stream(oc, file_idx);
     else av_assert0(0);
+    return 0;
 }
 
 /* arg format is "output-stream-index:streamid-value". */
-static void opt_streamid(const char *opt, const char *arg)
+static int opt_streamid(const char *opt, const char *arg)
 {
     int idx;
     char *p;
@@ -3686,6 +3665,7 @@ static void opt_streamid(const char *opt, const char *arg)
     idx = parse_number_or_die(opt, idx_str, OPT_INT, 0, MAX_STREAMS-1);
     streamid_map = grow_array(streamid_map, sizeof(*streamid_map), &nb_streamid_map, idx+1);
     streamid_map[idx] = parse_number_or_die(opt, p, OPT_INT, 0, INT_MAX);
+    return 0;
 }
 
 static void opt_output_file(const char *filename)
@@ -3763,15 +3743,15 @@ static void opt_output_file(const char *filename)
         }
 
         if (use_video) {
-            new_video_stream(oc);
+            new_video_stream(oc, nb_output_files);
         }
 
         if (use_audio) {
-            new_audio_stream(oc);
+            new_audio_stream(oc, nb_output_files);
         }
 
         if (use_subtitle) {
-            new_subtitle_stream(oc);
+            new_subtitle_stream(oc, nb_output_files);
         }
 
         oc->timestamp = recording_timestamp;
