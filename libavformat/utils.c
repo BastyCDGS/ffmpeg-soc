@@ -110,8 +110,14 @@ static void av_frac_add(AVFrac *f, int64_t incr)
 }
 
 /** head of registered input format linked list */
+#if !FF_API_FIRST_FORMAT
+static
+#endif
 AVInputFormat *first_iformat = NULL;
 /** head of registered output format linked list */
+#if !FF_API_FIRST_FORMAT
+static
+#endif
 AVOutputFormat *first_oformat = NULL;
 
 AVInputFormat  *av_iformat_next(AVInputFormat  *f)
@@ -189,7 +195,7 @@ static int match_format(const char *name, const char *names)
     return !strcasecmp(name, names);
 }
 
-#if LIBAVFORMAT_VERSION_MAJOR < 53
+#if FF_API_GUESS_FORMAT
 AVOutputFormat *guess_format(const char *short_name, const char *filename,
                              const char *mime_type)
 {
@@ -234,7 +240,7 @@ AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
     return fmt_found;
 }
 
-#if LIBAVFORMAT_VERSION_MAJOR < 53
+#if FF_API_GUESS_FORMAT
 AVOutputFormat *guess_stream_format(const char *short_name, const char *filename,
                              const char *mime_type)
 {
@@ -3207,7 +3213,7 @@ void dump_format(AVFormatContext *ic,
     av_free(printed);
 }
 
-#if LIBAVFORMAT_VERSION_MAJOR < 53
+#if FF_API_PARSE_FRAME_PARAM
 #include "libavcore/parseutils.h"
 
 int parse_image_size(int *width_ptr, int *height_ptr, const char *str)
@@ -3526,7 +3532,7 @@ void av_pkt_dump_log(void *avcl, int level, AVPacket *pkt, int dump_payload)
     pkt_dump_internal(avcl, NULL, level, pkt, dump_payload);
 }
 
-#if LIBAVFORMAT_VERSION_MAJOR < 53
+#if FF_API_URL_SPLIT
 attribute_deprecated
 void ff_url_split(char *proto, int proto_size,
                   char *authorization, int authorization_size,
