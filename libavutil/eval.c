@@ -103,13 +103,16 @@ double av_strtod(const char *numstr, char **tail)
     return d;
 }
 
+#define IS_IDENTIFIER_CHAR(c) ((c) - '0' <= 9U || (c) - 'a' <= 25U || (c) - 'A' <= 25U || (c) == '_')
+
 static int strmatch(const char *s, const char *prefix)
 {
     int i;
     for (i=0; prefix[i]; i++) {
         if (prefix[i] != s[i]) return 0;
     }
-    return 1;
+    /* return 1 only if the s identifier is terminated */
+    return !IS_IDENTIFIER_CHAR(s[i]);
 }
 
 struct AVExpr {
@@ -404,12 +407,12 @@ static int parse_expr(AVExpr **e, Parser *p)
     if ((ret = parse_subexpr(&e0, p)) < 0)
         return ret;
     while (*p->s == ';') {
+        p->s++;
         e1 = e0;
         if ((ret = parse_subexpr(&e2, p)) < 0) {
             av_free_expr(e1);
             return ret;
         }
-        p->s++;
         e0 = new_eval_expr(e_last, 1, e1, e2);
         if (!e0) {
             av_free_expr(e1);
@@ -534,6 +537,10 @@ int main(void)
     double d;
     const char **expr, *exprs[] = {
         "",
+        "1;2",
+        "-20",
+        "-PI",
+        "+PI",
         "1+(5-2)^(3-1)+1/2+sin(PI)-max(-2.2,-3.1)",
         "80G/80Gi"
         "1k",
@@ -559,6 +566,14 @@ int main(void)
         "13k + 12f - foo(1, 2)",
         "1gi",
         "1Gi",
+        "st(0, 123)",
+        "st(1, 123); ld(1)",
+        /* compute 1+2+...+N */
+        "st(0, 1); while(lte(ld(0), 100), st(1, ld(1)+ld(0));st(0, ld(0)+1)); ld(1)",
+        /* compute Fib(N) */
+        "st(1, 1); st(2, 2); st(0, 1); while(lte(ld(0),10), st(3, ld(1)+ld(2)); st(1, ld(2)); st(2, ld(3)); st(0, ld(0)+1)); ld(3)",
+        "while(0, 10)",
+        "st(0, 1); while(lte(ld(0),100), st(1, ld(1)+ld(0)); st(0, ld(0)+1))",
         NULL
     };
 

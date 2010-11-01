@@ -200,7 +200,7 @@ correspond to the non-black area of the input video.
 
 It accepts the syntax:
 @example
-cropdetect[=@var{limit}:@var{round}[:@var{reset}]]
+cropdetect[=@var{limit}[:@var{round}[:@var{reset}]]]
 @end example
 
 @table @option
@@ -426,6 +426,15 @@ The default value of @var{color} is "black".
 
 @end table
 
+For example:
+
+@example
+# Add paddings with color "violet" to the input video. Output video
+# size is 640x480, the top-left corner of the input video is placed at
+# row 0, column 40.
+pad=640:480:0:40:violet
+@end example
+
 @section pixdesctest
 
 Pixel format descriptor test filter, mainly useful for internal
@@ -507,6 +516,47 @@ not specified it will use the default value of 16.
 
 Adding this in the beginning of filter chains should make filtering
 faster due to better use of the memory cache.
+
+@section transpose
+
+Transpose rows with columns in the input video and optionally flip it.
+
+It accepts a parameter representing an integer, which can assume the
+values:
+
+@table @samp
+@item 0
+Rotate by 90 degrees counterclockwise and vertically flip (default), that is:
+@example
+L.R     L.l
+. . ->  . .
+l.r     R.r
+@end example
+
+@item 1
+Rotate by 90 degrees clockwise, that is:
+@example
+L.R     l.L
+. . ->  . .
+l.r     r.R
+@end example
+
+@item 2
+Rotate by 90 degrees counterclockwise, that is:
+@example
+L.R     R.r
+. . ->  . .
+l.r     L.l
+@end example
+
+@item 3
+Rotate by 90 degrees clockwise and vertically flip, that is:
+@example
+L.R     r.R
+. . ->  . .
+l.r     l.L
+@end example
+@end table
 
 @section unsharp
 

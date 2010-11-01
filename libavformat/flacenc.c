@@ -46,6 +46,8 @@ static int flac_write_block_comment(ByteIOContext *pb, AVMetadata **m,
     unsigned int len, count;
     uint8_t *p, *p0;
 
+    ff_metadata_conv(m, ff_vorbiscomment_metadata_conv, NULL);
+
     len = ff_vorbiscomment_length(*m, vendor, &count);
     p0 = av_malloc(len+4);
     if (!p0)
@@ -128,5 +130,4 @@ AVOutputFormat flac_muxer = {
     flac_write_packet,
     flac_write_trailer,
     .flags= AVFMT_NOTIMESTAMPS,
-    .metadata_conv = ff_vorbiscomment_metadata_conv,
 };
