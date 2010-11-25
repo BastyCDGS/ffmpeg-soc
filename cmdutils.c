@@ -229,11 +229,11 @@ int opt_default(const char *opt, const char *arg){
     if(!o && sws_opts)
         ret = av_set_string3(sws_opts, opt, arg, 1, &o);
     if(!o){
-        if(opt[0] == 'a')
+        if (opt[0] == 'a' && avcodec_opts[AVMEDIA_TYPE_AUDIO])
             ret = av_set_string3(avcodec_opts[AVMEDIA_TYPE_AUDIO], opt+1, arg, 1, &o);
-        else if(opt[0] == 'v')
+        else if(opt[0] == 'v' && avcodec_opts[AVMEDIA_TYPE_VIDEO])
             ret = av_set_string3(avcodec_opts[AVMEDIA_TYPE_VIDEO], opt+1, arg, 1, &o);
-        else if(opt[0] == 's')
+        else if(opt[0] == 's' && avcodec_opts[AVMEDIA_TYPE_SUBTITLE])
             ret = av_set_string3(avcodec_opts[AVMEDIA_TYPE_SUBTITLE], opt+1, arg, 1, &o);
     }
     if (o && ret < 0) {
@@ -748,6 +748,36 @@ int64_t guess_correct_pts(PtsCorrectionContext *ctx, int64_t reordered_pts, int6
         pts = dts;
 
     return pts;
+}
+
+FILE *get_preset_file(char *filename, size_t filename_size,
+                      const char *preset_name, int is_path, const char *codec_name)
+{
+    FILE *f = NULL;
+    int i;
+    const char *base[3]= { getenv("FFMPEG_DATADIR"),
+                           getenv("HOME"),
+                           FFMPEG_DATADIR,
+                         };
+
+    if (is_path) {
+        av_strlcpy(filename, preset_name, filename_size);
+        f = fopen(filename, "r");
+    } else {
+        for (i = 0; i < 3 && !f; i++) {
+            if (!base[i])
+                continue;
+            snprintf(filename, filename_size, "%s%s/%s.ffpreset", base[i], i != 1 ? "" : "/.ffmpeg", preset_name);
+            f = fopen(filename, "r");
+            if (!f && codec_name) {
+                snprintf(filename, filename_size,
+                         "%s%s/%s-%s.ffpreset", base[i],  i != 1 ? "" : "/.ffmpeg", codec_name, preset_name);
+                f = fopen(filename, "r");
+            }
+        }
+    }
+
+    return f;
 }
 
 #if CONFIG_AVFILTER

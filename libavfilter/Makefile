@@ -1,10 +1,10 @@
 include $(SUBDIR)../config.mak
 
 NAME = avfilter
-FFLIBS = avcodec avcore avutil
+FFLIBS = avcore avutil
 FFLIBS-$(CONFIG_SCALE_FILTER) += swscale
 
-HEADERS = avfilter.h
+HEADERS = avfilter.h avfiltergraph.h
 
 OBJS = allfilters.o                                                     \
        avfilter.o                                                       \
@@ -12,7 +12,6 @@ OBJS = allfilters.o                                                     \
        defaults.o                                                       \
        formats.o                                                        \
        graphparser.o                                                    \
-       parseutils.o                                                     \
 
 OBJS-$(CONFIG_ANULL_FILTER)                  += af_anull.o
 
@@ -20,7 +19,6 @@ OBJS-$(CONFIG_ANULLSRC_FILTER)               += asrc_anullsrc.o
 
 OBJS-$(CONFIG_ANULLSINK_FILTER)              += asink_anullsink.o
 
-OBJS-$(CONFIG_ASPECT_FILTER)                 += vf_aspect.o
 OBJS-$(CONFIG_BLACKFRAME_FILTER)             += vf_blackframe.o
 OBJS-$(CONFIG_CROP_FILTER)                   += vf_crop.o
 OBJS-$(CONFIG_CROPDETECT_FILTER)             += vf_cropdetect.o
@@ -32,10 +30,13 @@ OBJS-$(CONFIG_HFLIP_FILTER)                  += vf_hflip.o
 OBJS-$(CONFIG_NOFORMAT_FILTER)               += vf_format.o
 OBJS-$(CONFIG_NULL_FILTER)                   += vf_null.o
 OBJS-$(CONFIG_OCV_SMOOTH_FILTER)             += vf_libopencv.o
+OBJS-$(CONFIG_OVERLAY_FILTER)                += vf_overlay.o
 OBJS-$(CONFIG_PAD_FILTER)                    += vf_pad.o
 OBJS-$(CONFIG_PIXDESCTEST_FILTER)            += vf_pixdesctest.o
-OBJS-$(CONFIG_PIXELASPECT_FILTER)            += vf_aspect.o
 OBJS-$(CONFIG_SCALE_FILTER)                  += vf_scale.o
+OBJS-$(CONFIG_SETDAR_FILTER)                 += vf_aspect.o
+OBJS-$(CONFIG_SETPTS_FILTER)                 += vf_setpts.o
+OBJS-$(CONFIG_SETSAR_FILTER)                 += vf_aspect.o
 OBJS-$(CONFIG_SETTB_FILTER)                  += vf_settb.o
 OBJS-$(CONFIG_SLICIFY_FILTER)                += vf_slicify.o
 OBJS-$(CONFIG_TRANSPOSE_FILTER)              += vf_transpose.o

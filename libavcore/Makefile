@@ -3,12 +3,18 @@ include $(SUBDIR)../config.mak
 NAME = avcore
 FFLIBS = avutil
 
-HEADERS = avcore.h                                                      \
+HEADERS = \
+          audioconvert.h                                                \
+          avcore.h                                                      \
           imgutils.h                                                    \
           parseutils.h                                                  \
+          samplefmt.h                                                   \
 
-OBJS = imgutils.o                                                       \
+OBJS = \
+       audioconvert.o                                                   \
+       imgutils.o                                                       \
        parseutils.o                                                     \
+       samplefmt.o                                                      \
        utils.o                                                          \
 
 include $(SUBDIR)../subdir.mak

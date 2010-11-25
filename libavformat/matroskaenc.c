@@ -26,11 +26,13 @@
 #include "avc.h"
 #include "flacenc.h"
 #include "avlanguage.h"
+#include "libavcore/samplefmt.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/random_seed.h"
 #include "libavutil/lfg.h"
 #include "libavcodec/xiph.h"
 #include "libavcodec/mpeg4audio.h"
+#include <strings.h>
 
 typedef struct ebml_master {
     int64_t         pos;                ///< absolute offset in the file where the master's elements start
@@ -540,7 +542,7 @@ static int mkv_write_tracks(AVFormatContext *s)
         AVMetadataTag *tag;
 
         if (!bit_depth)
-            bit_depth = av_get_bits_per_sample_format(codec->sample_fmt);
+            bit_depth = av_get_bits_per_sample_fmt(codec->sample_fmt);
 
         if (codec->codec_id == CODEC_ID_AAC)
             get_aac_sample_rates(s, codec, &sample_rate, &output_sample_rate);
@@ -741,7 +743,8 @@ static int mkv_write_tag(AVFormatContext *s, AVMetadata *m, unsigned int element
     end_ebml_master(s->pb, targets);
 
     while ((t = av_metadata_get(m, "", t, AV_METADATA_IGNORE_SUFFIX)))
-        mkv_write_simpletag(s->pb, t);
+        if (strcasecmp(t->key, "title"))
+            mkv_write_simpletag(s->pb, t);
 
     end_ebml_master(s->pb, tag);
     return 0;

@@ -206,7 +206,7 @@ AVOutputFormat *guess_format(const char *short_name, const char *filename,
 AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
                                 const char *mime_type)
 {
-    AVOutputFormat *fmt, *fmt_found;
+    AVOutputFormat *fmt = NULL, *fmt_found;
     int score_max, score;
 
     /* specific test for image sequences */
@@ -220,8 +220,7 @@ AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
     /* Find the proper file type. */
     fmt_found = NULL;
     score_max = 0;
-    fmt = first_oformat;
-    while (fmt != NULL) {
+    while ((fmt = av_oformat_next(fmt))) {
         score = 0;
         if (fmt->name && short_name && !strcmp(fmt->name, short_name))
             score += 100;
@@ -235,7 +234,6 @@ AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
             score_max = score;
             fmt_found = fmt;
         }
-        fmt = fmt->next;
     }
     return fmt_found;
 }
@@ -282,8 +280,8 @@ enum CodecID av_guess_codec(AVOutputFormat *fmt, const char *short_name,
 
 AVInputFormat *av_find_input_format(const char *short_name)
 {
-    AVInputFormat *fmt;
-    for(fmt = first_iformat; fmt != NULL; fmt = fmt->next) {
+    AVInputFormat *fmt = NULL;
+    while ((fmt = av_iformat_next(fmt))) {
         if (match_format(short_name, fmt->name))
             return fmt;
     }
@@ -341,6 +339,21 @@ int av_get_packet(ByteIOContext *s, AVPacket *pkt, int size)
     return ret;
 }
 
+int av_append_packet(ByteIOContext *s, AVPacket *pkt, int size)
+{
+    int ret;
+    int old_size;
+    if (!pkt->size)
+        return av_get_packet(s, pkt, size);
+    old_size = pkt->size;
+    ret = av_grow_packet(pkt, size);
+    if (ret < 0)
+        return ret;
+    ret = get_buffer(s, pkt->data + old_size, size);
+    av_shrink_packet(pkt, old_size + FFMAX(ret, 0));
+    return ret;
+}
+
 
 int av_filename_number_test(const char *filename)
 {
@@ -351,7 +364,7 @@ int av_filename_number_test(const char *filename)
 AVInputFormat *av_probe_input_format2(AVProbeData *pd, int is_opened, int *score_max)
 {
     AVProbeData lpd = *pd;
-    AVInputFormat *fmt1, *fmt;
+    AVInputFormat *fmt1 = NULL, *fmt;
     int score;
 
     if (lpd.buf_size > 10 && ff_id3v2_match(lpd.buf, ID3v2_DEFAULT_MAGIC)) {
@@ -363,7 +376,7 @@ AVInputFormat *av_probe_input_format2(AVProbeData *pd, int is_opened, int *score
     }
 
     fmt = NULL;
-    for(fmt1 = first_iformat; fmt1 != NULL; fmt1 = fmt1->next) {
+    while ((fmt1 = av_iformat_next(fmt1))) {
         if (!is_opened == !(fmt1->flags & AVFMT_NOFILE))
             continue;
         score = 0;
@@ -2015,7 +2028,7 @@ static int has_codec_parameters(AVCodecContext *enc)
     int val;
     switch(enc->codec_type) {
     case AVMEDIA_TYPE_AUDIO:
-        val = enc->sample_rate && enc->channels && enc->sample_fmt != SAMPLE_FMT_NONE;
+        val = enc->sample_rate && enc->channels && enc->sample_fmt != AV_SAMPLE_FMT_NONE;
         if(!enc->frame_size &&
            (enc->codec_id == CODEC_ID_VORBIS ||
             enc->codec_id == CODEC_ID_AAC ||
@@ -2038,7 +2051,7 @@ static int has_codec_parameters(AVCodecContext *enc)
 static int has_decode_delay_been_guessed(AVStream *st)
 {
     return st->codec->codec_id != CODEC_ID_H264 ||
-        st->codec_info_nb_frames >= 4 + st->codec->has_b_frames;
+        st->codec_info_nb_frames >= 6 + st->codec->has_b_frames;
 }
 
 static int try_decode_frame(AVStream *st, AVPacket *avpkt)
@@ -2185,7 +2198,8 @@ int av_find_stream_info(AVFormatContext *ic)
             st->codec->frame_size = 0;
             st->codec->channels = 0;
         }
-        if(st->codec->codec_type == AVMEDIA_TYPE_VIDEO){
+        if (st->codec->codec_type == AVMEDIA_TYPE_VIDEO ||
+            st->codec->codec_type == AVMEDIA_TYPE_SUBTITLE) {
 /*            if(!st->time_base.num)
                 st->time_base= */
             if(!st->codec->time_base.num)
@@ -2208,9 +2222,14 @@ int av_find_stream_info(AVFormatContext *ic)
         if (codec && codec->capabilities & CODEC_CAP_CHANNEL_CONF)
             st->codec->channels = 0;
 
+        /* Ensure that subtitle_header is properly set. */
+        if (st->codec->codec_type == AVMEDIA_TYPE_SUBTITLE
+            && codec && !st->codec->codec)
+            avcodec_open(st->codec, codec);
+
         //try to just open decoders, in case this is enough to get parameters
         if(!has_codec_parameters(st->codec)){
-            if (codec)
+            if (codec && !st->codec->codec)
                 avcodec_open(st->codec, codec);
         }
     }
@@ -2473,6 +2492,7 @@ void av_close_input_stream(AVFormatContext *s)
         av_metadata_free(&st->metadata);
         av_free(st->index_entries);
         av_free(st->codec->extradata);
+        av_free(st->codec->subtitle_header);
         av_free(st->codec);
 #if FF_API_OLD_METADATA
         av_free(st->filename);

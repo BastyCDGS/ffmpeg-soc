@@ -27,12 +27,13 @@
  */
 
 #include <errno.h>
+#include "libavcore/samplefmt.h"
 #include "libavutil/avutil.h"
 #include "libavutil/cpu.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 52
-#define LIBAVCODEC_VERSION_MINOR 93
-#define LIBAVCODEC_VERSION_MICRO  0
+#define LIBAVCODEC_VERSION_MINOR 97
+#define LIBAVCODEC_VERSION_MICRO  2
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
                                                LIBAVCODEC_VERSION_MINOR, \
@@ -74,6 +75,12 @@
 #endif
 #ifndef FF_API_INOFFICIAL
 #define FF_API_INOFFICIAL       (LIBAVCODEC_VERSION_MAJOR < 53)
+#endif
+#ifndef FF_API_OLD_SAMPLE_FMT
+#define FF_API_OLD_SAMPLE_FMT   (LIBAVCODEC_VERSION_MAJOR < 53)
+#endif
+#ifndef FF_API_OLD_AUDIOCONVERT
+#define FF_API_OLD_AUDIOCONVERT (LIBAVCODEC_VERSION_MAJOR < 53)
 #endif
 
 #define AV_NOPTS_VALUE          INT64_C(0x8000000000000000)
@@ -376,6 +383,7 @@ enum CodecID {
     CODEC_ID_ATRAC1,
     CODEC_ID_BINKAUDIO_RDFT,
     CODEC_ID_BINKAUDIO_DCT,
+    CODEC_ID_AAC_LATM,
 
     /* subtitle codecs */
     CODEC_ID_DVD_SUBTITLE= 0x17000,
@@ -414,63 +422,65 @@ enum CodecID {
 #define CODEC_TYPE_NB         AVMEDIA_TYPE_NB
 #endif
 
-/**
- * all in native-endian format
- */
-enum SampleFormat {
-    SAMPLE_FMT_NONE = -1,
-    SAMPLE_FMT_U8,              ///< unsigned 8 bits
-    SAMPLE_FMT_S16,             ///< signed 16 bits
-    SAMPLE_FMT_S32,             ///< signed 32 bits
-    SAMPLE_FMT_FLT,             ///< float
-    SAMPLE_FMT_DBL,             ///< double
-    SAMPLE_FMT_NB               ///< Number of sample formats. DO NOT USE if dynamically linking to libavcodec
-};
+#if FF_API_OLD_SAMPLE_FMT
+#define SampleFormat AVSampleFormat
+
+#define SAMPLE_FMT_NONE AV_SAMPLE_FMT_NONE
+#define SAMPLE_FMT_U8   AV_SAMPLE_FMT_U8
+#define SAMPLE_FMT_S16  AV_SAMPLE_FMT_S16
+#define SAMPLE_FMT_S32  AV_SAMPLE_FMT_S32
+#define SAMPLE_FMT_FLT  AV_SAMPLE_FMT_FLT
+#define SAMPLE_FMT_DBL  AV_SAMPLE_FMT_DBL
+#define SAMPLE_FMT_NB   AV_SAMPLE_FMT_NB
+#endif
+
+#if FF_API_OLD_AUDIOCONVERT
+#include "libavcore/audioconvert.h"
 
 /* Audio channel masks */
-#define CH_FRONT_LEFT             0x00000001
-#define CH_FRONT_RIGHT            0x00000002
-#define CH_FRONT_CENTER           0x00000004
-#define CH_LOW_FREQUENCY          0x00000008
-#define CH_BACK_LEFT              0x00000010
-#define CH_BACK_RIGHT             0x00000020
-#define CH_FRONT_LEFT_OF_CENTER   0x00000040
-#define CH_FRONT_RIGHT_OF_CENTER  0x00000080
-#define CH_BACK_CENTER            0x00000100
-#define CH_SIDE_LEFT              0x00000200
-#define CH_SIDE_RIGHT             0x00000400
-#define CH_TOP_CENTER             0x00000800
-#define CH_TOP_FRONT_LEFT         0x00001000
-#define CH_TOP_FRONT_CENTER       0x00002000
-#define CH_TOP_FRONT_RIGHT        0x00004000
-#define CH_TOP_BACK_LEFT          0x00008000
-#define CH_TOP_BACK_CENTER        0x00010000
-#define CH_TOP_BACK_RIGHT         0x00020000
-#define CH_STEREO_LEFT            0x20000000  ///< Stereo downmix.
-#define CH_STEREO_RIGHT           0x40000000  ///< See CH_STEREO_LEFT.
+#define CH_FRONT_LEFT            AV_CH_FRONT_LEFT
+#define CH_FRONT_RIGHT           AV_CH_FRONT_RIGHT
+#define CH_FRONT_CENTER          AV_CH_FRONT_CENTER
+#define CH_LOW_FREQUENCY         AV_CH_LOW_FREQUENCY
+#define CH_BACK_LEFT             AV_CH_BACK_LEFT
+#define CH_BACK_RIGHT            AV_CH_BACK_RIGHT
+#define CH_FRONT_LEFT_OF_CENTER  AV_CH_FRONT_LEFT_OF_CENTER
+#define CH_FRONT_RIGHT_OF_CENTER AV_CH_FRONT_RIGHT_OF_CENTER
+#define CH_BACK_CENTER           AV_CH_BACK_CENTER
+#define CH_SIDE_LEFT             AV_CH_SIDE_LEFT
+#define CH_SIDE_RIGHT            AV_CH_SIDE_RIGHT
+#define CH_TOP_CENTER            AV_CH_TOP_CENTER
+#define CH_TOP_FRONT_LEFT        AV_CH_TOP_FRONT_LEFT
+#define CH_TOP_FRONT_CENTER      AV_CH_TOP_FRONT_CENTER
+#define CH_TOP_FRONT_RIGHT       AV_CH_TOP_FRONT_RIGHT
+#define CH_TOP_BACK_LEFT         AV_CH_TOP_BACK_LEFT
+#define CH_TOP_BACK_CENTER       AV_CH_TOP_BACK_CENTER
+#define CH_TOP_BACK_RIGHT        AV_CH_TOP_BACK_RIGHT
+#define CH_STEREO_LEFT           AV_CH_STEREO_LEFT
+#define CH_STEREO_RIGHT          AV_CH_STEREO_RIGHT
 
 /** Channel mask value used for AVCodecContext.request_channel_layout
     to indicate that the user requests the channel order of the decoder output
     to be the native codec channel order. */
-#define CH_LAYOUT_NATIVE          0x8000000000000000LL
+#define CH_LAYOUT_NATIVE         AV_CH_LAYOUT_NATIVE
 
 /* Audio channel convenience macros */
-#define CH_LAYOUT_MONO              (CH_FRONT_CENTER)
-#define CH_LAYOUT_STEREO            (CH_FRONT_LEFT|CH_FRONT_RIGHT)
-#define CH_LAYOUT_2_1               (CH_LAYOUT_STEREO|CH_BACK_CENTER)
-#define CH_LAYOUT_SURROUND          (CH_LAYOUT_STEREO|CH_FRONT_CENTER)
-#define CH_LAYOUT_4POINT0           (CH_LAYOUT_SURROUND|CH_BACK_CENTER)
-#define CH_LAYOUT_2_2               (CH_LAYOUT_STEREO|CH_SIDE_LEFT|CH_SIDE_RIGHT)
-#define CH_LAYOUT_QUAD              (CH_LAYOUT_STEREO|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_5POINT0           (CH_LAYOUT_SURROUND|CH_SIDE_LEFT|CH_SIDE_RIGHT)
-#define CH_LAYOUT_5POINT1           (CH_LAYOUT_5POINT0|CH_LOW_FREQUENCY)
-#define CH_LAYOUT_5POINT0_BACK      (CH_LAYOUT_SURROUND|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_5POINT1_BACK      (CH_LAYOUT_5POINT0_BACK|CH_LOW_FREQUENCY)
-#define CH_LAYOUT_7POINT0           (CH_LAYOUT_5POINT0|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_7POINT1           (CH_LAYOUT_5POINT1|CH_BACK_LEFT|CH_BACK_RIGHT)
-#define CH_LAYOUT_7POINT1_WIDE      (CH_LAYOUT_5POINT1_BACK|\
-                                          CH_FRONT_LEFT_OF_CENTER|CH_FRONT_RIGHT_OF_CENTER)
-#define CH_LAYOUT_STEREO_DOWNMIX    (CH_STEREO_LEFT|CH_STEREO_RIGHT)
+#define CH_LAYOUT_MONO           AV_CH_LAYOUT_MONO
+#define CH_LAYOUT_STEREO         AV_CH_LAYOUT_STEREO
+#define CH_LAYOUT_2_1            AV_CH_LAYOUT_2_1
+#define CH_LAYOUT_SURROUND       AV_CH_LAYOUT_SURROUND
+#define CH_LAYOUT_4POINT0        AV_CH_LAYOUT_4POINT0
+#define CH_LAYOUT_2_2            AV_CH_LAYOUT_2_2
+#define CH_LAYOUT_QUAD           AV_CH_LAYOUT_QUAD
+#define CH_LAYOUT_5POINT0        AV_CH_LAYOUT_5POINT0
+#define CH_LAYOUT_5POINT1        AV_CH_LAYOUT_5POINT1
+#define CH_LAYOUT_5POINT0_BACK   AV_CH_LAYOUT_5POINT0_BACK
+#define CH_LAYOUT_5POINT1_BACK   AV_CH_LAYOUT_5POINT1_BACK
+#define CH_LAYOUT_7POINT0        AV_CH_LAYOUT_7POINT0
+#define CH_LAYOUT_7POINT1        AV_CH_LAYOUT_7POINT1
+#define CH_LAYOUT_7POINT1_WIDE   AV_CH_LAYOUT_7POINT1_WIDE
+#define CH_LAYOUT_STEREO_DOWNMIX AV_CH_LAYOUT_STEREO_DOWNMIX
+#endif
 
 /* in bytes */
 #define AVCODEC_MAX_AUDIO_FRAME_SIZE 192000 // 1 second of 48khz 32bit audio
@@ -1232,7 +1242,7 @@ typedef struct AVCodecContext {
      * - encoding: Set by user.
      * - decoding: Set by libavcodec.
      */
-    enum SampleFormat sample_fmt;  ///< sample format
+    enum AVSampleFormat sample_fmt;  ///< sample format
 
     /* The following data should not be initialized. */
     /**
@@ -2556,7 +2566,7 @@ typedef struct AVCodecContext {
 
     /**
      * Bits per sample/pixel of internal libavcodec pixel/sample format.
-     * This field is applicable only when sample_fmt is SAMPLE_FMT_S32.
+     * This field is applicable only when sample_fmt is AV_SAMPLE_FMT_S32.
      * - encoding: set by user.
      * - decoding: set by libavcodec.
      */
@@ -2758,6 +2768,17 @@ typedef struct AVCodecContext {
      * - decoding: unused
      */
     int slices;
+
+    /**
+     * Header containing style information for text subtitles.
+     * For SUBTITLE_ASS subtitle type, it should contain the whole ASS
+     * [Script Info] and [V4+ Styles] section, plus the [Events] line and
+     * the Format line following. It shouldn't include any Dialogue line.
+     * - encoding: Set/allocated/freed by user (before avcodec_open())
+     * - decoding: Set/allocated/freed by libavcodec (by avcodec_open())
+     */
+    uint8_t *subtitle_header;
+    int subtitle_header_size;
 } AVCodecContext;
 
 /**
@@ -2797,7 +2818,7 @@ typedef struct AVCodec {
      */
     const char *long_name;
     const int *supported_samplerates;       ///< array of supported audio samplerates, or NULL if unknown, array is terminated by 0
-    const enum SampleFormat *sample_fmts;   ///< array of supported sample formats, or NULL if unknown, array is terminated by -1
+    const enum AVSampleFormat *sample_fmts; ///< array of supported sample formats, or NULL if unknown, array is terminated by -1
     const int64_t *channel_layouts;         ///< array of support channel layouts, or NULL if unknown. array is terminated by 0
     uint8_t max_lowres;                     ///< maximum value for lowres supported by the decoder
     AVClass *priv_class;                    ///< AVClass for the private context
@@ -3017,6 +3038,14 @@ int av_new_packet(AVPacket *pkt, int size);
 void av_shrink_packet(AVPacket *pkt, int size);
 
 /**
+ * Increase packet size, correctly zeroing padding
+ *
+ * @param pkt packet
+ * @param grow_by number of bytes by which to increase the size of the packet
+ */
+int av_grow_packet(AVPacket *pkt, int grow_by);
+
+/**
  * @warning This is a hack - the packet memory allocation stuff is broken. The
  * packet is allocated if it was not really allocated.
  */
@@ -3061,8 +3090,8 @@ attribute_deprecated ReSampleContext *audio_resample_init(int output_channels, i
  */
 ReSampleContext *av_audio_resample_init(int output_channels, int input_channels,
                                         int output_rate, int input_rate,
-                                        enum SampleFormat sample_fmt_out,
-                                        enum SampleFormat sample_fmt_in,
+                                        enum AVSampleFormat sample_fmt_out,
+                                        enum AVSampleFormat sample_fmt_in,
                                         int filter_length, int log2_phase_count,
                                         int linear, double cutoff);
 
@@ -3740,13 +3769,13 @@ char av_get_pict_type_char(int pict_type);
  */
 int av_get_bits_per_sample(enum CodecID codec_id);
 
+#if FF_API_OLD_SAMPLE_FMT
 /**
- * Return sample format bits per sample.
- *
- * @param[in] sample_fmt the sample format
- * @return Number of bits per sample or zero if unknown for the given sample format.
+ * @deprecated Use av_get_bits_per_sample_fmt() instead.
  */
-int av_get_bits_per_sample_format(enum SampleFormat sample_fmt);
+attribute_deprecated
+int av_get_bits_per_sample_format(enum AVSampleFormat sample_fmt);
+#endif
 
 /* frame parsing */
 typedef struct AVCodecParserContext {

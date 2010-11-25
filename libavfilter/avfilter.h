@@ -25,7 +25,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVFILTER_VERSION_MAJOR  1
-#define LIBAVFILTER_VERSION_MINOR 53
+#define LIBAVFILTER_VERSION_MINOR 65
 #define LIBAVFILTER_VERSION_MICRO  0
 
 #define LIBAVFILTER_VERSION_INT AV_VERSION_INT(LIBAVFILTER_VERSION_MAJOR, \
@@ -366,7 +366,7 @@ struct AVFilterPad {
      * Input audio pads only.
      */
     AVFilterBufferRef *(*get_audio_buffer)(AVFilterLink *link, int perms,
-                                           enum SampleFormat sample_fmt, int size,
+                                           enum AVSampleFormat sample_fmt, int size,
                                            int64_t channel_layout, int planar);
 
     /**
@@ -455,7 +455,7 @@ AVFilterBufferRef *avfilter_default_get_video_buffer(AVFilterLink *link,
 
 /** default handler for get_audio_buffer() for audio inputs */
 AVFilterBufferRef *avfilter_default_get_audio_buffer(AVFilterLink *link, int perms,
-                                                     enum SampleFormat sample_fmt, int size,
+                                                     enum AVSampleFormat sample_fmt, int size,
                                                      int64_t channel_layout, int planar);
 
 /**
@@ -486,7 +486,7 @@ AVFilterBufferRef *avfilter_null_get_video_buffer(AVFilterLink *link,
 
 /** get_audio_buffer() handler for filters which simply pass audio along */
 AVFilterBufferRef *avfilter_null_get_audio_buffer(AVFilterLink *link, int perms,
-                                                  enum SampleFormat sample_fmt, int size,
+                                                  enum AVSampleFormat sample_fmt, int size,
                                                   int64_t channel_layout, int planar);
 
 /**
@@ -579,7 +579,7 @@ struct AVFilterLink {
     int w;                      ///< agreed upon image width
     int h;                      ///< agreed upon image height
     /* These two parameters apply only to audio */
-    int64_t channel_layout;     ///< channel layout of current buffer (see avcodec.h)
+    int64_t channel_layout;     ///< channel layout of current buffer (see libavcore/audioconvert.h)
     int64_t sample_rate;        ///< samples per second
 
     int format;                 ///< agreed upon media format
@@ -649,6 +649,21 @@ AVFilterBufferRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
                                           int w, int h);
 
 /**
+ * Create a buffer reference wrapped around an already allocated image
+ * buffer.
+ *
+ * @param data pointers to the planes of the image to reference
+ * @param linesize linesizes for the planes of the image to reference
+ * @param perms the required access permissions
+ * @param w the width of the image specified by the data and linesize arrays
+ * @param h the height of the image specified by the data and linesize arrays
+ * @param format the pixel format of the image specified by the data and linesize arrays
+ */
+AVFilterBufferRef *
+avfilter_get_video_buffer_ref_from_arrays(uint8_t *data[4], int linesize[4], int perms,
+                                          int w, int h, enum PixelFormat format);
+
+/**
  * Request an audio samples buffer with a specific set of permissions.
  *
  * @param link           the output link to the filter from which the buffer will
@@ -662,7 +677,7 @@ AVFilterBufferRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
  *                       avfilter_unref_buffer when you are finished with it.
  */
 AVFilterBufferRef *avfilter_get_audio_buffer(AVFilterLink *link, int perms,
-                                             enum SampleFormat sample_fmt, int size,
+                                             enum AVSampleFormat sample_fmt, int size,
                                              int64_t channel_layout, int planar);
 
 /**
@@ -786,11 +801,11 @@ int avfilter_open(AVFilterContext **filter_ctx, AVFilter *filter, const char *in
 int avfilter_init_filter(AVFilterContext *filter, const char *args, void *opaque);
 
 /**
- * Destroy a filter.
+ * Free a filter context.
  *
- * @param filter the filter to destroy
+ * @param filter the filter to free
  */
-void avfilter_destroy(AVFilterContext *filter);
+void avfilter_free(AVFilterContext *filter);
 
 /**
  * Insert a filter in the middle of an existing link.

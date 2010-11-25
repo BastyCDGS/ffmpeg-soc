@@ -105,6 +105,9 @@ int ff_rtsp_setup_input_streams(AVFormatContext *s, RTSPMessageHeader *reply)
         av_freep(&content);
         return AVERROR_INVALIDDATA;
     }
+    if (reply->content_base[0])
+        av_strlcpy(rt->control_uri, reply->content_base,
+                   sizeof(rt->control_uri));
 
     av_log(s, AV_LOG_VERBOSE, "SDP:\n%s\n", content);
     /* now we got the SDP description, we parse it */
@@ -136,7 +139,7 @@ static int rtsp_read_header(AVFormatContext *s,
     rt->real_setup_cache = av_mallocz(2 * s->nb_streams * sizeof(*rt->real_setup_cache));
     if (!rt->real_setup_cache)
         return AVERROR(ENOMEM);
-    rt->real_setup = rt->real_setup_cache + s->nb_streams * sizeof(*rt->real_setup);
+    rt->real_setup = rt->real_setup_cache + s->nb_streams;
 
     if (ap->initial_pause) {
          /* do not start immediately */
