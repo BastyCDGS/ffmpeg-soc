@@ -295,6 +295,9 @@ typedef struct AVOutputStream {
     /* audio only */
     int audio_resample;
     ReSampleContext *resample; /* for audio resampling */
+    int resample_sample_fmt;
+    int resample_channels;
+    int resample_sample_rate;
     int reformat_pair;
     AVAudioConvert *reformat_ctx;
     AVFifoBuffer *fifo;     /* for compression: one audio fifo per codec */
@@ -356,22 +359,16 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
 
     graph = avfilter_graph_alloc();
 
-    if ((ret = avfilter_open(&ist->input_video_filter, avfilter_get_by_name("buffer"), "src")) < 0)
-        return ret;
-    if ((ret = avfilter_open(&ist->output_video_filter, &ffsink, "out")) < 0)
-        return ret;
-
     snprintf(args, 255, "%d:%d:%d:%d:%d", ist->st->codec->width,
              ist->st->codec->height, ist->st->codec->pix_fmt, 1, AV_TIME_BASE);
-    if ((ret = avfilter_init_filter(ist->input_video_filter, args, NULL)) < 0)
+    ret = avfilter_graph_create_filter(&ist->input_video_filter, avfilter_get_by_name("buffer"),
+                                       "src", args, NULL, graph);
+    if (ret < 0)
         return ret;
-    if ((ret = avfilter_init_filter(ist->output_video_filter, NULL, &ffsink_ctx)) < 0)
+    ret = avfilter_graph_create_filter(&ist->output_video_filter, &ffsink,
+                                       "out", NULL, &ffsink_ctx, graph);
+    if (ret < 0)
         return ret;
-
-    /* add input and output filters to the overall graph */
-    avfilter_graph_add_filter(graph, ist->input_video_filter);
-    avfilter_graph_add_filter(graph, ist->output_video_filter);
-
     last_filter = ist->input_video_filter;
 
     if (codec->width  != icodec->width || codec->height != icodec->height) {
@@ -379,14 +376,12 @@ static int configure_filters(AVInputStream *ist, AVOutputStream *ost)
                  codec->width,
                  codec->height,
                  (int)av_get_int(sws_opts, "sws_flags", NULL));
-        if ((ret = avfilter_open(&filter, avfilter_get_by_name("scale"), NULL)) < 0)
-            return ret;
-        if ((ret = avfilter_init_filter(filter, args, NULL)) < 0)
+        if ((ret = avfilter_graph_create_filter(&filter, avfilter_get_by_name("scale"),
+                                                NULL, args, NULL, graph)) < 0)
             return ret;
         if ((ret = avfilter_link(last_filter, 0, filter, 0)) < 0)
             return ret;
         last_filter = filter;
-        avfilter_graph_add_filter(graph, last_filter);
     }
 
     snprintf(args, sizeof(args), "flags=0x%X", (int)av_get_int(sws_opts, "sws_flags", NULL));
@@ -776,7 +771,7 @@ static void do_audio_out(AVFormatContext *s,
     int64_t audio_out_size, audio_buf_size;
     int64_t allocated_for_size= size;
 
-    int size_out, frame_bytes, ret;
+    int size_out, frame_bytes, ret, resample_changed;
     AVCodecContext *enc= ost->st->codec;
     AVCodecContext *dec= ist->st->codec;
     int osize= av_get_bits_per_sample_fmt(enc->sample_fmt)/8;
@@ -810,18 +805,40 @@ need_realloc:
     if (enc->channels != dec->channels)
         ost->audio_resample = 1;
 
-    if (ost->audio_resample && !ost->resample) {
-        if (dec->sample_fmt != AV_SAMPLE_FMT_S16)
-            fprintf(stderr, "Warning, using s16 intermediate sample format for resampling\n");
-        ost->resample = av_audio_resample_init(enc->channels,    dec->channels,
-                                               enc->sample_rate, dec->sample_rate,
-                                               enc->sample_fmt,  dec->sample_fmt,
-                                               16, 10, 0, 0.8);
-        if (!ost->resample) {
-            fprintf(stderr, "Can not resample %d channels @ %d Hz to %d channels @ %d Hz\n",
-                    dec->channels, dec->sample_rate,
-                    enc->channels, enc->sample_rate);
-            ffmpeg_exit(1);
+    resample_changed = ost->resample_sample_fmt  != dec->sample_fmt ||
+                       ost->resample_channels    != dec->channels   ||
+                       ost->resample_sample_rate != dec->sample_rate;
+
+    if ((ost->audio_resample && !ost->resample) || resample_changed) {
+        if (resample_changed) {
+            av_log(NULL, AV_LOG_INFO, "Input stream #%d.%d frame changed from rate:%d fmt:%s ch:%d to rate:%d fmt:%s ch:%d\n",
+                   ist->file_index, ist->index,
+                   ost->resample_sample_rate, av_get_sample_fmt_name(ost->resample_sample_fmt), ost->resample_channels,
+                   dec->sample_rate, av_get_sample_fmt_name(dec->sample_fmt), dec->channels);
+            ost->resample_sample_fmt  = dec->sample_fmt;
+            ost->resample_channels    = dec->channels;
+            ost->resample_sample_rate = dec->sample_rate;
+            if (ost->resample)
+                audio_resample_close(ost->resample);
+        }
+        if (ost->resample_sample_fmt  == enc->sample_fmt &&
+            ost->resample_channels    == enc->channels   &&
+            ost->resample_sample_rate == enc->sample_rate) {
+            ost->resample = NULL;
+            ost->audio_resample = 0;
+        } else {
+            if (dec->sample_fmt != AV_SAMPLE_FMT_S16)
+                fprintf(stderr, "Warning, using s16 intermediate sample format for resampling\n");
+            ost->resample = av_audio_resample_init(enc->channels,    dec->channels,
+                                                   enc->sample_rate, dec->sample_rate,
+                                                   enc->sample_fmt,  dec->sample_fmt,
+                                                   16, 10, 0, 0.8);
+            if (!ost->resample) {
+                fprintf(stderr, "Can not resample %d channels @ %d Hz to %d channels @ %d Hz\n",
+                        dec->channels, dec->sample_rate,
+                        enc->channels, enc->sample_rate);
+                ffmpeg_exit(1);
+            }
         }
     }
 
@@ -2182,6 +2199,9 @@ static int transcode(AVFormatContext **output_files,
                 icodec->request_channels = codec->channels;
                 ist->decoding_needed = 1;
                 ost->encoding_needed = 1;
+                ost->resample_sample_fmt  = icodec->sample_fmt;
+                ost->resample_sample_rate = icodec->sample_rate;
+                ost->resample_channels    = icodec->channels;
                 break;
             case AVMEDIA_TYPE_VIDEO:
                 if (ost->st->codec->pix_fmt == PIX_FMT_NONE) {
@@ -3577,6 +3597,7 @@ static void new_subtitle_stream(AVFormatContext *oc, int file_idx)
     AVOutputStream *ost;
     AVCodec *codec=NULL;
     AVCodecContext *subtitle_enc;
+    enum CodecID codec_id;
 
     st = av_new_stream(oc, oc->nb_streams < nb_streamid_map ? streamid_map[oc->nb_streams] : 0);
     if (!st) {
@@ -3587,9 +3608,14 @@ static void new_subtitle_stream(AVFormatContext *oc, int file_idx)
     subtitle_enc = st->codec;
     output_codecs = grow_array(output_codecs, sizeof(*output_codecs), &nb_output_codecs, nb_output_codecs + 1);
     if(!subtitle_stream_copy){
-        subtitle_enc->codec_id = find_codec_or_die(subtitle_codec_name, AVMEDIA_TYPE_SUBTITLE, 1,
-                                                   avcodec_opts[AVMEDIA_TYPE_SUBTITLE]->strict_std_compliance);
-        codec= output_codecs[nb_output_codecs-1] = avcodec_find_encoder_by_name(subtitle_codec_name);
+        if (subtitle_codec_name) {
+            codec_id = find_codec_or_die(subtitle_codec_name, AVMEDIA_TYPE_SUBTITLE, 1,
+                                         avcodec_opts[AVMEDIA_TYPE_SUBTITLE]->strict_std_compliance);
+            codec= output_codecs[nb_output_codecs-1] = avcodec_find_encoder_by_name(subtitle_codec_name);
+        } else {
+            codec_id = av_guess_codec(oc->oformat, NULL, oc->filename, NULL, AVMEDIA_TYPE_SUBTITLE);
+            codec = avcodec_find_encoder(codec_id);
+        }
     }
     avcodec_get_context_defaults3(st->codec, codec);
 
@@ -3608,6 +3634,7 @@ static void new_subtitle_stream(AVFormatContext *oc, int file_idx)
     if (subtitle_stream_copy) {
         st->stream_copy = 1;
     } else {
+        subtitle_enc->codec_id = codec_id;
         set_context_opts(avcodec_opts[AVMEDIA_TYPE_SUBTITLE], subtitle_enc, AV_OPT_FLAG_SUBTITLE_PARAM | AV_OPT_FLAG_ENCODING_PARAM, codec);
     }
 
@@ -3884,6 +3911,8 @@ static void show_usage(void)
 
 static void show_help(void)
 {
+    AVCodec *c;
+
     av_log_set_callback(log_callback_help);
     show_usage();
     show_help_options(options, "Main options:\n",
@@ -3912,6 +3941,16 @@ static void show_help(void)
     printf("\n");
     av_opt_show2(avcodec_opts[0], NULL, AV_OPT_FLAG_ENCODING_PARAM|AV_OPT_FLAG_DECODING_PARAM, 0);
     printf("\n");
+
+    /* individual codec options */
+    c = NULL;
+    while ((c = av_codec_next(c))) {
+        if (c->priv_class) {
+            av_opt_show2(&c->priv_class, NULL, AV_OPT_FLAG_ENCODING_PARAM|AV_OPT_FLAG_DECODING_PARAM, 0);
+            printf("\n");
+        }
+    }
+
     av_opt_show2(avformat_opts, NULL, AV_OPT_FLAG_ENCODING_PARAM|AV_OPT_FLAG_DECODING_PARAM, 0);
     printf("\n");
     av_opt_show2(sws_opts, NULL, AV_OPT_FLAG_ENCODING_PARAM|AV_OPT_FLAG_DECODING_PARAM, 0);

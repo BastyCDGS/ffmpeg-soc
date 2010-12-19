@@ -431,25 +431,12 @@ enum PixelFormat avcodec_get_pix_fmt(const char *name)
 {
     return av_get_pix_fmt(name);
 }
-#endif
 
 void avcodec_pix_fmt_string (char *buf, int buf_size, enum PixelFormat pix_fmt)
 {
-    /* print header */
-    if (pix_fmt < 0)
-        snprintf (buf, buf_size,
-                  "name      " " nb_components" " nb_bits"
-            );
-    else{
-        const AVPixFmtDescriptor *pixdesc = &av_pix_fmt_descriptors[pix_fmt];
-        snprintf (buf, buf_size,
-                  "%-11s %7d %10d",
-                  pixdesc->name,
-                  pixdesc->nb_components,
-                  av_get_bits_per_pixel(pixdesc)
-            );
-    }
+    av_get_pix_fmt_string(buf, buf_size, pix_fmt);
 }
+#endif
 
 int ff_is_hwaccel_pix_fmt(enum PixelFormat pix_fmt)
 {
@@ -826,23 +813,14 @@ void ff_shrink88(uint8_t *dst, int dst_wrap,
 int avpicture_alloc(AVPicture *picture,
                     enum PixelFormat pix_fmt, int width, int height)
 {
-    int size;
-    void *ptr;
+    int ret;
 
-    size = avpicture_fill(picture, NULL, pix_fmt, width, height);
-    if(size<0)
-        goto fail;
-    ptr = av_malloc(size);
-    if (!ptr)
-        goto fail;
-    avpicture_fill(picture, ptr, pix_fmt, width, height);
-    if(picture->data[1] && !picture->data[2])
-        ff_set_systematic_pal2((uint32_t*)picture->data[1], pix_fmt);
+    if ((ret = av_image_alloc(picture->data, picture->linesize, width, height, pix_fmt, 1)) < 0) {
+        memset(picture, 0, sizeof(AVPicture));
+        return ret;
+    }
 
     return 0;
- fail:
-    memset(picture, 0, sizeof(AVPicture));
-    return -1;
 }
 
 void avpicture_free(AVPicture *picture)

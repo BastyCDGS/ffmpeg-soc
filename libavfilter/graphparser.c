@@ -1,7 +1,7 @@
 /*
  * filter graph parser
- * copyright (c) 2008 Vitor Sessak
- * copyright (c) 2007 Bobby Bingham
+ * Copyright (c) 2008 Vitor Sessak
+ * Copyright (c) 2007 Bobby Bingham
  *
  * This file is part of FFmpeg.
  *
@@ -338,6 +338,7 @@ int avfilter_graph_parse(AVFilterGraph *graph, const char *filters,
 
     do {
         AVFilterContext *filter;
+        const char *filterchain = filters;
         filters += strspn(filters, WHITESPACES);
 
         if ((ret = parse_inputs(&filters, &curr_inputs, &open_outputs, log_ctx)) < 0)
@@ -365,8 +366,8 @@ int avfilter_graph_parse(AVFilterGraph *graph, const char *filters,
 
         if (chr == ';' && curr_inputs) {
             av_log(log_ctx, AV_LOG_ERROR,
-                   "Could not find a output to link when parsing \"%s\"\n",
-                   filters - 1);
+                   "Invalid filterchain containing an unlabelled output pad: \"%s\"\n",
+                   filterchain);
             ret = AVERROR(EINVAL);
             goto fail;
         }

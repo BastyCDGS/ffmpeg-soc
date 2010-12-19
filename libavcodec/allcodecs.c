@@ -225,6 +225,7 @@ void avcodec_register_all(void)
     REGISTER_ENCDEC  (ALAC, alac);
     REGISTER_DECODER (ALS, als);
     REGISTER_DECODER (AMRNB, amrnb);
+    REGISTER_DECODER (AMRWB, amrwb);
     REGISTER_DECODER (APE, ape);
     REGISTER_DECODER (ATRAC1, atrac1);
     REGISTER_DECODER (ATRAC3, atrac3);
@@ -380,6 +381,7 @@ void avcodec_register_all(void)
     REGISTER_PARSER  (DNXHD, dnxhd);
     REGISTER_PARSER  (DVBSUB, dvbsub);
     REGISTER_PARSER  (DVDSUB, dvdsub);
+    REGISTER_PARSER  (FLAC, flac);
     REGISTER_PARSER  (H261, h261);
     REGISTER_PARSER  (H263, h263);
     REGISTER_PARSER  (H264, h264);
