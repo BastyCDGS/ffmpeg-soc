@@ -812,7 +812,7 @@ static void compute_frame_duration(int *pnum, int *pden, AVStream *st,
         break;
     case AVMEDIA_TYPE_AUDIO:
         frame_size = get_audio_frame_size(st->codec, pkt->size);
-        if (frame_size < 0)
+        if (frame_size <= 0 || st->codec->sample_rate <= 0)
             break;
         *pnum = frame_size;
         *pden = st->codec->sample_rate;
@@ -1870,10 +1870,11 @@ static void av_estimate_timings_from_bit_rate(AVFormatContext *ic)
     AVStream *st;
 
     /* if bit_rate is already set, we believe it */
-    if (ic->bit_rate == 0) {
+    if (ic->bit_rate <= 0) {
         bit_rate = 0;
         for(i=0;i<ic->nb_streams;i++) {
             st = ic->streams[i];
+            if (st->codec->bit_rate > 0)
             bit_rate += st->codec->bit_rate;
         }
         ic->bit_rate = bit_rate;
@@ -2457,6 +2458,67 @@ int av_find_stream_info(AVFormatContext *ic)
     return ret;
 }
 
+static AVProgram *find_program_from_stream(AVFormatContext *ic, int s)
+{
+    int i, j;
+
+    for (i = 0; i < ic->nb_programs; i++)
+        for (j = 0; j < ic->programs[i]->nb_stream_indexes; j++)
+            if (ic->programs[i]->stream_index[j] == s)
+                return ic->programs[i];
+    return NULL;
+}
+
+int av_find_best_stream(AVFormatContext *ic,
+                        enum AVMediaType type,
+                        int wanted_stream_nb,
+                        int related_stream,
+                        AVCodec **decoder_ret,
+                        int flags)
+{
+    int i, nb_streams = ic->nb_streams, stream_number = 0;
+    int ret = AVERROR_STREAM_NOT_FOUND, best_count = -1;
+    unsigned *program = NULL;
+    AVCodec *decoder = NULL, *best_decoder = NULL;
+
+    if (related_stream >= 0 && wanted_stream_nb < 0) {
+        AVProgram *p = find_program_from_stream(ic, related_stream);
+        if (p) {
+            program = p->stream_index;
+            nb_streams = p->nb_stream_indexes;
+        }
+    }
+    for (i = 0; i < nb_streams; i++) {
+        AVStream *st = ic->streams[program ? program[i] : i];
+        AVCodecContext *avctx = st->codec;
+        if (avctx->codec_type != type)
+            continue;
+        if (wanted_stream_nb >= 0 && stream_number++ != wanted_stream_nb)
+            continue;
+        if (decoder_ret) {
+            decoder = avcodec_find_decoder(ic->streams[i]->codec->codec_id);
+            if (!decoder) {
+                if (ret < 0)
+                    ret = AVERROR_DECODER_NOT_FOUND;
+                continue;
+            }
+        }
+        if (best_count >= st->codec_info_nb_frames)
+            continue;
+        best_count = st->codec_info_nb_frames;
+        ret = i;
+        best_decoder = decoder;
+        if (program && i == nb_streams - 1 && ret < 0) {
+            program = NULL;
+            nb_streams = ic->nb_streams;
+            i = 0; /* no related stream found, try again with everything */
+        }
+    }
+    if (decoder_ret)
+        *decoder_ret = best_decoder;
+    return ret;
+}
+
 /*******************************************************/
 
 int av_read_play(AVFormatContext *s)
@@ -2482,6 +2544,7 @@ void av_close_input_stream(AVFormatContext *s)
     int i;
     AVStream *st;
 
+    flush_packet_queue(s);
     if (s->iformat->read_close)
         s->iformat->read_close(s);
     for(i=0;i<s->nb_streams;i++) {
@@ -2513,7 +2576,6 @@ void av_close_input_stream(AVFormatContext *s)
         av_freep(&s->programs[i]);
     }
     av_freep(&s->programs);
-    flush_packet_queue(s);
     av_freep(&s->priv_data);
     while(s->nb_chapters--) {
 #if FF_API_OLD_METADATA
@@ -2658,6 +2720,10 @@ int av_set_parameters(AVFormatContext *s, AVFormatParameters *ap)
         s->priv_data = av_mallocz(s->oformat->priv_data_size);
         if (!s->priv_data)
             return AVERROR(ENOMEM);
+        if (s->oformat->priv_class) {
+            *(const AVClass**)s->priv_data= s->oformat->priv_class;
+            av_opt_set_defaults(s->priv_data);
+        }
     } else
         s->priv_data = NULL;
 
@@ -2708,7 +2774,7 @@ int av_write_header(AVFormatContext *s)
     AVStream *st;
 
     // some sanity checks
-    if (s->nb_streams == 0) {
+    if (s->nb_streams == 0 && !(s->oformat->flags & AVFMT_NOSTREAMS)) {
         av_log(s, AV_LOG_ERROR, "no streams\n");
         return AVERROR(EINVAL);
     }
@@ -2776,7 +2842,7 @@ int av_write_header(AVFormatContext *s)
 #endif
 
     /* set muxer identification string */
-    if (!(s->streams[0]->codec->flags & CODEC_FLAG_BITEXACT)) {
+    if (s->nb_streams && !(s->streams[0]->codec->flags & CODEC_FLAG_BITEXACT)) {
         av_metadata_set2(&s->metadata, "encoder", LIBAVFORMAT_IDENT, 0);
     }
 
@@ -2851,12 +2917,12 @@ static int compute_pkt_fields2(AVFormatContext *s, AVStream *st, AVPacket *pkt){
 
     if(st->cur_dts && st->cur_dts != AV_NOPTS_VALUE && st->cur_dts >= pkt->dts){
         av_log(s, AV_LOG_ERROR,
-               "st:%d error, non monotone timestamps %"PRId64" >= %"PRId64"\n",
+               "Application provided invalid, non monotonically increasing dts to muxer in stream %d: %"PRId64" >= %"PRId64"\n",
                st->index, st->cur_dts, pkt->dts);
         return -1;
     }
     if(pkt->dts != AV_NOPTS_VALUE && pkt->pts != AV_NOPTS_VALUE && pkt->pts < pkt->dts){
-        av_log(s, AV_LOG_ERROR, "st:%d error, pts < dts\n", st->index);
+        av_log(s, AV_LOG_ERROR, "pts < dts in stream %d\n", st->index);
         return -1;
     }
 
@@ -3805,3 +3871,12 @@ void ff_parse_key_value(const char *str, ff_parse_key_val_cb callback_get_buf,
     }
 }
 
+int ff_find_stream_index(AVFormatContext *s, int id)
+{
+    int i;
+    for (i = 0; i < s->nb_streams; i++) {
+        if (s->streams[i]->id == id)
+            return i;
+    }
+    return -1;
+}
