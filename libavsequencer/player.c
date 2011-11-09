@@ -8651,6 +8651,7 @@ static void init_new_instrument(AVSequencerContext *const avctx, AVSequencerPlay
     player_channel->auto_pannolo_pan   = 0;
     player_channel->slide_env_freq     = 0;
     player_channel->flags             &= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
+    player_host_channel->arpeggio_freq = 0;
     player_host_channel->vibrato_slide = 0;
     player_host_channel->tremolo_slide = 0;
 
