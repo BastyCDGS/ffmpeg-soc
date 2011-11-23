@@ -335,8 +335,6 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
     if (song->flags & AVSEQ_SONG_FLAG_SURROUND)
         player_globals->flags |= AVSEQ_PLAYER_GLOBALS_FLAG_SURROUND;
 
-    player_globals->relative_speed = 0x10000;
-    player_globals->relative_pitch = 0x10000;
     frames                         = song->frames;
     order_list                     = song->order_list;
 
