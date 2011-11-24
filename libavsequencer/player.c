@@ -9981,7 +9981,7 @@ check_song_end_done:
                 if (player_host_channel->tempo)
                     player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END;
 
-                while (i++ < order_list->orders) {
+                while (++i < order_list->orders) {
                     if ((order_data = order_list->order_data[i]) && (order_data != player_host_channel->order))
                         order_data->played = 0;
                 }
