@@ -2984,10 +2984,11 @@ static int iff_read_seek(AVFormatContext *s,
                 channel = iff->avctx->player_module->channels - 1;
 
                 do {
-                    AVMixerChannel mixer_channel;
+                    AVMixerChannel mixer_channel_current;
+                    AVMixerChannel mixer_channel_next;
 
-                    avseq_mixer_get_channel(old_mixer_data, &mixer_channel, channel);
-                    avseq_mixer_set_channel(mixer_data, &mixer_channel, channel);
+                    avseq_mixer_get_both_channels(old_mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
+                    avseq_mixer_set_both_channels(mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
                 } while (--channel);
             }
 
@@ -3001,10 +3002,11 @@ static int iff_read_seek(AVFormatContext *s,
             channel = iff->avctx->player_module->channels - 1;
 
             do {
-                AVMixerChannel mixer_channel;
+                AVMixerChannel mixer_channel_current;
+                AVMixerChannel mixer_channel_next;
 
-                avseq_mixer_get_channel(mixer_data, &mixer_channel, channel);
-                avseq_mixer_set_channel(old_mixer_data, &mixer_channel, channel);
+                avseq_mixer_get_both_channels(mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
+                avseq_mixer_set_both_channels(old_mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
             } while (--channel);
 
             avseq_module_stop(iff->avctx, 0);

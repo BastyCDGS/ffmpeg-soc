@@ -37,7 +37,7 @@ enum AVMixerID {
 
     /* Integer based mixers */
     MIXER_ID_LQ, ///< Low quality mixer optimized for fastest playback
-//    MIXER_ID_HQ, ///< High quality mixer optimized for quality playback and disk writers
+    MIXER_ID_HQ, ///< High quality mixer optimized for quality playback and disk writers
 };
 
 /** AVMixerChannel->flags bitfield.  */
@@ -286,13 +286,21 @@ typedef struct AVMixerContext {
                            uint32_t left_volume, uint32_t right_volume,
                            uint32_t channels);
 
-    /** Transfers the internal mixer channel data to the
+    /** Transfers the current internal mixer channel data to the
        AVSequencer.  */
     void (*get_channel)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
 
-    /** Transfers the AVSequencer channel data to the internal
+    /** Transfers the current AVSequencer channel data to the
        internal mixer channel data.  */
     void (*set_channel)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+
+    /** Transfers both (current and next) internal mixer channel data
+       to the AVSequencer.  */
+    void (*get_both_channels)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel);
+
+    /** Transfers both (current and next) AVSequencer channel data to
+       the internal mixer channel data.  */
+    void (*set_both_channels)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel);
 
     /** Signals a volume, panning or pitch change from AVSequencer to
        the internal mixer.  */

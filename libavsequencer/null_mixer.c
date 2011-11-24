@@ -513,7 +513,7 @@ static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
 static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
 {
     const AV_NULLMixerData *const null_mixer_data = (AV_NULLMixerData *) mixer_data;
-    AV_NULLMixerChannelInfo *const channel_info = null_mixer_data->channel_info + channel;
+    AV_NULLMixerChannelInfo *const channel_info   = null_mixer_data->channel_info + channel;
     struct ChannelBlock *channel_block;
     uint32_t repeat, repeat_len;
 
@@ -557,6 +557,115 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     channel_block->counted        = mixer_channel->repeat_counted;
 
     set_sample_mix_rate(null_mixer_data, channel_block, mixer_channel->rate);
+}
+
+static av_cold void get_both_channels(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel)
+{
+    const AV_NULLMixerData *const null_mixer_data     = (AV_NULLMixerData *) mixer_data;
+    const AV_NULLMixerChannelInfo *const channel_info = null_mixer_data->channel_info + channel;
+
+    mixer_channel_current->pos             = channel_info->current.offset;
+    mixer_channel_current->bits_per_sample = channel_info->current.bits_per_sample;
+    mixer_channel_current->flags           = channel_info->current.flags;
+    mixer_channel_current->volume          = channel_info->current.volume;
+    mixer_channel_current->panning         = channel_info->current.panning;
+    mixer_channel_current->data            = channel_info->current.data;
+    mixer_channel_current->len             = channel_info->current.len;
+    mixer_channel_current->repeat_start    = channel_info->current.repeat;
+    mixer_channel_current->repeat_length   = channel_info->current.repeat_len;
+    mixer_channel_current->repeat_count    = channel_info->current.count_restart;
+    mixer_channel_current->repeat_counted  = channel_info->current.counted;
+    mixer_channel_current->rate            = channel_info->current.rate;
+
+    mixer_channel_next->pos             = channel_info->next.offset;
+    mixer_channel_next->bits_per_sample = channel_info->next.bits_per_sample;
+    mixer_channel_next->flags           = channel_info->next.flags;
+    mixer_channel_next->volume          = channel_info->next.volume;
+    mixer_channel_next->panning         = channel_info->next.panning;
+    mixer_channel_next->data            = channel_info->next.data;
+    mixer_channel_next->len             = channel_info->next.len;
+    mixer_channel_next->repeat_start    = channel_info->next.repeat;
+    mixer_channel_next->repeat_length   = channel_info->next.repeat_len;
+    mixer_channel_next->repeat_count    = channel_info->next.count_restart;
+    mixer_channel_next->repeat_counted  = channel_info->next.counted;
+    mixer_channel_next->rate            = channel_info->next.rate;
+}
+
+static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel)
+{
+    const AV_NULLMixerData *const null_mixer_data = (AV_NULLMixerData *) mixer_data;
+    AV_NULLMixerChannelInfo *const channel_info   = null_mixer_data->channel_info + channel;
+    struct ChannelBlock *channel_block            = &channel_info->current;
+    uint32_t repeat, repeat_len;
+
+    channel_block->offset           = mixer_channel_current->pos;
+    channel_block->fraction         = 0;
+    channel_block->bits_per_sample  = mixer_channel_current->bits_per_sample;
+    channel_block->flags            = mixer_channel_current->flags;
+    channel_block->volume           = mixer_channel_current->volume;
+    channel_block->panning          = mixer_channel_current->panning;
+    channel_block->data             = mixer_channel_current->data;
+    channel_block->len              = mixer_channel_current->len;
+    repeat                          = mixer_channel_current->repeat_start;
+    repeat_len                      = mixer_channel_current->repeat_length;
+    channel_block->repeat           = repeat;
+    channel_block->repeat_len       = repeat_len;
+
+    if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
+        repeat     = mixer_channel_current->len;
+        repeat_len = 0;
+    }
+
+    repeat += repeat_len;
+
+    if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+        repeat -= repeat_len;
+
+        if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+            repeat = -1;
+    }
+
+    channel_block->end_offset     = repeat;
+    channel_block->restart_offset = repeat_len;
+    channel_block->count_restart  = mixer_channel_current->repeat_count;
+    channel_block->counted        = mixer_channel_current->repeat_counted;
+
+    set_sample_mix_rate(null_mixer_data, channel_block, mixer_channel_current->rate);
+
+    channel_block                   = &channel_info->next;
+    channel_block->offset           = mixer_channel_next->pos;
+    channel_block->fraction         = 0;
+    channel_block->bits_per_sample  = mixer_channel_next->bits_per_sample;
+    channel_block->flags            = mixer_channel_next->flags;
+    channel_block->volume           = mixer_channel_next->volume;
+    channel_block->panning          = mixer_channel_next->panning;
+    channel_block->data             = mixer_channel_next->data;
+    channel_block->len              = mixer_channel_next->len;
+    repeat                          = mixer_channel_next->repeat_start;
+    repeat_len                      = mixer_channel_next->repeat_length;
+    channel_block->repeat           = repeat;
+    channel_block->repeat_len       = repeat_len;
+
+    if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
+        repeat     = mixer_channel_next->len;
+        repeat_len = 0;
+    }
+
+    repeat += repeat_len;
+
+    if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
+        repeat -= repeat_len;
+
+        if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+            repeat = -1;
+    }
+
+    channel_block->end_offset     = repeat;
+    channel_block->restart_offset = repeat_len;
+    channel_block->count_restart  = mixer_channel_next->repeat_count;
+    channel_block->counted        = mixer_channel_next->repeat_counted;
+
+    set_sample_mix_rate(null_mixer_data, channel_block, mixer_channel_next->rate);
 }
 
 static av_cold void set_channel_volume_panning_pitch(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
@@ -735,6 +844,8 @@ AVMixerContext null_mixer = {
     .set_volume                        = set_volume,
     .get_channel                       = get_channel,
     .set_channel                       = set_channel,
+    .get_both_channels                 = get_both_channels,
+    .set_both_channels                 = set_both_channels,
     .set_channel_volume_panning_pitch  = set_channel_volume_panning_pitch,
     .set_channel_position_repeat_flags = set_channel_position_repeat_flags,
     .mix                               = mix,
