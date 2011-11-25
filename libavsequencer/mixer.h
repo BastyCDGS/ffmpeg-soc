@@ -119,6 +119,16 @@ typedef struct AVMixerChannel {
        indicate left stereo channel panning, -128 is central stereo
        panning and -127 to -1 indicate right stereo panning).  */
     int8_t panning;
+
+    /** Current (resonance) filter cutoff for this channel which
+       ranges from 0 to 127. Natural frequency is calculated by
+       nat_freq = 2*PI*110*(2^0.25)*2^(filter_cutoff/24).  */
+    uint8_t filter_cutoff;
+
+    /** Current (resonance) filter damping for this channel which
+       ranges from 0 to 127. Damping factor is calculated by
+       damp_factor = 10^(-((24/128)*filter_damping)/20).  */
+    uint8_t filter_damping;
 } AVMixerChannel;
 
 /** AVMixerData->flags bitfield.  */
@@ -309,6 +319,10 @@ typedef struct AVMixerContext {
     /** Signals a set sample position, set repeat and flags change
        from AVSequencer to the internal mixer.  */
     void (*set_channel_position_repeat_flags)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+
+    /** Signals a set (resonance) filter from AVSequencer to the
+       internal mixer.  */
+    void (*set_channel_filter)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
 
     /** Run the actual mixing engine by filling the buffer, i.e. the
        player data is converted to SAMPLE_FMT_S32.  */

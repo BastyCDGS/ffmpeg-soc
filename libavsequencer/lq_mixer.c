@@ -74,6 +74,8 @@ typedef struct AV_LQMixerChannelInfo {
         uint8_t flags;
         uint8_t volume;
         uint8_t panning;
+        uint8_t filter_cutoff;
+        uint8_t filter_damping;
     } current;
     struct ChannelBlock next;
 } AV_LQMixerChannelInfo;
@@ -3558,6 +3560,8 @@ static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     mixer_channel->repeat_count    = channel_info->current.count_restart;
     mixer_channel->repeat_counted  = channel_info->current.counted;
     mixer_channel->rate            = channel_info->current.rate;
+    mixer_channel->filter_cutoff   = channel_info->current.filter_cutoff;
+    mixer_channel->filter_damping  = channel_info->current.filter_damping;
 }
 
 static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
@@ -3606,6 +3610,12 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     channel_block->count_restart  = mixer_channel->repeat_count;
     channel_block->counted        = mixer_channel->repeat_counted;
 
+    if ((int8_t) (channel_block->filter_cutoff = mixer_channel->filter_cutoff) < 0)
+        channel_block->filter_cutoff = 127;
+
+    if ((int8_t) (channel_block->filter_damping = mixer_channel->filter_damping) < 0)
+        channel_block->filter_damping = 127;
+
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel->rate);
 }
 
@@ -3626,6 +3636,8 @@ static av_cold void get_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     mixer_channel_current->repeat_count    = channel_info->current.count_restart;
     mixer_channel_current->repeat_counted  = channel_info->current.counted;
     mixer_channel_current->rate            = channel_info->current.rate;
+    mixer_channel_current->filter_cutoff   = channel_info->current.filter_cutoff;
+    mixer_channel_current->filter_damping  = channel_info->current.filter_damping;
 
     mixer_channel_next->pos             = channel_info->next.offset;
     mixer_channel_next->bits_per_sample = channel_info->next.bits_per_sample;
@@ -3639,6 +3651,8 @@ static av_cold void get_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     mixer_channel_next->repeat_count    = channel_info->next.count_restart;
     mixer_channel_next->repeat_counted  = channel_info->next.counted;
     mixer_channel_next->rate            = channel_info->next.rate;
+    mixer_channel_next->filter_cutoff   = channel_info->next.filter_cutoff;
+    mixer_channel_next->filter_damping  = channel_info->next.filter_damping;
 }
 
 static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel)
@@ -3680,6 +3694,12 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->count_restart  = mixer_channel_current->repeat_count;
     channel_block->counted        = mixer_channel_current->repeat_counted;
 
+    if ((int8_t) (channel_block->filter_cutoff = mixer_channel_current->filter_cutoff) < 0)
+        channel_block->filter_cutoff = 127;
+
+    if ((int8_t) (channel_block->filter_damping = mixer_channel_current->filter_damping) < 0)
+        channel_block->filter_damping = 127;
+
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel_current->rate);
 
     channel_block                   = &channel_info->next;
@@ -3714,6 +3734,12 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->restart_offset = repeat_len;
     channel_block->count_restart  = mixer_channel_next->repeat_count;
     channel_block->counted        = mixer_channel_next->repeat_counted;
+
+    if ((int8_t) (channel_block->filter_cutoff = mixer_channel_next->filter_cutoff) < 0)
+        channel_block->filter_cutoff = 127;
+
+    if ((int8_t) (channel_block->filter_damping = mixer_channel_next->filter_damping) < 0)
+        channel_block->filter_damping = 127;
 
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel_next->rate);
 }
@@ -3834,6 +3860,20 @@ static av_cold void set_channel_position_repeat_flags(AVMixerData *mixer_data, A
     }
 }
 
+static av_cold void set_channel_filter(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
+{
+    const AV_LQMixerData *const lq_mixer_data = (AV_LQMixerData *) mixer_data;
+    AV_LQMixerChannelInfo *const channel_info = lq_mixer_data->channel_info + channel;
+
+    if ((int8_t) (channel_info->current.filter_cutoff = mixer_channel->filter_cutoff) < 0)
+        channel_info->current.filter_cutoff = 127;
+
+    if ((int8_t) (channel_info->current.filter_damping = mixer_channel->filter_damping) < 0)
+        channel_info->current.filter_damping = 127;
+
+    set_mix_functions(lq_mixer_data, &channel_info->current);
+}
+
 static av_cold void mix(AVMixerData *mixer_data, int32_t *buf) {
     AV_LQMixerData *const lq_mixer_data = (AV_LQMixerData *) mixer_data;
     uint32_t mix_rate, current_left, current_left_frac, buf_size;
@@ -3908,6 +3948,7 @@ AVMixerContext low_quality_mixer = {
     .set_both_channels                 = set_both_channels,
     .set_channel_volume_panning_pitch  = set_channel_volume_panning_pitch,
     .set_channel_position_repeat_flags = set_channel_position_repeat_flags,
+    .set_channel_filter                = set_channel_filter,
     .mix                               = mix,
 };
 
