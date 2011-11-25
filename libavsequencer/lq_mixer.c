@@ -69,6 +69,9 @@ typedef struct AV_LQMixerChannelInfo {
         uint32_t mult_left_volume;
         uint32_t div_volume;
         uint32_t mult_right_volume;
+        int32_t filter_c1;
+        int32_t filter_c2;
+        int32_t filter_c3;
         void (*mix_backwards_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
@@ -3318,6 +3321,110 @@ static void set_sample_mix_rate(const AV_LQMixerData *const mixer_data, struct C
 
 // TODO: Implement low quality mixer identification and configuration.
 
+/** Filter natural frequency table. Value is (2*PI*110*(2^0.25)*2^(x/24))*(2^24).  */
+static const int64_t nat_freq_lut[] = {
+    INT64_C( 13789545379), INT64_C( 14193609901), INT64_C( 14609514417), INT64_C( 15037605866),
+    INT64_C( 15478241352), INT64_C( 15931788442), INT64_C( 16398625478), INT64_C( 16879141882),
+    INT64_C( 17373738492), INT64_C( 17882827888), INT64_C( 18406834743), INT64_C( 18946196171),
+    INT64_C( 19501362094), INT64_C( 20072795621), INT64_C( 20660973429), INT64_C( 21266386161),
+    INT64_C( 21889538841), INT64_C( 22530951288), INT64_C( 23191158555), INT64_C( 23870711371),
+    INT64_C( 24570176604), INT64_C( 25290137733), INT64_C( 26031195334), INT64_C( 26793967580),
+    INT64_C( 27579090758), INT64_C( 28387219802), INT64_C( 29219028834), INT64_C( 30075211732),
+    INT64_C( 30956482703), INT64_C( 31863576885), INT64_C( 32797250955), INT64_C( 33758283764),
+    INT64_C( 34747476983), INT64_C( 35765655777), INT64_C( 36813669486), INT64_C( 37892392341),
+    INT64_C( 39002724188), INT64_C( 40145591242), INT64_C( 41321946857), INT64_C( 42532772322),
+    INT64_C( 43779077682), INT64_C( 45061902576), INT64_C( 46382317109), INT64_C( 47741422741),
+    INT64_C( 49140353208), INT64_C( 50580275467), INT64_C( 52062390668), INT64_C( 53587935159),
+    INT64_C( 55158181517), INT64_C( 56774439604), INT64_C( 58438057669), INT64_C( 60150423464),
+    INT64_C( 61912965406), INT64_C( 63727153770), INT64_C( 65594501910), INT64_C( 67516567528),
+    INT64_C( 69494953967), INT64_C( 71531311553), INT64_C( 73627338972), INT64_C( 75784784682),
+    INT64_C( 78005448377), INT64_C( 80291182485), INT64_C( 82643893714), INT64_C( 85065544645),
+    INT64_C( 87558155364), INT64_C( 90123805153), INT64_C( 92764634219), INT64_C( 95482845483),
+    INT64_C( 98280706416), INT64_C(101160550933), INT64_C(104124781336), INT64_C(107175870319),
+    INT64_C(110316363033), INT64_C(113548879209), INT64_C(116876115338), INT64_C(120300846927),
+    INT64_C(123825930812), INT64_C(127454307540), INT64_C(131189003821), INT64_C(135033135055),
+    INT64_C(138989907934), INT64_C(143062623107), INT64_C(147254677944), INT64_C(151569569364),
+    INT64_C(156010896753), INT64_C(160582364969), INT64_C(165287787428), INT64_C(170131089290),
+    INT64_C(175116310728), INT64_C(180247610306), INT64_C(185529268437), INT64_C(190965690965),
+    INT64_C(196561412833), INT64_C(202321101866), INT64_C(208249562671), INT64_C(214351740638),
+    INT64_C(220632726067), INT64_C(227097758417), INT64_C(233752230676), INT64_C(240601693855),
+    INT64_C(247651861625), INT64_C(254908615079), INT64_C(262378007641), INT64_C(270066270111),
+    INT64_C(277979815867), INT64_C(286125246214), INT64_C(294509355888), INT64_C(303139138728),
+    INT64_C(312021793507), INT64_C(321164729938), INT64_C(330575574856), INT64_C(340262178579),
+    INT64_C(350232621457), INT64_C(360495220611), INT64_C(371058536874), INT64_C(381931381930),
+    INT64_C(393122825665), INT64_C(404642203733), INT64_C(416499125343), INT64_C(428703481275),
+    INT64_C(441265452133), INT64_C(454195516834), INT64_C(467504461351), INT64_C(481203387710),
+    INT64_C(495303723250), INT64_C(509817230159), INT64_C(524756015282), INT64_C(540132540222)
+};
+
+/** Filter damping factor table. Value is 2*10^(-((24/128)*x)/20)*(2^24).  */
+static const int32_t damp_factor_lut[] = {
+    33554432, 32837863, 32136597, 31450307, 30778673, 30121382, 29478127, 28848610,
+    28232536, 27629619, 27039577, 26462136, 25897026, 25343984, 24802753, 24273080,
+    23754719, 23247427, 22750969, 22265112, 21789632, 21324305, 20868916, 20423252,
+    19987105, 19560272, 19142554, 18733757, 18333690, 17942167, 17559005, 17184025,
+    16817053, 16457918, 16106452, 15762492, 15425878, 15096452, 14774061, 14458555,
+    14149787, 13847612, 13551891, 13262485, 12979259, 12702081, 12430823, 12165358,
+    11905562, 11651314, 11402495, 11158990, 10920685, 10687470, 10459234, 10235873,
+    10017282,  9803359,  9594004,  9389120,  9188612,  8992385,  8800349,  8612414,
+     8428492,  8248498,  8072348,  7899960,  7731253,  7566149,  7404571,  7246443,
+     7091692,  6940246,  6792035,  6646988,  6505039,  6366121,  6230170,  6097122,
+     5966916,  5839490,  5714785,  5592743,  5473308,  5356423,  5242035,  5130089,
+     5020534,  4913318,  4808392,  4705707,  4605215,  4506869,  4410623,  4316432,
+     4224253,  4134042,  4045758,  3959359,  3874805,  3792057,  3711076,  3631825,
+     3554266,  3478363,  3404081,  3331386,  3260242,  3190619,  3122482,  3055800,
+     2990542,  2926678,  2864177,  2803012,  2743152,  2684571,  2627241,  2571135,
+     2516227,  2462492,  2409905,  2358440,  2308075,  2258785,  2210548,  2163341
+};
+
+static void update_sample_filter(const AV_LQMixerData *const mixer_data, struct ChannelBlock *const channel_block)
+{
+    const uint32_t mix_rate = mixer_data->mix_rate;
+    int64_t nat_freq, damp_factor, d, e, tmp;
+
+    if ((channel_block->filter_cutoff == 127) && (channel_block->filter_damping == 0)) {
+        channel_block->filter_c1 = 16777216;
+        channel_block->filter_c2 = 0;
+        channel_block->filter_c3 = 0;
+
+        return;
+    }
+
+    nat_freq    = nat_freq_lut[channel_block->filter_cutoff];
+    damp_factor = damp_factor_lut[channel_block->filter_damping];
+
+    d = (nat_freq * (INT64_C(16777216) - damp_factor)) / ((int64_t) mix_rate << 24);
+
+    if (d > INT64_C(33554432))
+        d = INT64_C(33554432);
+
+    d   = (((damp_factor - d) * mix_rate << 18) / nat_freq) << 6;
+    e   = (((int64_t) mix_rate << 36) / nat_freq); // FIXME: Too much precision lost
+    e   = e * (e + 1); // FIXME: e*(e+1) fixes a little bit of precision lost compared to actual correct e*e
+    tmp = INT64_C(16777216) + d + e;
+
+    channel_block->filter_c1 = (int32_t) (INT64_C(281474976710656) / tmp);
+    channel_block->filter_c2 = (int32_t) (((int64_t) (d + e + e) << 24) / tmp);
+    channel_block->filter_c3 = (int32_t) (((int64_t) (-e) << 24) / tmp);
+}
+
+static void set_sample_filter(const AV_LQMixerData *const mixer_data, struct ChannelBlock *const channel_block, uint8_t cutoff, uint8_t damping)
+{
+    if ((int8_t) cutoff < 0)
+        cutoff = 127;
+
+    if ((int8_t) damping < 0)
+        damping = 127;
+
+    if ((channel_block->filter_cutoff == cutoff) && (channel_block->filter_damping == damping))
+        return;
+
+    channel_block->filter_cutoff  = cutoff;
+    channel_block->filter_damping = damping;
+
+    update_sample_filter(mixer_data, channel_block);
+}
+
 static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void *opaque)
 {
     AV_LQMixerData *lq_mixer_data;
@@ -3472,6 +3579,9 @@ static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
                 channel_info->next.advance         = channel_info->next.rate / mix_rate;
                 channel_info->next.advance_frac    = (((uint64_t) channel_info->next.rate % mix_rate) << 32) / mix_rate;
 
+                update_sample_filter(lq_mixer_data, &channel_info->current);
+                update_sample_filter(lq_mixer_data, &channel_info->next);
+
                 channel_info++;
             }
         }
@@ -3610,12 +3720,7 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     channel_block->count_restart  = mixer_channel->repeat_count;
     channel_block->counted        = mixer_channel->repeat_counted;
 
-    if ((int8_t) (channel_block->filter_cutoff = mixer_channel->filter_cutoff) < 0)
-        channel_block->filter_cutoff = 127;
-
-    if ((int8_t) (channel_block->filter_damping = mixer_channel->filter_damping) < 0)
-        channel_block->filter_damping = 127;
-
+    set_sample_filter(lq_mixer_data, channel_block, mixer_channel->filter_cutoff, mixer_channel->filter_damping);
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel->rate);
 }
 
@@ -3694,12 +3799,7 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->count_restart  = mixer_channel_current->repeat_count;
     channel_block->counted        = mixer_channel_current->repeat_counted;
 
-    if ((int8_t) (channel_block->filter_cutoff = mixer_channel_current->filter_cutoff) < 0)
-        channel_block->filter_cutoff = 127;
-
-    if ((int8_t) (channel_block->filter_damping = mixer_channel_current->filter_damping) < 0)
-        channel_block->filter_damping = 127;
-
+    set_sample_filter(lq_mixer_data, channel_block, mixer_channel_current->filter_cutoff, mixer_channel_current->filter_damping);
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel_current->rate);
 
     channel_block                   = &channel_info->next;
@@ -3735,12 +3835,7 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->count_restart  = mixer_channel_next->repeat_count;
     channel_block->counted        = mixer_channel_next->repeat_counted;
 
-    if ((int8_t) (channel_block->filter_cutoff = mixer_channel_next->filter_cutoff) < 0)
-        channel_block->filter_cutoff = 127;
-
-    if ((int8_t) (channel_block->filter_damping = mixer_channel_next->filter_damping) < 0)
-        channel_block->filter_damping = 127;
-
+    set_sample_filter(lq_mixer_data, channel_block, mixer_channel_next->filter_cutoff, mixer_channel_next->filter_damping);
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel_next->rate);
 }
 
@@ -3865,13 +3960,7 @@ static av_cold void set_channel_filter(AVMixerData *mixer_data, AVMixerChannel *
     const AV_LQMixerData *const lq_mixer_data = (AV_LQMixerData *) mixer_data;
     AV_LQMixerChannelInfo *const channel_info = lq_mixer_data->channel_info + channel;
 
-    if ((int8_t) (channel_info->current.filter_cutoff = mixer_channel->filter_cutoff) < 0)
-        channel_info->current.filter_cutoff = 127;
-
-    if ((int8_t) (channel_info->current.filter_damping = mixer_channel->filter_damping) < 0)
-        channel_info->current.filter_damping = 127;
-
-    set_mix_functions(lq_mixer_data, &channel_info->current);
+    set_sample_filter(lq_mixer_data, &channel_info->current, mixer_channel->filter_cutoff, mixer_channel->filter_damping);
 }
 
 static av_cold void mix(AVMixerData *mixer_data, int32_t *buf) {
