@@ -316,6 +316,7 @@ static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void 
     AV_NULLMixerData *null_mixer_data = NULL;
     AV_NULLMixerChannelInfo *channel_info;
     const char *cfg_buf;
+    uint16_t i;
     int32_t *buf;
     unsigned buf_size;
     uint32_t mix_buf_mem_size, channel_rate;
@@ -361,6 +362,13 @@ static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void 
     null_mixer_data->mix_rate                = channel_rate;
     null_mixer_data->channels_in             = channels_in;
     null_mixer_data->channels_out            = channels_out;
+
+    for (i = null_mixer_data->channels_in; i > 0; i--) {
+        channel_info->current.filter_cutoff = 127;
+        channel_info->next.filter_cutoff    = 127;
+
+        channel_info++;
+    }
 
     return (AVMixerData *) null_mixer_data;
 }
@@ -470,6 +478,7 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
 
     if (old_channels && channel_info && (old_channels != channels)) {
         uint32_t copy_channels = old_channels;
+        uint16_t i;
 
         if (copy_channels > channels)
             copy_channels = channels;
@@ -478,6 +487,15 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
 
         null_mixer_data->channel_info = channel_info;
         null_mixer_data->channels_in  = channels;
+
+        channel_info += copy_channels;
+
+        for (i = copy_channels; i < channels; ++i) {
+            channel_info->current.filter_cutoff = 127;
+            channel_info->next.filter_cutoff    = 127;
+
+            channel_info++;
+        }
 
         av_free(old_channel_info);
     }

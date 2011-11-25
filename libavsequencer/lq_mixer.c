@@ -31,6 +31,7 @@
 typedef struct AV_LQMixerData {
     AVMixerData mixer_data;
     int32_t *buf;
+    int32_t *filter_buf;
     uint32_t buf_size;
     uint32_t mix_buf_size;
     int32_t *volume_lut;
@@ -72,6 +73,8 @@ typedef struct AV_LQMixerChannelInfo {
         int32_t filter_c1;
         int32_t filter_c2;
         int32_t filter_c3;
+        int32_t filter_tmp1;
+        int32_t filter_tmp2;
         void (*mix_backwards_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
@@ -97,6 +100,40 @@ static const AVClass avseq_low_quality_mixer_class = {
     NULL,
     LIBAVUTIL_VERSION_INT,
 };
+
+static void apply_filter(struct ChannelBlock *const channel_block, int32_t **const dest_buf, const int32_t *src_buf, const uint32_t len)
+{
+    int32_t *mix_buf = *dest_buf;
+    uint32_t i = len >> 2;
+    int32_t c1 = channel_block->filter_c1;
+    int32_t c2 = channel_block->filter_c2;
+    int32_t c3 = channel_block->filter_c3;
+    int32_t o1 = channel_block->filter_tmp2;
+    int32_t o2 = channel_block->filter_tmp1;
+    int32_t o3, o4;
+
+    while (i--) {
+        mix_buf[0] += o3 = (((int64_t) c1 * src_buf[0]) + ((int64_t) c2 * o2) + ((int64_t) c3 * o1)) >> 24;
+        mix_buf[1] += o4 = (((int64_t) c1 * src_buf[1]) + ((int64_t) c2 * o3) + ((int64_t) c3 * o2)) >> 24;
+        mix_buf[2] += o1 = (((int64_t) c1 * src_buf[2]) + ((int64_t) c2 * o4) + ((int64_t) c3 * o3)) >> 24;
+        mix_buf[3] += o2 = (((int64_t) c1 * src_buf[3]) + ((int64_t) c2 * o1) + ((int64_t) c3 * o4)) >> 24;
+
+        src_buf += 4;
+        mix_buf += 4;
+    }
+
+    i = len & 3;
+
+    while (i--) {
+        *mix_buf++ += o3 = (((int64_t) c1 * *src_buf++) + ((int64_t) c2 * o2) + ((int64_t) c3 * o1)) >> 24;
+        o1 = o2;
+        o2 = o3;
+    }
+
+    *dest_buf                  = mix_buf;
+    channel_block->filter_tmp1 = o2;
+    channel_block->filter_tmp2 = o1;
+}
 
 static void mix_sample(AV_LQMixerData *const mixer_data, int32_t *const buf, const uint32_t len)
 {
@@ -125,7 +162,19 @@ mix_sample_backwards:
 
                     if ((int32_t) (remain_mix = offset - channel_info->current.end_offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, remain_len);
+                            if ((channel_info->current.filter_cutoff == 127) && (channel_info->current.filter_damping == 0)) {
+                                mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, remain_len);
+                            } else {
+                                int32_t *filter_buf = mixer_data->filter_buf;
+                                uint32_t filter_len = remain_len;
+
+                                if (mixer_data->channels_out >= 2)
+                                    filter_len <<= 1;
+
+                                memset(filter_buf, 0, filter_len * sizeof(int32_t));
+                                mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, remain_len);
+                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                            }
 
                             if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
                                 remain_len = 0;
@@ -135,7 +184,19 @@ mix_sample_backwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            if ((channel_info->current.filter_cutoff == 127) && (channel_info->current.filter_damping == 0)) {
+                                mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            } else {
+                                int32_t *filter_buf = mixer_data->filter_buf;
+                                uint32_t filter_len = (uint32_t) calc_mix;
+
+                                if (mixer_data->channels_out >= 2)
+                                    filter_len <<= 1;
+
+                                memset(filter_buf, 0, filter_len * sizeof(int32_t));
+                                mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                            }
 
                             if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -203,7 +264,19 @@ mix_sample_forwards:
 
                     if ((int32_t) (remain_mix = channel_info->current.end_offset - offset) > 0) {
                         if ((uint32_t) calc_mix < remain_mix) {
-                            mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, remain_len);
+                            if ((channel_info->current.filter_cutoff == 127) && (channel_info->current.filter_damping == 0)) {
+                                mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, remain_len);
+                            } else {
+                                int32_t *filter_buf = mixer_data->filter_buf;
+                                uint32_t filter_len = remain_len;
+
+                                if (mixer_data->channels_out >= 2)
+                                    filter_len <<= 1;
+
+                                memset(filter_buf, 0, filter_len * sizeof(int32_t));
+                                mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, remain_len);
+                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                            }
 
                             if (offset >= channel_info->current.end_offset)
                                 remain_len = 0;
@@ -213,7 +286,19 @@ mix_sample_forwards:
                             calc_mix    = (((((uint64_t) remain_mix << 32) - fraction) - 1) / (((uint64_t) advance << 32) + adv_frac) + 1);
                             remain_len -= (uint32_t) calc_mix;
 
-                            mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            if ((channel_info->current.filter_cutoff == 127) && (channel_info->current.filter_damping == 0)) {
+                                mix_func(mixer_data, &channel_info->current, &mix_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                            } else {
+                                int32_t *filter_buf = mixer_data->filter_buf;
+                                uint32_t filter_len = (uint32_t) calc_mix;
+
+                                if (mixer_data->channels_out >= 2)
+                                    filter_len <<= 1;
+
+                                memset(filter_buf, 0, filter_len * sizeof(int32_t));
+                                mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
+                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                            }
 
                             if ((offset < channel_info->current.end_offset) && !remain_len)
                                 break;
@@ -3430,6 +3515,7 @@ static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void 
     AV_LQMixerData *lq_mixer_data;
     AV_LQMixerChannelInfo *channel_info;
     const char *cfg_buf;
+    uint16_t i;
     int32_t *buf;
     unsigned interpolation = 0, real16bit = 0, buf_size;
     uint32_t mix_buf_mem_size, channel_rate;
@@ -3498,6 +3584,25 @@ static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void 
     lq_mixer_data->real_16_bit_mode        = real16bit ? 1 : 0;
     lq_mixer_data->interpolation           = interpolation >= 2 ? 2 : interpolation;
 
+    if (!(buf = av_mallocz(mix_buf_mem_size + FF_INPUT_BUFFER_PADDING_SIZE))) {
+        av_log(mixctx, AV_LOG_ERROR, "Cannot allocate mixer (resonance) filter output buffer.\n");
+        av_freep(&lq_mixer_data->buf);
+        av_freep(&lq_mixer_data->channel_info);
+        av_freep(&lq_mixer_data->volume_lut);
+        av_free(lq_mixer_data);
+
+        return NULL;
+    }
+
+    lq_mixer_data->filter_buf = buf;
+
+    for (i = lq_mixer_data->channels_in; i > 0; i--) {
+        set_sample_filter(lq_mixer_data, &channel_info->current, 127, 0);
+        set_sample_filter(lq_mixer_data, &channel_info->next, 127, 0);
+
+        channel_info++;
+    }
+
     return (AVMixerData *) lq_mixer_data;
 }
 
@@ -3509,8 +3614,9 @@ static av_cold int uninit(AVMixerData *mixer_data)
         return AVERROR_INVALIDDATA;
 
     av_freep(&lq_mixer_data->channel_info);
-    av_freep(&lq_mixer_data->buf);
     av_freep(&lq_mixer_data->volume_lut);
+    av_freep(&lq_mixer_data->buf);
+    av_freep(&lq_mixer_data->filter_buf);
     av_free(lq_mixer_data);
 
     return 0;
@@ -3541,10 +3647,15 @@ static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
 
     if ((lq_mixer_data->buf_size * lq_mixer_data->channels_out) != (buf_size * new_channels)) {
         int32_t *buf                    = lq_mixer_data->mixer_data.mix_buf;
+        int32_t *filter_buf             = lq_mixer_data->filter_buf;
         const uint32_t mix_buf_mem_size = (buf_size * new_channels) << 2;
 
         if (!(buf = av_realloc(buf, mix_buf_mem_size + FF_INPUT_BUFFER_PADDING_SIZE))) {
-            av_log(lq_mixer_data->mixer_data.mixctx, AV_LOG_ERROR, "Cannot allocate mixer output channel data.\n");
+            av_log(lq_mixer_data->mixer_data.mixctx, AV_LOG_ERROR, "Cannot allocate mixer output buffer.\n");
+
+            return lq_mixer_data->mixer_data.rate;
+        } else if (!(filter_buf = av_realloc(filter_buf, mix_buf_mem_size + FF_INPUT_BUFFER_PADDING_SIZE))) {
+            av_log(lq_mixer_data->mixer_data.mixctx, AV_LOG_ERROR, "Cannot allocate mixer (resonance) filter output buffer.\n");
 
             return lq_mixer_data->mixer_data.rate;
         }
@@ -3553,6 +3664,7 @@ static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
 
         lq_mixer_data->mixer_data.mix_buf      = buf;
         lq_mixer_data->mixer_data.mix_buf_size = buf_size;
+        lq_mixer_data->filter_buf              = filter_buf;
     }
 
     lq_mixer_data->channels_out = new_channels;
@@ -3630,15 +3742,25 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
 
     if (channel_info && (old_channels != channels)) {
         uint32_t copy_channels = old_channels;
+        uint16_t i;
 
         if (copy_channels > channels)
             copy_channels = channels;
 
         memcpy(channel_info, old_channel_info, copy_channels * sizeof(AV_LQMixerChannelInfo));
- 
+
         lq_mixer_data->channel_info = channel_info;
         lq_mixer_data->channels_in  = channels;
- 
+
+        channel_info += copy_channels;
+
+        for (i = copy_channels; i < channels; ++i) {
+            set_sample_filter(lq_mixer_data, &channel_info->current, 127, 0);
+            set_sample_filter(lq_mixer_data, &channel_info->next, 127, 0);
+
+            channel_info++;
+        }
+
         av_free(old_channel_info);
     }
 
