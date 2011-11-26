@@ -3518,7 +3518,7 @@ static inline uint64_t divu_128(uint64_t a_hi, uint64_t a_lo, const uint64_t b)
     return result;
 }
 
-static inline int64_t divs_128(int64_t a_hi, int64_t a_lo, const int64_t b)
+static inline int64_t divs_128(int64_t a_hi, uint64_t a_lo, const int64_t b)
 {
     int sign = (a_hi ^ b) < 0;
     int64_t result = divu_128(a_hi < 0 ? -a_hi : a_hi, a_lo, b < 0 ? -b : b );
