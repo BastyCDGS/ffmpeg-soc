@@ -349,6 +349,19 @@ void avseq_mixer_set_channel(AVMixerData *mixer_data,
                              AVMixerChannel *mixer_channel, uint32_t channel);
 
 /**
+ * Resets a channel data block from the AVSequencer by setting the
+ * mixer internal default values.
+ *
+ * @param mixer_data the AVMixerData to reset the channel data block of
+ * @param channel the number of channel to reset
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_mixer_reset_channel(AVMixerData *mixer_data, uint32_t channel);
+
+/**
  * Gets and transfers a channel data block from the internal mixing
  * engine to the AVSequencer by receiving current and next sample
  * data at once.

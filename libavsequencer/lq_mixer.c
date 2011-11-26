@@ -3917,6 +3917,57 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel->rate);
 }
 
+static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
+{
+    const AV_LQMixerData *const lq_mixer_data = (AV_LQMixerData *) mixer_data;
+    AV_LQMixerChannelInfo *const channel_info = lq_mixer_data->channel_info + channel;
+    struct ChannelBlock *channel_block        = &channel_info->current;
+    uint32_t repeat, repeat_len;
+
+    channel_block->offset           = 0;
+    channel_block->fraction         = 0;
+    channel_block->bits_per_sample  = 0;
+    channel_block->flags            = 0;
+    channel_block->volume           = 0;
+    channel_block->panning          = 0;
+    channel_block->data             = NULL;
+    channel_block->len              = 0;
+    repeat                          = 0;
+    repeat_len                      = 0;
+    channel_block->repeat           = 0;
+    channel_block->repeat_len       = 0;
+    channel_block->end_offset       = 0;
+    channel_block->restart_offset   = 0;
+    channel_block->count_restart    = 0;
+    channel_block->counted          = 0;
+    channel_block->filter_tmp1      = 0;
+    channel_block->filter_tmp2      = 0;
+
+    set_sample_filter(lq_mixer_data, channel_block, 127, 0);
+
+    channel_block                   = &channel_info->next;
+    channel_block->offset           = 0;
+    channel_block->fraction         = 0;
+    channel_block->bits_per_sample  = 0;
+    channel_block->flags            = 0;
+    channel_block->volume           = 0;
+    channel_block->panning          = 0;
+    channel_block->data             = NULL;
+    channel_block->len              = 0;
+    repeat                          = 0;
+    repeat_len                      = 0;
+    channel_block->repeat           = 0;
+    channel_block->repeat_len       = 0;
+    channel_block->end_offset       = 0;
+    channel_block->restart_offset   = 0;
+    channel_block->count_restart    = 0;
+    channel_block->counted          = 0;
+    channel_block->filter_tmp1      = 0;
+    channel_block->filter_tmp2      = 0;
+
+    set_sample_filter(lq_mixer_data, channel_block, 127, 0);
+}
+
 static av_cold void get_both_channels(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel)
 {
     const AV_LQMixerData *const lq_mixer_data       = (AV_LQMixerData *) mixer_data;
@@ -4226,6 +4277,7 @@ AVMixerContext low_quality_mixer = {
     .set_volume                        = set_volume,
     .get_channel                       = get_channel,
     .set_channel                       = set_channel,
+    .reset_channel                     = reset_channel,
     .get_both_channels                 = get_both_channels,
     .set_both_channels                 = set_both_channels,
     .set_channel_volume_panning_pitch  = set_channel_volume_panning_pitch,

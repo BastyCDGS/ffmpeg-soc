@@ -304,6 +304,10 @@ typedef struct AVMixerContext {
        internal mixer channel data.  */
     void (*set_channel)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
 
+    /** Resets the AVSequencer channel data to the mixer internal
+       default values.  */
+    void (*reset_channel)(AVMixerData *mixer_data, uint32_t channel);
+
     /** Transfers both (current and next) internal mixer channel data
        to the AVSequencer.  */
     void (*get_both_channels)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel);

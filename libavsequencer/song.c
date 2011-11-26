@@ -313,8 +313,8 @@ int avseq_song_reset(AVSequencerContext *avctx, AVSequencerSong *song)
             uint32_t channel = 0;
 
             for (i = module->channels; i > 0; i--) {
-                if (mixer_data->mixctx->set_channel_position_repeat_flags)
-                    mixer_data->mixctx->set_channel_position_repeat_flags(mixer_data, &(player_channel[channel].mixer), channel);
+                if (mixer_data->mixctx->reset_channel)
+                    mixer_data->mixctx->reset_channel(mixer_data, channel);
 
                 channel++;
             }
