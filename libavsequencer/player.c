@@ -6131,16 +6131,13 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(rolx)
 
         shift_value <<= 1;
 
-        if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND)
-        {
+        if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
             if (!(flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY))
                 flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
 
             shift_value++;
-        } else
-        {
-            if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)
-                flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
+        } else if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY) {
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
         }
     }
 
@@ -6177,8 +6174,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(rorx)
                 flags &= ~(AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND);
 
             shift_value += 0x8000;
-        } else {
-            if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY)
+        } else if (flags & AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY) {
                 flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
         }
     }

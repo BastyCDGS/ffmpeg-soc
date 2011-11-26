@@ -3006,6 +3006,7 @@ static int iff_read_seek(AVFormatContext *s,
                 AVMixerChannel mixer_channel_next;
 
                 avseq_mixer_get_both_channels(mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
+                avseq_mixer_reset_channel(old_mixer_data, channel);
                 avseq_mixer_set_both_channels(old_mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
             } while (--channel);
 
