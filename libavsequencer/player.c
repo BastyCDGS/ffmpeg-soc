@@ -5550,10 +5550,12 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(addx)
     if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
         add_data++;
         add_unsigned_data++;
-    }
 
-    if ((((int16_t) player_channel->variable[dst_var] ^ add_data) & ((int16_t) instruction_data ^ add_data)) < 0)
+        if ((((int16_t) player_channel->variable[dst_var] ^ add_data) & ((int16_t) ++instruction_data ^ add_data)) < 0)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+    } else if ((((int16_t) player_channel->variable[dst_var] ^ add_data) & ((int16_t) instruction_data ^ add_data)) < 0) {
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+    }
 
     player_channel->variable[dst_var] = add_data;
 
@@ -5611,10 +5613,12 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(subx)
     if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
         sub_data--;
         sub_unsigned_data++;
-    }
 
-    if ((((int16_t) player_channel->variable[dst_var] ^ sub_data) & (((int16_t) -instruction_data) ^ sub_data)) < 0)
+        if ((((int16_t) player_channel->variable[dst_var] ^ sub_data) & ((int16_t) -(++instruction_data) ^ sub_data)) < 0)
+            flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+    } else if ((((int16_t) player_channel->variable[dst_var] ^ sub_data) & (((int16_t) -instruction_data) ^ sub_data)) < 0) {
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
+    }
 
     if (player_channel->variable[dst_var] < sub_unsigned_data)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
