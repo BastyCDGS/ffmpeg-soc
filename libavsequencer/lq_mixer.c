@@ -139,9 +139,9 @@ static void apply_filter(struct ChannelBlock *const channel_block, int32_t **con
 static void mix_sample(AV_LQMixerData *const mixer_data, int32_t *const buf, const uint32_t len)
 {
     AV_LQMixerChannelInfo *channel_info = mixer_data->channel_info;
-    uint16_t i;
+    uint16_t i                          = mixer_data->channels_in;
 
-    for (i = mixer_data->channels_in; i > 0; i--) {
+    do {
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
             void (*mix_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
             int32_t *mix_buf        = buf;
@@ -377,7 +377,7 @@ mix_sample_synth:
         }
 
         channel_info++;
-    }
+    } while (--i);
 }
 
 #define MIX_FUNCTION(INIT, TYPE, OP1, OP2, OFFSET_START, OFFSET_END,        \
@@ -3501,8 +3501,8 @@ static inline uint64_t divu_128(uint64_t a_hi, uint64_t a_lo, const uint64_t b)
     uint16_t i = 128;
 
     while (i--) {
-        uint64_t carry  = a_lo >> 63;
-        uint64_t carry2 = a_hi >> 63;
+        const uint64_t carry  = a_lo >> 63;
+        const uint64_t carry2 = a_hi >> 63;
 
         result <<= 1;
         a_lo   <<= 1;
@@ -3560,8 +3560,8 @@ static void update_sample_filter(const AV_LQMixerData *const mixer_data, struct 
     tmp = INT64_C(16777216) + d + e;
 
     channel_block->filter_c1 = (int32_t) (INT64_C(281474976710656) / tmp);
-    channel_block->filter_c2 = (int32_t) (((int64_t) (d + e + e) << 24) / tmp);
-    channel_block->filter_c3 = (int32_t) (((int64_t) (-e) << 24) / tmp);
+    channel_block->filter_c2 = (int32_t) (((d + e + e) << 24) / tmp);
+    channel_block->filter_c3 = (int32_t) (((-e) << 24) / tmp);
 }
 
 static void set_sample_filter(const AV_LQMixerData *const mixer_data, struct ChannelBlock *const channel_block, uint8_t cutoff, uint8_t damping)

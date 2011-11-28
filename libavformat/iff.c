@@ -231,7 +231,7 @@ static int iff_read_header(AVFormatContext *s,
 #if CONFIG_AVSEQUENCER
     AVSequencerModule *module = NULL;
     uint8_t buf[24];
-    const char *args = "interpolation=0; real16bit=false; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
+    const char *args = "interpolation=0; real16bit=true; load_samples=true; samples_dir=; load_synth_code_symbols=true;";
     void *opaque = NULL;
     uint32_t tracks = 0, samples     = 0, synths    = 0;
     uint16_t songs  = 0, instruments = 0, envelopes = 0, keyboards = 0, arpeggios = 0;
@@ -688,11 +688,13 @@ read_unknown_chunk:
                 }
             }
 
-            if (!(mixctx = avseq_mixer_get_by_name("Low quality mixer"))) {
-                if (!(mixctx = avseq_mixer_get_by_name("Null mixer"))) {
-                    avsequencer_destroy(iff->avctx);
-                    av_log(s, AV_LOG_ERROR, "No mixers found!\n");
-                    return AVERROR(ENOMEM);
+            if (!(mixctx = avseq_mixer_get_by_name("High quality mixer"))) {
+                if (!(mixctx = avseq_mixer_get_by_name("Low quality mixer"))) {
+                    if (!(mixctx = avseq_mixer_get_by_name("Null mixer"))) {
+                        avsequencer_destroy(iff->avctx);
+                        av_log(s, AV_LOG_ERROR, "No mixers found!\n");
+                        return AVERROR(ENOMEM);
+                    }
                 }
             }
 

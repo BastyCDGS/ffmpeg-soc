@@ -25,6 +25,7 @@ OBJS = allmixers.o      \
        synth.o          \
        track.o          \
 
+OBJS-$(CONFIG_HIGH_QUALITY_MIXER)   += hq_mixer.o
 OBJS-$(CONFIG_LOW_QUALITY_MIXER)    += lq_mixer.o
 OBJS-$(CONFIG_NULL_MIXER)           += null_mixer.o
 
