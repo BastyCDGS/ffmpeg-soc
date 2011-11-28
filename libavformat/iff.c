@@ -2991,7 +2991,7 @@ static int iff_read_seek(AVFormatContext *s,
 
                     avseq_mixer_get_both_channels(old_mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
                     avseq_mixer_set_both_channels(mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
-                } while (--channel);
+                } while (channel--);
             }
 
             while (player_globals->play_time < timestamp) {
@@ -3010,7 +3010,7 @@ static int iff_read_seek(AVFormatContext *s,
                 avseq_mixer_get_both_channels(mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
                 avseq_mixer_reset_channel(old_mixer_data, channel);
                 avseq_mixer_set_both_channels(old_mixer_data, &mixer_channel_current, &mixer_channel_next, channel);
-            } while (--channel);
+            } while (channel--);
 
             avseq_module_stop(iff->avctx, 0);
 
