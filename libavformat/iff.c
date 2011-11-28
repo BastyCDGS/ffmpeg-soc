@@ -706,6 +706,7 @@ read_unknown_chunk:
 
             iff->body_size = ((uint64_t) s->duration * st->codec->sample_rate * (st->codec->channels << 2)) / AV_TIME_BASE;
 
+            avseq_module_set_channels(iff->avctx, module, 64);
             if ((res = avseq_module_play(iff->avctx, mixctx, module, module->song_list[0], iff->args, iff->opaque, 1)) < 0) {
                 avsequencer_destroy(iff->avctx);
                 return res;

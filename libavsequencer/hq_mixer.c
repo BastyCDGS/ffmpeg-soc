@@ -4153,9 +4153,9 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
     hq_mixer_data->mixer_data.channels_in  = channels;
 
     if ((old_channels != channels) || (hq_mixer_data->amplify != amplify)) {
-        int32_t *volume_lut  = hq_mixer_data->volume_lut;
-        uint32_t volume_mult = 0, volume_div = channels << 8;
-        uint8_t i            = 0, j = 0;
+        int32_t *volume_lut = hq_mixer_data->volume_lut;
+        int32_t volume_mult = 0, volume_div = channels << 8;
+        uint8_t i           = 0, j = 0;
 
         hq_mixer_data->amplify = amplify;
 
@@ -4163,7 +4163,7 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
             do {
                 const int32_t volume = (int8_t) j << 8;
 
-                *volume_lut++ = (int64_t) volume * volume_mult / volume_div;
+                *volume_lut++ = ((int64_t) volume * volume_mult) / volume_div;
             } while (++j);
 
             volume_mult += amplify;
