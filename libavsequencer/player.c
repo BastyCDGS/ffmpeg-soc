@@ -5625,9 +5625,6 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(subx)
 
     player_channel->variable[dst_var] = sub_data;
 
-    if ((sub_data < -0x8000) || (sub_data >= 0x8000))
-        flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
-
     if (sub_data)
         flags &= ~AVSEQ_PLAYER_CHANNEL_COND_VAR_ZERO;
 
