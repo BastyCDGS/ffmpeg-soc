@@ -385,7 +385,8 @@ void avseq_mixer_get_both_channels(AVMixerData *mixer_data,
 /**
  * Sets and transfers a channel data block from the AVSequencer to the
  * internal mixing engine by setting current and next sample data at
- * once.
+ * once and reset all internal mixer variables (i.e. temporarily stored
+ * filter and interpolation values).
  *
  * @param mixer_data the AVMixerData to set the channel data block of
  * @param mixer_channel_current the current AVMixerChannel to be stored

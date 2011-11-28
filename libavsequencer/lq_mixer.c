@@ -4042,6 +4042,8 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->restart_offset = repeat_len;
     channel_block->count_restart  = mixer_channel_current->repeat_count;
     channel_block->counted        = mixer_channel_current->repeat_counted;
+    channel_block->filter_tmp1    = 0;
+    channel_block->filter_tmp2    = 0;
 
     set_sample_filter(lq_mixer_data, channel_block, mixer_channel_current->filter_cutoff, mixer_channel_current->filter_damping);
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel_current->rate);
@@ -4078,6 +4080,8 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->restart_offset = repeat_len;
     channel_block->count_restart  = mixer_channel_next->repeat_count;
     channel_block->counted        = mixer_channel_next->repeat_counted;
+    channel_block->filter_tmp1    = 0;
+    channel_block->filter_tmp2    = 0;
 
     set_sample_filter(lq_mixer_data, channel_block, mixer_channel_next->filter_cutoff, mixer_channel_next->filter_damping);
     set_sample_mix_rate(lq_mixer_data, channel_block, mixer_channel_next->rate);
