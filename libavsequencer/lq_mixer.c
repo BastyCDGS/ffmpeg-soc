@@ -73,8 +73,6 @@ typedef struct AV_LQMixerChannelInfo {
         int32_t filter_c1;
         int32_t filter_c2;
         int32_t filter_c3;
-        int32_t filter_tmp1;
-        int32_t filter_tmp2;
         void (*mix_backwards_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
@@ -84,6 +82,8 @@ typedef struct AV_LQMixerChannelInfo {
         uint8_t filter_damping;
     } current;
     struct ChannelBlock next;
+    int32_t filter_tmp1;
+    int32_t filter_tmp2;
 } AV_LQMixerChannelInfo;
 
 #if CONFIG_LOW_QUALITY_MIXER
@@ -101,15 +101,15 @@ static const AVClass avseq_low_quality_mixer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-static void apply_filter(struct ChannelBlock *const channel_block, int32_t **const dest_buf, const int32_t *src_buf, const uint32_t len)
+static void apply_filter(AV_LQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block, int32_t **const dest_buf, const int32_t *src_buf, const uint32_t len)
 {
     int32_t *mix_buf = *dest_buf;
     uint32_t i = len >> 2;
     int32_t c1 = channel_block->filter_c1;
     int32_t c2 = channel_block->filter_c2;
     int32_t c3 = channel_block->filter_c3;
-    int32_t o1 = channel_block->filter_tmp2;
-    int32_t o2 = channel_block->filter_tmp1;
+    int32_t o1 = channel_info->filter_tmp2;
+    int32_t o2 = channel_info->filter_tmp1;
     int32_t o3, o4;
 
     while (i--) {
@@ -131,9 +131,9 @@ static void apply_filter(struct ChannelBlock *const channel_block, int32_t **con
         o2 = o3;
     }
 
-    *dest_buf                  = mix_buf;
-    channel_block->filter_tmp1 = o2;
-    channel_block->filter_tmp2 = o1;
+    *dest_buf                 = mix_buf;
+    channel_info->filter_tmp1 = o2;
+    channel_info->filter_tmp2 = o1;
 }
 
 static void mix_sample(AV_LQMixerData *const mixer_data, int32_t *const buf, const uint32_t len)
@@ -174,7 +174,7 @@ mix_sample_backwards:
 
                                 memset(filter_buf, 0, filter_len * sizeof(int32_t));
                                 mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, remain_len);
-                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                                apply_filter(channel_info, &channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
                             }
 
                             if ((int32_t) offset <= (int32_t) channel_info->current.end_offset)
@@ -196,7 +196,7 @@ mix_sample_backwards:
 
                                 memset(filter_buf, 0, filter_len * sizeof(int32_t));
                                 mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
-                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                                apply_filter(channel_info, &channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
                             }
 
                             if (((int32_t) offset > (int32_t) channel_info->current.end_offset) && !remain_len)
@@ -276,7 +276,7 @@ mix_sample_forwards:
 
                                 memset(filter_buf, 0, filter_len * sizeof(int32_t));
                                 mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, remain_len);
-                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                                apply_filter(channel_info, &channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
                             }
 
                             if (offset >= channel_info->current.end_offset)
@@ -298,7 +298,7 @@ mix_sample_forwards:
 
                                 memset(filter_buf, 0, filter_len * sizeof(int32_t));
                                 mix_func(mixer_data, &channel_info->current, &filter_buf, &offset, &fraction, advance, adv_frac, (uint32_t) calc_mix);
-                                apply_filter(&channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
+                                apply_filter(channel_info, &channel_info->current, &mix_buf, mixer_data->filter_buf, filter_len);
                             }
 
                             if ((offset < channel_info->current.end_offset) && !remain_len)
@@ -3940,8 +3940,6 @@ static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
     channel_block->restart_offset   = 0;
     channel_block->count_restart    = 0;
     channel_block->counted          = 0;
-    channel_block->filter_tmp1      = 0;
-    channel_block->filter_tmp2      = 0;
 
     set_sample_mix_rate(lq_mixer_data, channel_block, channel_block->rate);
     set_sample_filter(lq_mixer_data, channel_block, 127, 0);
@@ -3963,8 +3961,8 @@ static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
     channel_block->restart_offset   = 0;
     channel_block->count_restart    = 0;
     channel_block->counted          = 0;
-    channel_block->filter_tmp1      = 0;
-    channel_block->filter_tmp2      = 0;
+    channel_info->filter_tmp1       = 0;
+    channel_info->filter_tmp2       = 0;
 
     set_sample_mix_rate(lq_mixer_data, channel_block, channel_block->rate);
     set_sample_filter(lq_mixer_data, channel_block, 127, 0);
@@ -4044,8 +4042,6 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->restart_offset = repeat_len;
     channel_block->count_restart  = mixer_channel_current->repeat_count;
     channel_block->counted        = mixer_channel_current->repeat_counted;
-    channel_block->filter_tmp1    = 0;
-    channel_block->filter_tmp2    = 0;
 
     set_sample_mix_rate(lq_mixer_data, channel_block, channel_block->rate);
     set_sample_filter(lq_mixer_data, channel_block, mixer_channel_current->filter_cutoff, mixer_channel_current->filter_damping);
@@ -4082,8 +4078,8 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->restart_offset = repeat_len;
     channel_block->count_restart  = mixer_channel_next->repeat_count;
     channel_block->counted        = mixer_channel_next->repeat_counted;
-    channel_block->filter_tmp1    = 0;
-    channel_block->filter_tmp2    = 0;
+    channel_info->filter_tmp1     = 0;
+    channel_info->filter_tmp2     = 0;
 
     set_sample_mix_rate(lq_mixer_data, channel_block, channel_block->rate);
     set_sample_filter(lq_mixer_data, channel_block, mixer_channel_next->filter_cutoff, mixer_channel_next->filter_damping);
