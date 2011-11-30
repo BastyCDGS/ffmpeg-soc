@@ -465,7 +465,7 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
     AV_NULLMixerChannelInfo *const old_channel_info = null_mixer_data->channel_info;
     uint32_t old_channels, i;
 
-    if (((old_channels = null_mixer_data->channels_in) != channels) && (!(channel_info = av_mallocz((channels * sizeof(AV_NULLMixerChannelInfo)) + FF_INPUT_BUFFER_PADDING_SIZE)))) {
+    if (((old_channels = null_mixer_data->channels_in) != channels) && !(channel_info = av_mallocz((channels * sizeof(AV_NULLMixerChannelInfo)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(null_mixer_data->mixer_data.mixctx, AV_LOG_ERROR, "Cannot allocate mixer channel data.\n");
 
         return old_channels;
