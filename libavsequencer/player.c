@@ -379,7 +379,7 @@ CHECK_EFFECT(portamento)
                 *fx_byte += AVSEQ_TRACK_EFFECT_CMD_O_PORTA_UP - AVSEQ_TRACK_EFFECT_CMD_PORTA_UP;
         }
 
-        if ((!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES)) && (*fx_byte > AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN)) {
+        if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES) && (*fx_byte > AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN)) {
             const uint16_t mask_volume_fx = *fx_byte;
 
             *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_PORTA_UP - AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO;
@@ -2486,7 +2486,7 @@ EXECUTE_EFFECT(tone_portamento)
             } else {
                 portamento_slide_up(avctx, player_host_channel, player_channel, data_word, 16, 8-4, channel);
 
-                if ((!(player_channel->frequency)) || (tone_portamento_target_pitch <= player_channel->frequency)) {
+                if (!player_channel->frequency || (tone_portamento_target_pitch <= player_channel->frequency)) {
                     player_channel->frequency                    = tone_portamento_target_pitch;
                     player_host_channel->tone_porta_target_pitch = 0;
                 }
@@ -7797,7 +7797,7 @@ disable_channel:
 
                     row = 0;
 
-                    if (((player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE)) || ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE)) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT)))
+                    if (((player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE)) || (!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT)))
                         goto disable_channel;
 
                     if ((track = order_data->track))
@@ -7813,7 +7813,7 @@ disable_channel:
 
                     goto song_end_found;
                 }
-            } while (((player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE)) || ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE)) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT)) || (!(track = order_data->track)));
+            } while (((player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_ONCE)) || (!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_PLAY_ONCE) && (order_data->flags & AVSEQ_ORDER_DATA_FLAG_NOT_IN_REPEAT)) || (!(track = order_data->track)));
 
             player_host_channel->order = order_data;
             player_host_channel->track = track;
@@ -8984,7 +8984,7 @@ static void init_new_sample(const AVSequencerContext *const avctx, AVSequencerPl
         player_channel->mixer.flags = playback_flags;
     }
 
-    if ((!(synth = sample->synth)) || (!player_host_channel->synth) || (!(synth->pos_keep_mask & AVSEQ_SYNTH_POS_KEEP_MASK_CODE)))
+    if (!(synth = sample->synth) || !player_host_channel->synth || !(synth->pos_keep_mask & AVSEQ_SYNTH_POS_KEEP_MASK_CODE))
         player_host_channel->synth = synth;
 
     if ((player_channel->synth = player_host_channel->synth)) {
@@ -8994,7 +8994,7 @@ static void init_new_sample(const AVSequencerContext *const avctx, AVSequencerPl
 
         player_channel->mixer.flags |= AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
 
-        if ((!(player_host_channel->waveform_list)) || (!(synth->pos_keep_mask & AVSEQ_SYNTH_POS_KEEP_MASK_WAVEFORMS))) {
+        if (!player_host_channel->waveform_list || !(synth->pos_keep_mask & AVSEQ_SYNTH_POS_KEEP_MASK_WAVEFORMS)) {
             AVSequencerSynthWave *const *waveform_list = synth->waveform_list;
             const AVSequencerSynthWave *waveform       = NULL;
 
@@ -9690,7 +9690,7 @@ instrument_found:
             init_new_sample(avctx, player_host_channel, player_channel);
         }
 
-        if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
+        if (!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN) && player_host_channel->tempo) {
             do {
                 process_row(avctx, player_host_channel, player_channel, channel);
                 get_effects(avctx, player_host_channel, player_channel, channel);
@@ -9728,7 +9728,7 @@ instrument_found:
     player_host_channel = avctx->player_host_channel;
 
     do {
-        if ((!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN)) && player_host_channel->tempo) {
+        if (!(player_globals->flags & AVSEQ_PLAYER_GLOBALS_FLAG_NO_PROC_PATTERN) && player_host_channel->tempo) {
             player_channel = avctx->player_channel + player_host_channel->virtual_channel;
 
             run_effects(avctx, player_host_channel, player_channel, channel);
@@ -9885,7 +9885,7 @@ instrument_found:
                     goto turn_note_off;
             }
 
-            if (((!(player_channel->mixer.data)) || (!(player_channel->mixer.bits_per_sample))) && (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY)) {
+            if ((!player_channel->mixer.data || !player_channel->mixer.bits_per_sample) && (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY)) {
                 player_channel->mixer.pos             = 0;
                 player_channel->mixer.len             = (sizeof (empty_waveform) / sizeof (empty_waveform[0]));
                 player_channel->mixer.data            = (int16_t *) &empty_waveform;
@@ -9929,7 +9929,7 @@ turn_note_off:
             player_host_channel->virtual_channels++;
             virtual_channel++;
 
-            if ((!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND)) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF))
+            if (!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF))
                 host_volume = 0;
 
             host_volume                        *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
