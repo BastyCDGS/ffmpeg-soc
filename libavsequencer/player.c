@@ -930,6 +930,7 @@ static int16_t run_envelope(AVSequencerContext *const avctx, AVSequencerPlayerEn
 static void play_key_off(AVSequencerPlayerChannel *const player_channel)
 {
     const AVSequencerSample *sample;
+    const AVSequencerSynthWave *waveform;
     uint32_t repeat, repeat_length, repeat_count;
     uint8_t flags;
 
@@ -949,10 +950,7 @@ static void play_key_off(AVSequencerPlayerChannel *const player_channel)
     if ((!player_channel->vol_env.envelope) || (!player_channel->vol_env.tempo) || (player_channel->vol_env.flags & AVSEQ_PLAYER_ENVELOPE_FLAG_LOOPING))
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_FADING;
 
-    if ((sample = player_channel->sample)) {
-        if (sample->flags & AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP)
-            return;
-
+    if ((sample = player_channel->sample) && (sample->flags & AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP)) {
         repeat                              = sample->repeat;
         repeat_length                       = sample->rep_len;
         repeat_count                        = sample->rep_count;
@@ -974,16 +972,38 @@ static void play_key_off(AVSequencerPlayerChannel *const player_channel)
         player_channel->mixer.flags = flags;
     }
 
-    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_VOLUME)
+    if ((waveform = player_channel->sample_waveform) && (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_SUSTAIN_LOOP)) {
+        repeat                              = waveform->repeat;
+        repeat_length                       = waveform->rep_len;
+        repeat_count                        = waveform->rep_count;
+        player_channel->mixer.repeat_start  = repeat;
+        player_channel->mixer.repeat_length = repeat_length;
+        player_channel->mixer.repeat_count  = repeat_count;
+        flags                               = player_channel->mixer.flags & ~(AVSEQ_MIXER_CHANNEL_FLAG_LOOP|AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG|AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS);
+
+        if (!(waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_NOLOOP) && repeat_length) {
+            flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+
+            if (waveform->repeat_mode & AVSEQ_SYNTH_WAVE_REP_MODE_PINGPONG)
+                flags |= AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG;
+
+            if (waveform->repeat_mode & AVSEQ_SYNTH_WAVE_REP_MODE_BACKWARDS)
+                flags |= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+        }
+
+        player_channel->mixer.flags = flags;
+    }
+
+    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAG_VOLUME)
         player_channel->entry_pos[0] = player_channel->sustain_pos[0];
 
-    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_PANNING)
+    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAG_PANNING)
         player_channel->entry_pos[1] = player_channel->sustain_pos[1];
 
-    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SLIDE)
+    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAG_SLIDE)
         player_channel->entry_pos[2] = player_channel->sustain_pos[2];
 
-    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAGS_SPECIAL)
+    if (player_channel->use_sustain_flags & AVSEQ_PLAYER_CHANNEL_USE_SUSTAIN_FLAG_SPECIAL)
         player_channel->entry_pos[3] = player_channel->sustain_pos[3];
 }
 
@@ -2723,7 +2743,7 @@ EXECUTE_EFFECT(fine_vibrato) {
 
 EXECUTE_EFFECT(do_key_off)
 {
-    if (data_word >= player_host_channel->tempo_counter)
+    if (data_word <= player_host_channel->tempo_counter)
         play_key_off(player_channel);
 }
 
@@ -2734,7 +2754,7 @@ EXECUTE_EFFECT(hold_delay)
 
 EXECUTE_EFFECT(note_fade)
 {
-    if (data_word >= player_host_channel->tempo_counter) {
+    if (data_word <= player_host_channel->tempo_counter) {
         player_host_channel->effects_used[fx_byte >> 3] |= 1 << (7 - (fx_byte & 7));
 
         if (player_channel->host_channel == channel)
@@ -2744,7 +2764,7 @@ EXECUTE_EFFECT(note_fade)
 
 EXECUTE_EFFECT(note_cut)
 {
-    if ((data_word & 0xFFF) >= player_host_channel->tempo_counter) {
+    if ((data_word & 0xFFF) <= player_host_channel->tempo_counter) {
         player_host_channel->effects_used[fx_byte >> 3] |= 1 << (7 - (fx_byte & 7));
 
         if (player_channel->host_channel == channel) {
@@ -6208,7 +6228,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(or)
     uint16_t logic_value;
 
     instruction_data += player_channel->variable[src_var];
-    logic_value       = (player_channel->variable[dst_var] |= instruction_data );
+    logic_value       = (player_channel->variable[dst_var] |= instruction_data);
 
     if ((int16_t) logic_value < 0)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
@@ -6227,7 +6247,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(and)
     uint16_t logic_value;
 
     instruction_data += player_channel->variable[src_var];
-    logic_value       = (player_channel->variable[dst_var] &= instruction_data );
+    logic_value       = (player_channel->variable[dst_var] &= instruction_data);
 
     if ((int16_t) logic_value < 0)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
@@ -6246,7 +6266,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(xor)
     uint16_t logic_value;
 
     instruction_data += player_channel->variable[src_var];
-    logic_value       = (player_channel->variable[dst_var] ^= instruction_data );
+    logic_value       = (player_channel->variable[dst_var] ^= instruction_data);
 
     if ((int16_t) logic_value < 0)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_NEGATIVE;
@@ -6566,7 +6586,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(getarpv)
     if ((waveform = player_channel->arpeggio_waveform)) {
         uint32_t waveform_pos = instruction_data % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
         else
             player_channel->variable[dst_var] = waveform->data[waveform_pos];
@@ -6630,7 +6650,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(getvibv)
     if ((waveform = player_channel->vibrato_waveform)) {
         const uint32_t waveform_pos = instruction_data % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
         else
             player_channel->variable[dst_var] = waveform->data[waveform_pos];
@@ -6694,7 +6714,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(gettrmv)
     if ((waveform = player_channel->tremolo_waveform)) {
         const uint32_t waveform_pos = instruction_data % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
         else
             player_channel->variable[dst_var] = waveform->data[waveform_pos];
@@ -6758,7 +6778,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(getpanv)
     if ((waveform = player_channel->pannolo_waveform)) {
         uint32_t waveform_pos = instruction_data % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             player_channel->variable[dst_var] = ((uint8_t *) waveform->data)[waveform_pos] << 8;
         else
             player_channel->variable[dst_var] = waveform->data[waveform_pos];
@@ -6956,7 +6976,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(vibrato)
 
         waveform_pos = player_channel->vibrato_pos % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             vibrato_slide_value = ((int8_t *) waveform->data)[waveform_pos] << 8;
         else
             vibrato_slide_value = waveform->data[waveform_pos];
@@ -7041,7 +7061,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(arpegio)
         uint8_t arpeggio_finetune;
         const uint32_t waveform_pos = player_channel->arpeggio_pos % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             arpeggio_transpose = ((int8_t *) waveform->data)[waveform_pos] << 8;
         else
             arpeggio_transpose = waveform->data[waveform_pos];
@@ -7088,29 +7108,51 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwave)
 
     if (waveform) {
         AVMixerData *mixer;
-        uint8_t flags;
+        uint16_t flags, repeat_mode, playback_flags;
 
-        player_channel->sample_waveform      = waveform;
-        player_channel->mixer.pos            = 0;
-        player_channel->mixer.len            = waveform->samples;
-        player_channel->mixer.data           = waveform->data;
-        player_channel->mixer.repeat_start   = waveform->repeat;
-        player_channel->mixer.repeat_length  = waveform->repeat_len;
-        player_channel->mixer.repeat_count   = 0;
-        player_channel->mixer.repeat_counted = 0;
+        player_channel->sample_waveform = waveform;
+        player_channel->mixer.pos       = 0;
+        player_channel->mixer.len       = waveform->samples;
+        player_channel->mixer.data      = waveform->data;
+        flags                           = waveform->flags;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (flags & AVSEQ_SYNTH_WAVE_FLAG_SUSTAIN_LOOP) {
+            player_channel->mixer.repeat_start  = waveform->sustain_repeat;
+            player_channel->mixer.repeat_length = waveform->sustain_rep_len;
+            player_channel->mixer.repeat_count  = waveform->sustain_rep_count;
+            repeat_mode                         = waveform->sustain_repeat_mode;
+            flags                               = (~flags >> 1);
+        } else {
+            player_channel->mixer.repeat_start  = waveform->repeat;
+            player_channel->mixer.repeat_length = waveform->rep_len;
+            player_channel->mixer.repeat_count  = waveform->rep_count;
+            repeat_mode                         = waveform->repeat_mode;
+        }
+
+        player_channel->mixer.repeat_counted  = 0;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             player_channel->mixer.bits_per_sample = 8;
         else
             player_channel->mixer.bits_per_sample = 16;
 
-        flags = player_channel->mixer.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
+        playback_flags = player_channel->mixer.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
 
-        if ((!(waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP)) && (waveform->repeat_len))
-            flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_REVERSE)
+            playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
 
-        flags                      |= AVSEQ_MIXER_CHANNEL_FLAG_SYNTH;
-        player_channel->mixer.flags = flags;
+        if (!(flags & AVSEQ_SYNTH_WAVE_FLAG_NOLOOP) && player_channel->mixer.repeat_length) {
+            playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+
+            if (repeat_mode & AVSEQ_SYNTH_WAVE_REP_MODE_PINGPONG)
+                playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG;
+
+            if (repeat_mode & AVSEQ_SYNTH_WAVE_REP_MODE_BACKWARDS)
+                playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+        }
+
+        playback_flags             |= AVSEQ_MIXER_CHANNEL_FLAG_SYNTH;
+        player_channel->mixer.flags = playback_flags;
         mixer                       = avctx->player_mixer_data;
 
         if (mixer->mixctx->set_channel)
@@ -7141,28 +7183,50 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav)
 
     if (waveform) {
         AVMixerData *mixer;
-        uint8_t flags;
+        uint16_t flags, repeat_mode, playback_flags;
 
-        player_channel->sample_waveform      = waveform;
-        player_channel->mixer.pos            = 0;
-        player_channel->mixer.len            = waveform->samples;
-        player_channel->mixer.data           = waveform->data;
-        player_channel->mixer.repeat_start   = waveform->repeat;
-        player_channel->mixer.repeat_length  = waveform->repeat_len;
-        player_channel->mixer.repeat_count   = 0;
-        player_channel->mixer.repeat_counted = 0;
+        player_channel->sample_waveform = waveform;
+        player_channel->mixer.pos       = 0;
+        player_channel->mixer.len       = waveform->samples;
+        player_channel->mixer.data      = waveform->data;
+        flags                           = waveform->flags;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (flags & AVSEQ_SYNTH_WAVE_FLAG_SUSTAIN_LOOP) {
+            player_channel->mixer.repeat_start  = waveform->sustain_repeat;
+            player_channel->mixer.repeat_length = waveform->sustain_rep_len;
+            player_channel->mixer.repeat_count  = waveform->sustain_rep_count;
+            repeat_mode                         = waveform->sustain_repeat_mode;
+            flags                               = (~flags >> 1);
+        } else {
+            player_channel->mixer.repeat_start  = waveform->repeat;
+            player_channel->mixer.repeat_length = waveform->rep_len;
+            player_channel->mixer.repeat_count  = waveform->rep_count;
+            repeat_mode                         = waveform->repeat_mode;
+        }
+
+        player_channel->mixer.repeat_counted  = 0;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             player_channel->mixer.bits_per_sample = 8;
         else
             player_channel->mixer.bits_per_sample = 16;
 
-        flags = player_channel->mixer.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
+        playback_flags = player_channel->mixer.flags & (AVSEQ_MIXER_CHANNEL_FLAG_SURROUND|AVSEQ_MIXER_CHANNEL_FLAG_PLAY);
 
-        if ((!(waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_NOLOOP)) && waveform->repeat_len)
-            flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_REVERSE)
+            playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
 
-        player_channel->mixer.flags = flags;
+        if (!(flags & AVSEQ_SYNTH_WAVE_FLAG_NOLOOP) && player_channel->mixer.repeat_length) {
+            playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
+
+            if (repeat_mode & AVSEQ_SYNTH_WAVE_REP_MODE_PINGPONG)
+                playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG;
+
+            if (repeat_mode & AVSEQ_SYNTH_WAVE_REP_MODE_BACKWARDS)
+                playback_flags |= AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS;
+        }
+
+        player_channel->mixer.flags = playback_flags;
         mixer                       = avctx->player_mixer_data;
 
         if (mixer->mixctx->set_channel)
@@ -7449,7 +7513,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(tremolo)
 
         waveform_pos = player_channel->tremolo_pos % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             tremolo_slide_value = ((int8_t *) waveform->data)[waveform_pos] << 8;
         else
             tremolo_slide_value = waveform->data[waveform_pos];
@@ -7588,7 +7652,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(pannolo)
 
         waveform_pos = player_channel->pannolo_pos % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT)
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
             pannolo_slide_value = ((int8_t *) waveform->data)[waveform_pos] << 8;
         else
             pannolo_slide_value = waveform->data[waveform_pos];
@@ -8376,16 +8440,16 @@ previous_nna_found:
     if (nna_volume || (!(nna = player_host_channel->nna)))
         goto nna_found;
 
-    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_NNA)
+    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_VOLUME_NNA)
         new_player_channel->entry_pos[0] = new_player_channel->nna_pos[0];
 
-    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_NNA)
+    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_PANNING_NNA)
         new_player_channel->entry_pos[1] = new_player_channel->nna_pos[1];
 
-    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_NNA)
+    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_SLIDE_NNA)
         new_player_channel->entry_pos[2] = new_player_channel->nna_pos[2];
 
-    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SPECIAL_NNA)
+    if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_SPECIAL_NNA)
         new_player_channel->entry_pos[3] = new_player_channel->nna_pos[3];
 
     new_player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND;
@@ -8466,16 +8530,16 @@ nna_found:
         do {
             if (scan_player_channel->host_channel == channel) {
                 if (trigger_dct(player_host_channel, scan_player_channel, player_host_channel->dct)) {
-                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_VOLUME_DNA)
+                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_VOLUME_DNA)
                         scan_player_channel->entry_pos[0] = scan_player_channel->dna_pos[0];
 
-                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_PANNING_DNA)
+                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_PANNING_DNA)
                         scan_player_channel->entry_pos[1] = scan_player_channel->dna_pos[1];
 
-                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SLIDE_DNA)
+                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_SLIDE_DNA)
                         scan_player_channel->entry_pos[2] = scan_player_channel->dna_pos[2];
 
-                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAGS_SPECIAL_DNA)
+                    if (scan_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_SPECIAL_DNA)
                         scan_player_channel->entry_pos[3] = scan_player_channel->dna_pos[3];
 
                     switch (player_host_channel->dna) {
@@ -8965,16 +9029,16 @@ static void init_new_sample(const AVSequencerContext *const avctx, AVSequencerPl
 
         player_channel->use_sustain_flags = synth->use_sustain_flags;
 
-        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_VOLUME_KEEP))
+        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAG_VOLUME_KEEP))
             player_host_channel->sustain_pos[0] = synth->sustain_pos[0];
 
-        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_PANNING_KEEP))
+        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAG_PANNING_KEEP))
             player_host_channel->sustain_pos[1] = synth->sustain_pos[1];
 
-        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SLIDE_KEEP))
+        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAG_SLIDE_KEEP))
             player_host_channel->sustain_pos[2] = synth->sustain_pos[2];
 
-        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAGS_SPECIAL_KEEP))
+        if (!(player_channel->use_sustain_flags & AVSEQ_SYNTH_USE_SUSTAIN_FLAG_SPECIAL_KEEP))
             player_host_channel->sustain_pos[3] = synth->sustain_pos[3];
 
         player_channel->use_nna_flags = synth->use_nna_flags;

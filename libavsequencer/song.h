@@ -29,19 +29,19 @@
 
 /** AVSequencerSong->compat_flags bitfield.  */
 enum AVSequencerSongCompatFlags {
-    AVSEQ_SONG_COMPAT_FLAG_SYNC             = 0x01, ///< Tracks are synchronous (linked together, pattern based)
-    AVSEQ_SONG_COMPAT_FLAG_GLOBAL_LOOP      = 0x02, ///< Global pattern loop memory
-    AVSEQ_SONG_COMPAT_FLAG_AMIGA_LIMITS     = 0x04, ///< Enforce AMIGA sound hardware limits (portamento)
-    AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES      = 0x08, ///< All volume related commands range from 0-64 instead of 0-255
-    AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY  = 0x10, ///< Global volume/panning changes affect new notes only (S3M)
+    AVSEQ_SONG_COMPAT_FLAG_SYNC            = 0x01, ///< Tracks are synchronous (linked together, pattern based)
+    AVSEQ_SONG_COMPAT_FLAG_GLOBAL_LOOP     = 0x02, ///< Global pattern loop memory
+    AVSEQ_SONG_COMPAT_FLAG_AMIGA_LIMITS    = 0x04, ///< Enforce AMIGA sound hardware limits (portamento)
+    AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES     = 0x08, ///< All volume related commands range from 0-64 instead of 0-255
+    AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY = 0x10, ///< Global volume/panning changes affect new notes only (S3M)
 };
 
 /** AVSequencerSong->compat_flags bitfield.  */
 enum AVSequencerSongFlags {
-    AVSEQ_SONG_FLAG_LINEAR_FREQ_TABLE   = 0x01, ///< Use linear instead of Amiga frequency table
-    AVSEQ_SONG_FLAG_SPD                 = 0x02, ///< Use SPD (OctaMED style) timing instead of BpM
-    AVSEQ_SONG_FLAG_MONO                = 0x04, ///< Use mono instead of stereo output
-    AVSEQ_SONG_FLAG_SURROUND            = 0x08, ///< Initially use default global surround instead of stereo panning
+    AVSEQ_SONG_FLAG_LINEAR_FREQ_TABLE = 0x01, ///< Use linear instead of Amiga frequency table
+    AVSEQ_SONG_FLAG_SPD               = 0x02, ///< Use SPD (OctaMED style) timing instead of BpM
+    AVSEQ_SONG_FLAG_MONO              = 0x04, ///< Use mono instead of stereo output
+    AVSEQ_SONG_FLAG_SURROUND          = 0x08, ///< Initially use default global surround instead of stereo panning
 };
 
 /**

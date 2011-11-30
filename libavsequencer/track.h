@@ -304,6 +304,7 @@ enum AVSequencerTrackEffectCommand {
        5 | Do keyoff on all NNA notes (yyy must always be set to 0 now,
            since other values are reserved for newer versions of FFmpeg.
        6 | Set pitch sub-slide value to lower 8-bits of yyy.  */
+    AVSEQ_TRACK_EFFECT_CMD_EXTEND_CTRL = 0x1A,
 
     /** Invert loop:
        Data word consists of a 16-bit unsigned value
@@ -1520,22 +1521,22 @@ typedef struct AVSequencerTrackRow {
 
 /** AVSequencerTrack->compat_flags bitfield.  */
 enum AVSequencerTrackCompatFlags {
-    AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET       = 0x01, ///< Sample offset beyond end of sample will be ignored (IT compatibility)
-    AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA          = 0x02, ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
-    AVSEQ_TRACK_COMPAT_FLAG_SLIDES              = 0x04, ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
-    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES       = 0x08, ///< All except portamento slides share the same memory (e.g. volume/panning slides)
-    AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES           = 0x10, ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
-    AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES    = 0x20, ///< Oppositional non-portamento slide directions don't share the same memory
-    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH        = 0x40, ///< Volume & pitch slides share same memory (S3M compatibility)
+    AVSEQ_TRACK_COMPAT_FLAG_SAMPLE_OFFSET    = 0x01, ///< Sample offset beyond end of sample will be ignored (IT compatibility)
+    AVSEQ_TRACK_COMPAT_FLAG_TONE_PORTA       = 0x02, ///< Share tone portamento memory with portamentoes and unlock tone portamento samples and adjusts frequency to: new_freq = freq * new_rate / old_rate. If an instrument number is given the envelope will be retriggered (IT compatibility).
+    AVSEQ_TRACK_COMPAT_FLAG_SLIDES           = 0x04, ///< Portamentos of same type share the same memory (e.g. porta up/fine porta up)
+    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_SLIDES    = 0x08, ///< All except portamento slides share the same memory (e.g. volume/panning slides)
+    AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES        = 0x10, ///< Oppositional portamento directions don't share the same memory (e.g. porta up and porta down)
+    AVSEQ_TRACK_COMPAT_FLAG_OP_VOLUME_SLIDES = 0x20, ///< Oppositional non-portamento slide directions don't share the same memory
+    AVSEQ_TRACK_COMPAT_FLAG_VOLUME_PITCH     = 0x40, ///< Volume & pitch slides share same memory (S3M compatibility)
 };
 
 /** AVSequencerTrack->flags bitfield.  */
 enum AVSequencerTrackFlags {
-    AVSEQ_TRACK_FLAG_USE_TIMING             = 0x01, ///< Use track timing fields
-    AVSEQ_TRACK_FLAG_SPD_TIMING             = 0x02, ///< SPD speed timing instead of BpM
-    AVSEQ_TRACK_FLAG_PANNING                = 0x04, ///< Use track panning and sub-panning fields
-    AVSEQ_TRACK_FLAG_SURROUND               = 0x08, ///< Use track surround panning
-    AVSEQ_TRACK_FLAG_REVERSE                = 0x10, ///< Playback of track in backward direction
+    AVSEQ_TRACK_FLAG_USE_TIMING = 0x01, ///< Use track timing fields
+    AVSEQ_TRACK_FLAG_SPD_TIMING = 0x02, ///< SPD speed timing instead of BpM
+    AVSEQ_TRACK_FLAG_PANNING    = 0x04, ///< Use track panning and sub-panning fields
+    AVSEQ_TRACK_FLAG_SURROUND   = 0x08, ///< Use track surround panning
+    AVSEQ_TRACK_FLAG_REVERSE    = 0x10, ///< Playback of track in backward direction
 };
 
 /**

@@ -28,20 +28,20 @@
 
 /** AVSequencerSample->compat_flags bitfield.  */
 enum AVSequencerSampleCompatFlags {
-    AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN     = 0x01, ///< Sample panning affects channel panning (IT compatibility)
-    AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY            = 0x02, ///< If a note without a sample is played, only the sample volume will be left unchanged
-    AVSEQ_SAMPLE_COMPAT_FLAG_START_TONE_PORTAMENTO  = 0x04, ///< If a tone portamento with a note is executed but no note is currently played, the tone portamento will be ignored and start playing the note normally
-    AVSEQ_SAMPLE_COMPAT_FLAG_PLAY_BEGIN_TONE_PORTA  = 0x08, ///< If you change a sample within a tone portamento the sample will be played from beginning
+    AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN    = 0x01, ///< Sample panning affects channel panning (IT compatibility)
+    AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY           = 0x02, ///< If a note without a sample is played, only the sample volume will be left unchanged
+    AVSEQ_SAMPLE_COMPAT_FLAG_START_TONE_PORTAMENTO = 0x04, ///< If a tone portamento with a note is executed but no note is currently played, the tone portamento will be ignored and start playing the note normally
+    AVSEQ_SAMPLE_COMPAT_FLAG_PLAY_BEGIN_TONE_PORTA = 0x08, ///< If you change a sample within a tone portamento the sample will be played from beginning
 };
 
 /** AVSequencerSample->flags bitfield.  */
 enum AVSequencerSampleFlags {
-    AVSEQ_SAMPLE_FLAG_REDIRECT          = 0x01, ///< Sample is a redirection (symbolic link)
-    AVSEQ_SAMPLE_FLAG_LOOP              = 0x02, ///< Use normal loop points
-    AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP      = 0x04, ///< Use sustain loop points
-    AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING    = 0x08, ///< Use sample panning
-    AVSEQ_SAMPLE_FLAG_SURROUND_PANNING  = 0x10, ///< Sample panning is surround panning
-    AVSEQ_SAMPLE_FLAG_REVERSE           = 0x40, ///< Sample will be initially played backwards
+    AVSEQ_SAMPLE_FLAG_REDIRECT         = 0x01, ///< Sample is a redirection (symbolic link)
+    AVSEQ_SAMPLE_FLAG_LOOP             = 0x02, ///< Use normal loop points
+    AVSEQ_SAMPLE_FLAG_SUSTAIN_LOOP     = 0x04, ///< Use sustain loop points
+    AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING   = 0x08, ///< Use sample panning
+    AVSEQ_SAMPLE_FLAG_SURROUND_PANNING = 0x10, ///< Sample panning is surround panning
+    AVSEQ_SAMPLE_FLAG_REVERSE          = 0x40, ///< Sample will be initially played backwards
 };
 
 /** AVSequencerSample->repeat_mode bitfield.  */
@@ -58,9 +58,9 @@ enum AVSequencerSampleSustainRepMode {
 
 /** AVSequencerSample->env_usage_flags bitfield.  */
 enum AVSequencerSampleEnvUsageFlags {
-    AVSEQ_SAMPLE_FLAG_USE_AUTO_VIBRATO_ENV  = 0x01, ///< Use (reload) auto vibrato envelope
-    AVSEQ_SAMPLE_FLAG_USE_AUTO_TREMOLO_ENV  = 0x02, ///< Use (reload) auto tremolo envelope
-    AVSEQ_SAMPLE_FLAG_USE_AUTO_PANNOLO_ENV  = 0x04, ///< Use (reload) auto pannolo envelope
+    AVSEQ_SAMPLE_FLAG_USE_AUTO_VIBRATO_ENV = 0x01, ///< Use (reload) auto vibrato envelope
+    AVSEQ_SAMPLE_FLAG_USE_AUTO_TREMOLO_ENV = 0x02, ///< Use (reload) auto tremolo envelope
+    AVSEQ_SAMPLE_FLAG_USE_AUTO_PANNOLO_ENV = 0x04, ///< Use (reload) auto pannolo envelope
 };
 
 /** AVSequencerSample->env_proc_flags bitfield.  */
@@ -73,16 +73,16 @@ enum AVSequencerSampleEnvProcFlags {
 
 /** AVSequencerSample->env_retrig_flags bitfield.  */
 enum AVSequencerSampleEnvRetrigFlags {
-    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_VIBRATO_ENV   = 0x01, ///< Not retrigger auto vibrato envelope
-    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_TREMOLO_ENV   = 0x02, ///< Not retrigger auto tremolo envelope
-    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_PANNOLO_ENV   = 0x04, ///< Not retrigger auto pannolo envelope
+    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_VIBRATO_ENV = 0x01, ///< Not retrigger auto vibrato envelope
+    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_TREMOLO_ENV = 0x02, ///< Not retrigger auto tremolo envelope
+    AVSEQ_SAMPLE_FLAG_RETRIG_AUTO_PANNOLO_ENV = 0x04, ///< Not retrigger auto pannolo envelope
 };
 
 /** AVSequencerSample->env_random_flags bitfield.  */
 enum AVSequencerSampleEnvRandomFlags {
-    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_VIBRATO_ENV   = 0x01, ///< Randomize auto vibrato envelope
-    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_TREMOLO_ENV   = 0x02, ///< Randomize auto tremolo envelope
-    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_PANNOLO_ENV   = 0x04, ///< Randomize auto pannolo envelope
+    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_VIBRATO_ENV = 0x01, ///< Randomize auto vibrato envelope
+    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_TREMOLO_ENV = 0x02, ///< Randomize auto tremolo envelope
+    AVSEQ_SAMPLE_FLAG_RANDOM_AUTO_PANNOLO_ENV = 0x04, ///< Randomize auto pannolo envelope
 };
 
 /**

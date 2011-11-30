@@ -363,8 +363,8 @@ int avseq_synth_waveform_open(AVSequencerSynth *synth, uint32_t samples)
         return AVERROR(ENOMEM);
     }
 
-    waveform->av_class   = &avseq_waveform_class;
-    waveform->repeat_len = samples;
+    waveform->av_class = &avseq_waveform_class;
+    waveform->rep_len  = samples;
 
     if ((res = avseq_synth_waveform_data_open(waveform, samples)) < 0) {
         av_free(waveform);
@@ -441,7 +441,7 @@ int avseq_synth_waveform_data_open(AVSequencerSynthWave *waveform, uint32_t samp
     if (!samples)
         samples = 64;
 
-    if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) {
+    if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT) {
         size = samples;
     } else if (samples <= (0x7FFFFFFF - FF_INPUT_BUFFER_PADDING_SIZE)) {
         size = samples << 1;
@@ -471,9 +471,11 @@ void avseq_synth_waveform_data_close(AVSequencerSynthWave *waveform)
     if (waveform) {
         av_freep(&waveform->data);
 
-        waveform->size       = 0;
-        waveform->samples    = 0;
-        waveform->repeat     = 0;
-        waveform->repeat_len = 0;
+        waveform->size            = 0;
+        waveform->samples         = 0;
+        waveform->sustain_repeat  = 0;
+        waveform->sustain_rep_len = 0;
+        waveform->repeat          = 0;
+        waveform->rep_len         = 0;
     }
 }

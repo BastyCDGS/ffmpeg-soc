@@ -160,10 +160,10 @@ typedef struct AVSequencerArpeggioData {
 
 /** AVSequencerArpeggio->flags bitfield.  */
 enum AVSequencerArpeggioFlags {
-    AVSEQ_ARPEGGIO_FLAG_LOOP                = 0x0001, ///< Arpeggio control is looped
-    AVSEQ_ARPEGGIO_FLAG_SUSTAIN             = 0x0002, ///< Arpeggio control has a sustain loop
-    AVSEQ_ARPEGGIO_FLAG_PINGPONG            = 0x0004, ///< Arpeggio control will be looped in ping pong mpde
-    AVSEQ_ARPEGGIO_FLAG_SUSTAIN_PINGPONG    = 0x0008, ///< Arpeggio control will have sustain loop ping pong mode enabled
+    AVSEQ_ARPEGGIO_FLAG_LOOP             = 0x0001, ///< Arpeggio control is looped
+    AVSEQ_ARPEGGIO_FLAG_SUSTAIN          = 0x0002, ///< Arpeggio control has a sustain loop
+    AVSEQ_ARPEGGIO_FLAG_PINGPONG         = 0x0004, ///< Arpeggio control will be looped in ping pong mpde
+    AVSEQ_ARPEGGIO_FLAG_SUSTAIN_PINGPONG = 0x0008, ///< Arpeggio control will have sustain loop ping pong mode enabled
 };
 
 /**
@@ -218,30 +218,30 @@ typedef struct AVSequencerArpeggio {
 
 /** AVSequencerInstrument->nna values.  */
 enum AVSequencerInstrumentNNA {
-    AVSEQ_INSTRUMENT_NNA_NOTE_CUT       = 0x00, ///< Cut previous note
-    AVSEQ_INSTRUMENT_NNA_NOTE_CONTINUE  = 0x01, ///< Continue previous note
-    AVSEQ_INSTRUMENT_NNA_NOTE_OFF       = 0x02, ///< Perform key-off on previous note
-    AVSEQ_INSTRUMENT_NNA_NOTE_FADE      = 0x03, ///< Perform fadeout on previous note
+    AVSEQ_INSTRUMENT_NNA_NOTE_CUT      = 0x00, ///< Cut previous note
+    AVSEQ_INSTRUMENT_NNA_NOTE_CONTINUE = 0x01, ///< Continue previous note
+    AVSEQ_INSTRUMENT_NNA_NOTE_OFF      = 0x02, ///< Perform key-off on previous note
+    AVSEQ_INSTRUMENT_NNA_NOTE_FADE     = 0x03, ///< Perform fadeout on previous note
 };
 
 /** AVSequencerInstrument->dct values.  */
 enum AVSequencerInstrumentDCT {
-    AVSEQ_INSTRUMENT_DCT_INSTR_NOTE_OR      = 0x01, ///< Check for duplicate OR instrument notes
-    AVSEQ_INSTRUMENT_DCT_SAMPLE_NOTE_OR     = 0x02, ///< Check for duplicate OR sample notes
-    AVSEQ_INSTRUMENT_DCT_INSTR_OR           = 0x04, ///< Check for duplicate OR instruments
-    AVSEQ_INSTRUMENT_DCT_SAMPLE_OR          = 0x08, ///< Check for duplicate OR samples
-    AVSEQ_INSTRUMENT_DCT_INSTR_NOTE_AND     = 0x10, ///< Check for duplicate AND instrument notes
-    AVSEQ_INSTRUMENT_DCT_SAMPLE_NOTE_AND    = 0x20, ///< Check for duplicate AND sample notes
-    AVSEQ_INSTRUMENT_DCT_INSTR_AND          = 0x40, ///< Check for duplicate AND instruments
-    AVSEQ_INSTRUMENT_DCT_SAMPLE_AND         = 0x80, ///< Check for duplicate AND samples
+    AVSEQ_INSTRUMENT_DCT_INSTR_NOTE_OR   = 0x01, ///< Check for duplicate OR instrument notes
+    AVSEQ_INSTRUMENT_DCT_SAMPLE_NOTE_OR  = 0x02, ///< Check for duplicate OR sample notes
+    AVSEQ_INSTRUMENT_DCT_INSTR_OR        = 0x04, ///< Check for duplicate OR instruments
+    AVSEQ_INSTRUMENT_DCT_SAMPLE_OR       = 0x08, ///< Check for duplicate OR samples
+    AVSEQ_INSTRUMENT_DCT_INSTR_NOTE_AND  = 0x10, ///< Check for duplicate AND instrument notes
+    AVSEQ_INSTRUMENT_DCT_SAMPLE_NOTE_AND = 0x20, ///< Check for duplicate AND sample notes
+    AVSEQ_INSTRUMENT_DCT_INSTR_AND       = 0x40, ///< Check for duplicate AND instruments
+    AVSEQ_INSTRUMENT_DCT_SAMPLE_AND      = 0x80, ///< Check for duplicate AND samples
 };
 
 /** AVSequencerInstrument->dna values.  */
 enum AVSequencerInstrumentDNA {
-    AVSEQ_INSTRUMENT_DNA_NOTE_CUT       = 0x00, ///< Do note cut on duplicate note
-    AVSEQ_INSTRUMENT_DNA_NOTE_OFF       = 0x01, ///< Perform keyoff on duplicate note
-    AVSEQ_INSTRUMENT_DNA_NOTE_FADE      = 0x02, ///< Fade off notes on duplicate note
-    AVSEQ_INSTRUMENT_DNA_NOTE_CONTINUE  = 0x03, ///< Nothing (only useful for synth sound handling)
+    AVSEQ_INSTRUMENT_DNA_NOTE_CUT      = 0x00, ///< Do note cut on duplicate note
+    AVSEQ_INSTRUMENT_DNA_NOTE_OFF      = 0x01, ///< Perform keyoff on duplicate note
+    AVSEQ_INSTRUMENT_DNA_NOTE_FADE     = 0x02, ///< Fade off notes on duplicate note
+    AVSEQ_INSTRUMENT_DNA_NOTE_CONTINUE = 0x03, ///< Nothing (only useful for synth sound handling)
 };
 
 /** AVSequencerInstrument->compat_flags bitfield.  */
@@ -254,46 +254,46 @@ enum AVSequencerInstrumentCompatFlags {
 
 /** AVSequencerInstrument->flags bitfield.  */
 enum AVSequencerInstrumentFlags {
-    AVSEQ_INSTRUMENT_FLAG_NO_TRANSPOSE          = 0x01, ///< Instrument can't be transpoed by the order list
-    AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV       = 0x02, ///< Slide envelopes will be portamento values, otherwise transpose + finetune
-    AVSEQ_INSTRUMENT_FLAG_LINEAR_SLIDE_ENV      = 0x04, ///< Use linear freqency table for slide envelope for portamento mode
-    AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING       = 0x10, ///< Use instrument panning and override sample default panning
-    AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING      = 0x20, ///< Use surround sound as default instrument panning
-    AVSEQ_INSTRUMENT_FLAG_NO_INSTR_TRANSPOSE    = 0x40, ///< Order instrument transpose doesn't apply to this instrument
+    AVSEQ_INSTRUMENT_FLAG_NO_TRANSPOSE       = 0x01, ///< Instrument can't be transpoed by the order list
+    AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV    = 0x02, ///< Slide envelopes will be portamento values, otherwise transpose + finetune
+    AVSEQ_INSTRUMENT_FLAG_LINEAR_SLIDE_ENV   = 0x04, ///< Use linear freqency table for slide envelope for portamento mode
+    AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING    = 0x10, ///< Use instrument panning and override sample default panning
+    AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING   = 0x20, ///< Use surround sound as default instrument panning
+    AVSEQ_INSTRUMENT_FLAG_NO_INSTR_TRANSPOSE = 0x40, ///< Order instrument transpose doesn't apply to this instrument
 };
 
 /** AVSequencerInstrument->env_usage_flags bitfield.  */
 enum AVSequencerInstrumentEnvUsageFlags {
-    AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV            = 0x0001, ///< Use (reload) volume envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV           = 0x0002, ///< Use (reload) panning envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV             = 0x0004, ///< Use (reload) slide envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_VIBRATO_ENV           = 0x0008, ///< Use (reload) vibrato envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_TREMOLO_ENV           = 0x0010, ///< Use (reload) tremolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_PANNOLO_ENV           = 0x0020, ///< Use (reload) pannolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_CHANNOLO_ENV          = 0x0040, ///< Use (reload) channolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_SPENOLO_ENV           = 0x0080, ///< Use (reload) spenolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_TRACK_TREMOLO_ENV     = 0x0100, ///< Use (reload) track tremolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_TRACK_PANNOLO_ENV     = 0x0200, ///< Use (reload) track pannolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_GLOBAL_TREMOLO_ENV    = 0x0400, ///< Use (reload) global tremolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_GLOBAL_PANNOLO_ENV    = 0x0800, ///< Use (reload) global pannolo envelope
-    AVSEQ_INSTRUMENT_FLAG_USE_RESONANCE_ENV         = 0x1000, ///< Use (reload) resonance filter
+    AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV         = 0x0001, ///< Use (reload) volume envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV        = 0x0002, ///< Use (reload) panning envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV          = 0x0004, ///< Use (reload) slide envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_VIBRATO_ENV        = 0x0008, ///< Use (reload) vibrato envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_TREMOLO_ENV        = 0x0010, ///< Use (reload) tremolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_PANNOLO_ENV        = 0x0020, ///< Use (reload) pannolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_CHANNOLO_ENV       = 0x0040, ///< Use (reload) channolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_SPENOLO_ENV        = 0x0080, ///< Use (reload) spenolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_TRACK_TREMOLO_ENV  = 0x0100, ///< Use (reload) track tremolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_TRACK_PANNOLO_ENV  = 0x0200, ///< Use (reload) track pannolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_GLOBAL_TREMOLO_ENV = 0x0400, ///< Use (reload) global tremolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_GLOBAL_PANNOLO_ENV = 0x0800, ///< Use (reload) global pannolo envelope
+    AVSEQ_INSTRUMENT_FLAG_USE_RESONANCE_ENV      = 0x1000, ///< Use (reload) resonance filter
 };
 
 /** AVSequencerInstrument->env_proc_flags bitfield.  */
 enum AVSequencerInstrumentEnvProcFlags {
-    AVSEQ_INSTRUMENT_FLAG_PROC_VOLUME_ENV           = 0x0001, ///< Add first, then get volume envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_PANNING_ENV          = 0x0002, ///< Add first, then get panning envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_SLIDE_ENV            = 0x0004, ///< Add first, then get slide envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_VIBRATO_ENV          = 0x0008, ///< Add first, then get vibrato envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_TREMOLO_ENV          = 0x0010, ///< Add first, then get tremolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_PANNOLO_ENV          = 0x0020, ///< Add first, then get pannolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_CHANNOLO_ENV         = 0x0040, ///< Add first, then get channolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_SPENOLO_ENV          = 0x0080, ///< Add first, then get spenolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_TRACK_TREMOLO_ENV    = 0x0100, ///< Add first, then get track tremolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_TRACK_PANNOLO_ENV    = 0x0200, ///< Add first, then get track pannolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_GLOBAL_TREMOLO_ENV   = 0x0400, ///< Add first, then get global tremolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_GLOBAL_PANNOLO_ENV   = 0x0800, ///< Add first, then get global pannolo envelope value
-    AVSEQ_INSTRUMENT_FLAG_PROC_RESONANCE_ENV        = 0x1000, ///< Add first, then get resonance filter value
+    AVSEQ_INSTRUMENT_FLAG_PROC_VOLUME_ENV         = 0x0001, ///< Add first, then get volume envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_PANNING_ENV        = 0x0002, ///< Add first, then get panning envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_SLIDE_ENV          = 0x0004, ///< Add first, then get slide envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_VIBRATO_ENV        = 0x0008, ///< Add first, then get vibrato envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_TREMOLO_ENV        = 0x0010, ///< Add first, then get tremolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_PANNOLO_ENV        = 0x0020, ///< Add first, then get pannolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_CHANNOLO_ENV       = 0x0040, ///< Add first, then get channolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_SPENOLO_ENV        = 0x0080, ///< Add first, then get spenolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_TRACK_TREMOLO_ENV  = 0x0100, ///< Add first, then get track tremolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_TRACK_PANNOLO_ENV  = 0x0200, ///< Add first, then get track pannolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_GLOBAL_TREMOLO_ENV = 0x0400, ///< Add first, then get global tremolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_GLOBAL_PANNOLO_ENV = 0x0800, ///< Add first, then get global pannolo envelope value
+    AVSEQ_INSTRUMENT_FLAG_PROC_RESONANCE_ENV      = 0x1000, ///< Add first, then get resonance filter value
 };
 
 /** AVSequencerInstrument->env_retrig_flags bitfield.  */
@@ -332,29 +332,29 @@ enum AVSequencerInstrumentEnvRandomFlags {
 
 /** AVSequencerInstrument->env_rnd_delay_flags bitfield.  */
 enum AVSequencerInstrumentEnvRndDelayFlags {
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_VOLUME_ENV          = 0x0001, ///< Speed is randomized delay for volume envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_PANNING_ENV         = 0x0002, ///< Speed is randomized delay for panning envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_SLIDE_ENV           = 0x0004, ///< Speed is randomized delay for slide envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_VIBRATO_ENV         = 0x0008, ///< Speed is randomized delay for vibrato envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_TREMOLO_ENV         = 0x0010, ///< Speed is randomized delay for tremolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_PANNOLO_ENV         = 0x0020, ///< Speed is randomized delay for pannolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_CHANNOLO_ENV        = 0x0040, ///< Speed is randomized delay for channolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_SPENOLO_ENV         = 0x0080, ///< Speed is randomized delay for spenolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_TRACK_TREMOLO_ENV   = 0x0100, ///< Speed is randomized delay for track tremolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_TRACK_PANNOLO_ENV   = 0x0200, ///< Speed is randomized delay for track pannolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_GLOBAL_TREMOLO_ENV  = 0x0400, ///< Speed is randomized delay for global tremolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_GLOBAL_PANNOLO_ENV  = 0x0800, ///< Speed is randomized delay for global pannolo envelope
-    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_RESONANCE_ENV       = 0x1000, ///< Speed is randomized delay for resonance filter
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_VOLUME_ENV         = 0x0001, ///< Speed is randomized delay for volume envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_PANNING_ENV        = 0x0002, ///< Speed is randomized delay for panning envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_SLIDE_ENV          = 0x0004, ///< Speed is randomized delay for slide envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_VIBRATO_ENV        = 0x0008, ///< Speed is randomized delay for vibrato envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_TREMOLO_ENV        = 0x0010, ///< Speed is randomized delay for tremolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_PANNOLO_ENV        = 0x0020, ///< Speed is randomized delay for pannolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_CHANNOLO_ENV       = 0x0040, ///< Speed is randomized delay for channolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_SPENOLO_ENV        = 0x0080, ///< Speed is randomized delay for spenolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_TRACK_TREMOLO_ENV  = 0x0100, ///< Speed is randomized delay for track tremolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_TRACK_PANNOLO_ENV  = 0x0200, ///< Speed is randomized delay for track pannolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_GLOBAL_TREMOLO_ENV = 0x0400, ///< Speed is randomized delay for global tremolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_GLOBAL_PANNOLO_ENV = 0x0800, ///< Speed is randomized delay for global pannolo envelope
+    AVSEQ_INSTRUMENT_FLAG_RND_DELAY_RESONANCE_ENV      = 0x1000, ///< Speed is randomized delay for resonance filter
 };
 
 /** AVSequencerInstrument->midi_flags bitfield.  */
 enum AVSequencerInstrumentMIDIFlags {
-    AVSEQ_INSTRUMENT_FLAG_MIDI_TICK_QUANTIZE    = 0x01, ///< Tick quantize (insert note delays)
-    AVSEQ_INSTRUMENT_FLAG_MIDI_NOTE_OFF         = 0x02, ///< Record note off (keyoff note)
-    AVSEQ_INSTRUMENT_FLAG_MIDI_VELOCITY         = 0x04, ///< Record velocity
-    AVSEQ_INSTRUMENT_FLAG_MIDI_AFTER_TOUCH      = 0x08, ///< Record after touch
-    AVSEQ_INSTRUMENT_FLAG_MIDI_EXTERNAL_SYNC    = 0x10, ///< External synchronization when recording
-    AVSEQ_INSTRUMENT_FLAG_MIDI_ENABLE           = 0x80, ///< MIDI enabled
+    AVSEQ_INSTRUMENT_FLAG_MIDI_TICK_QUANTIZE = 0x01, ///< Tick quantize (insert note delays)
+    AVSEQ_INSTRUMENT_FLAG_MIDI_NOTE_OFF      = 0x02, ///< Record note off (keyoff note)
+    AVSEQ_INSTRUMENT_FLAG_MIDI_VELOCITY      = 0x04, ///< Record velocity
+    AVSEQ_INSTRUMENT_FLAG_MIDI_AFTER_TOUCH   = 0x08, ///< Record after touch
+    AVSEQ_INSTRUMENT_FLAG_MIDI_EXTERNAL_SYNC = 0x10, ///< External synchronization when recording
+    AVSEQ_INSTRUMENT_FLAG_MIDI_ENABLE        = 0x80, ///< MIDI enabled
 };
 
 #include "libavsequencer/sample.h"

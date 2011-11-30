@@ -2016,9 +2016,21 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
 
         switch(chunk_id) {
         case ID_WHDR:
-            waveform->repeat     = get_be32(pb);
-            waveform->repeat_len = get_be32(pb);
-            waveform->flags      = get_be16(pb);
+            waveform->repeat  = get_be32(pb);
+            waveform->rep_len = get_be32(pb);
+            waveform->flags   = get_be16(pb);
+
+            if (iff_size >= 14)
+                waveform->rep_count = get_be32(pb);
+
+            if (iff_size >= 18)
+                waveform->sustain_repeat = get_be32(pb);
+
+            if (iff_size >= 22)
+                waveform->sustain_rep_len = get_be32(pb);
+
+            if (iff_size >= 26)
+                waveform->sustain_rep_count = get_be32(pb);
 
             break;
         case ID_BODY:
@@ -2077,7 +2089,7 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
     if (!buf) {
         av_log(waveform, AV_LOG_ERROR, "No synth sound waveform data found!\n");
         return AVERROR_INVALIDDATA;
-    } else if ((res = avseq_synth_waveform_data_open(waveform, (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) ? len : len >> 1)) < 0) {
+    } else if ((res = avseq_synth_waveform_data_open(waveform, (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT) ? len : len >> 1)) < 0) {
         av_freep(&buf);
         return res;
     }
@@ -2085,7 +2097,7 @@ static int open_wfrm_wave(AVFormatContext *s, AVSequencerSynth *synth, uint32_t 
 #if AV_HAVE_BIGENDIAN
     memcpy(waveform->data, buf, len);
 #else
-    if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAGS_8BIT) {
+    if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT) {
         memcpy(waveform->data, buf, len);
     } else {
         int16_t *data    = waveform->data;
