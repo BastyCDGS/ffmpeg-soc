@@ -150,8 +150,6 @@ static void mix_sample(AV_LQMixerData *const mixer_data, int32_t *const buf, con
             const uint32_t advance  = channel_info->current.advance;
             const uint32_t adv_frac = channel_info->current.advance_frac;
             uint32_t remain_len     = len, remain_mix;
-            uint32_t counted;
-            uint32_t count_restart;
             uint64_t calc_mix;
 
             mix_func = channel_info->current.mix_func;
@@ -205,9 +203,10 @@ mix_sample_backwards:
                     }
 
                     if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-                        counted = channel_info->current.counted++;
+                        const uint32_t count_restart = channel_info->current.count_restart;
+                        const uint32_t counted       = channel_info->current.counted++;
 
-                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                        if (count_restart && (count_restart == counted)) {
                             channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
                             channel_info->current.end_offset = -1;
 
@@ -307,9 +306,10 @@ mix_sample_forwards:
                     }
 
                     if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-                        counted = channel_info->current.counted++;
+                        const uint32_t count_restart = channel_info->current.count_restart;
+                        const uint32_t counted       = channel_info->current.counted++;
 
-                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                        if (count_restart && (count_restart == counted)) {
                             channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
                             channel_info->current.end_offset = channel_info->current.len;
 

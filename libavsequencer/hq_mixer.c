@@ -157,8 +157,6 @@ static void mix_sample(AV_HQMixerData *const mixer_data, int32_t *const buf, con
             const uint32_t advance  = channel_info->current.advance;
             const uint32_t adv_frac = channel_info->current.advance_frac;
             uint32_t remain_len     = len, remain_mix;
-            uint32_t counted;
-            uint32_t count_restart;
             uint64_t calc_mix;
 
             mix_func = channel_info->current.mix_func;
@@ -212,9 +210,10 @@ mix_sample_backwards:
                     }
 
                     if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-                        counted = channel_info->current.counted++;
+                        const uint32_t count_restart = channel_info->current.count_restart;
+                        const uint32_t counted       = channel_info->current.counted++;
 
-                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                        if (count_restart && (count_restart == counted)) {
                             channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
                             channel_info->current.end_offset = -1;
 
@@ -314,9 +313,10 @@ mix_sample_forwards:
                     }
 
                     if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-                        counted = channel_info->current.counted++;
+                        const uint32_t count_restart = channel_info->current.count_restart;
+                        const uint32_t counted       = channel_info->current.counted++;
 
-                        if ((count_restart = channel_info->current.count_restart) && (count_restart == counted)) {
+                        if (count_restart && (count_restart == counted)) {
                             channel_info->current.flags     &= ~AVSEQ_MIXER_CHANNEL_FLAG_LOOP;
                             channel_info->current.end_offset = channel_info->current.len;
 
@@ -436,14 +436,28 @@ static void get_next_sample_8(struct AV_HQMixerChannelInfo *const channel_info, 
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int8_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int8_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int8_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -471,14 +485,28 @@ static void get_backwards_next_sample_8(struct AV_HQMixerChannelInfo *const chan
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int8_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int8_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int8_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -506,14 +534,28 @@ static void get_next_sample_16_to_8(struct AV_HQMixerChannelInfo *const channel_
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int16_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int16_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int16_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -541,14 +583,28 @@ static void get_backwards_next_sample_16_to_8(struct AV_HQMixerChannelInfo *cons
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int16_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int16_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int16_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -576,14 +632,28 @@ static void get_next_sample_32_to_8(struct AV_HQMixerChannelInfo *const channel_
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int32_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -611,14 +681,28 @@ static void get_backwards_next_sample_32_to_8(struct AV_HQMixerChannelInfo *cons
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int32_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -650,14 +734,28 @@ static void get_next_sample_x_to_8(struct AV_HQMixerChannelInfo *const channel_i
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int32_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -699,14 +797,28 @@ static void get_backwards_next_sample_x_to_8(struct AV_HQMixerChannelInfo *const
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample     = (const int32_t *) channel_next_block->data;
-                volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
-                offset    += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample     = (const int32_t *) channel_next_block->data;
+                    volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
+                    offset     = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -745,15 +857,30 @@ static void get_next_sample_16(struct AV_HQMixerChannelInfo *const channel_info,
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample      = (const int16_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample      = (const int16_t *) channel_next_block->data;
-                mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
-                div_volume  = channel_next_block->div_volume;
-                offset     += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample      = (const int16_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -782,15 +909,30 @@ static void get_backwards_next_sample_16(struct AV_HQMixerChannelInfo *const cha
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample      = (const int16_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample      = (const int16_t *) channel_next_block->data;
-                mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
-                div_volume  = channel_next_block->div_volume;
-                offset     += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample      = (const int16_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -819,15 +961,30 @@ static void get_next_sample_32(struct AV_HQMixerChannelInfo *const channel_info,
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample      = (const int32_t *) channel_next_block->data;
-                mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
-                div_volume  = channel_next_block->div_volume;
-                offset     += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -856,15 +1013,30 @@ static void get_backwards_next_sample_32(struct AV_HQMixerChannelInfo *const cha
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample      = (const int32_t *) channel_next_block->data;
-                mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
-                div_volume  = channel_next_block->div_volume;
-                offset     += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -897,15 +1069,30 @@ static void get_next_sample_x(struct AV_HQMixerChannelInfo *const channel_info, 
 
     if (offset >= (channel_block->end_offset - 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset -= channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset -= channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample      = (const int32_t *) channel_next_block->data;
-                mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
-                div_volume  = channel_next_block->div_volume;
-                offset     += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -948,15 +1135,30 @@ static void get_backwards_next_sample_x(struct AV_HQMixerChannelInfo *const chan
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
-            struct ChannelBlock *channel_next_block = &channel_info->next;
+            const struct ChannelBlock *const channel_next_block = &channel_info->next;
+            const uint32_t count_restart                        = channel_info->current.count_restart;
+            const uint32_t counted                              = channel_info->current.counted + 1;
 
-            offset += channel_block->restart_offset;
+            if (count_restart && (count_restart == counted)) {
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                } else if (channel_info->mix_right) {
+                    channel_info->next_sample_r = 0;
+                } else {
+                    channel_info->next_sample = 0;
+                }
+            } else {
+                offset += channel_block->restart_offset;
 
-            if (channel_next_block->data) {
-                sample      = (const int32_t *) channel_next_block->data;
-                mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
-                div_volume  = channel_next_block->div_volume;
-                offset     += channel_next_block->offset;
+                if (channel_next_block->data) {
+                    sample      = (const int32_t *) channel_next_block->data;
+                    mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume  = channel_next_block->div_volume;
+                    offset      = channel_next_block->offset;
+                }
             }
         } else {
             if (channel_info->mix_right)
@@ -1103,7 +1305,7 @@ static int32_t get_backwards_sample_1_8(const struct AV_HQMixerChannelInfo *cons
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 
@@ -1143,7 +1345,7 @@ static int32_t get_backwards_sample_1_16_to_8(const struct AV_HQMixerChannelInfo
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 
@@ -1183,7 +1385,7 @@ static int32_t get_backwards_sample_1_32_to_8(const struct AV_HQMixerChannelInfo
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 
@@ -1241,7 +1443,7 @@ static int32_t get_backwards_sample_1_x_to_8(const struct AV_HQMixerChannelInfo 
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 
@@ -1293,7 +1495,7 @@ static int32_t get_backwards_sample_1_16(const struct AV_HQMixerChannelInfo *con
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 
@@ -1335,7 +1537,7 @@ static int32_t get_backwards_sample_1_32(const struct AV_HQMixerChannelInfo *con
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 
@@ -1395,7 +1597,7 @@ static int32_t get_backwards_sample_1_x(const struct AV_HQMixerChannelInfo *cons
     if (interpolate_frac)
         *interpolate_frac += 0x1000000;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
             return 0;
 

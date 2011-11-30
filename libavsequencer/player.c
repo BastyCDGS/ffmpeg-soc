@@ -3142,7 +3142,7 @@ EXECUTE_EFFECT(volume_slide_to)
 EXECUTE_EFFECT(tremolo)
 {
     const AVSequencerSong *const song = avctx->player_song;
-    int16_t tremolo_slide_value;
+    int32_t tremolo_slide_value;
     uint8_t tremolo_rate;
     int16_t tremolo_depth;
 
@@ -3356,7 +3356,7 @@ EXECUTE_EFFECT(track_volume_slide_to)
 EXECUTE_EFFECT(track_tremolo)
 {
     const AVSequencerSong *const song = avctx->player_song;
-    int16_t track_tremolo_slide_value;
+    int32_t track_tremolo_slide_value;
     uint8_t track_tremolo_rate;
     int16_t track_tremolo_depth;
     uint16_t track_volume;
@@ -3597,7 +3597,7 @@ EXECUTE_EFFECT(panning_slide_to)
 
 EXECUTE_EFFECT(pannolo)
 {
-    int16_t pannolo_slide_value;
+    int32_t pannolo_slide_value;
     uint8_t pannolo_rate;
     int16_t pannolo_depth;
 
@@ -3818,7 +3818,7 @@ EXECUTE_EFFECT(track_panning_slide_to)
 
 EXECUTE_EFFECT(track_pannolo)
 {
-    int16_t track_pannolo_slide_value;
+    int32_t track_pannolo_slide_value;
     uint8_t track_pannolo_rate;
     int16_t track_pannolo_depth;
     uint16_t track_panning;
@@ -4848,7 +4848,7 @@ EXECUTE_EFFECT(global_tremolo)
 {
     const AVSequencerSong *const song              = avctx->player_song;
     AVSequencerPlayerGlobals *const player_globals = avctx->player_globals;
-    int16_t global_tremolo_slide_value;
+    int32_t global_tremolo_slide_value;
     uint8_t global_tremolo_rate;
     int16_t global_tremolo_depth;
     uint16_t global_volume;
@@ -5082,7 +5082,7 @@ EXECUTE_EFFECT(global_panning_slide_to)
 EXECUTE_EFFECT(global_pannolo)
 {
     AVSequencerPlayerGlobals *const player_globals = avctx->player_globals;
-    int16_t global_pannolo_slide_value;
+    int32_t global_pannolo_slide_value;
     uint8_t global_pannolo_rate;
     int16_t global_pannolo_depth;
     uint16_t global_panning;
