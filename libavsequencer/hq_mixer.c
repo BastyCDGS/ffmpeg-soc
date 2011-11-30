@@ -1,6 +1,6 @@
 /*
  * Sequencer high quality integer mixer
- * Copyright (c) 2010 Sebastian Vater <cdgs.basty@googlemail.com>
+ * Copyright (c) 2011 Sebastian Vater <cdgs.basty@googlemail.com>
  *
  * This file is part of FFmpeg.
  *
