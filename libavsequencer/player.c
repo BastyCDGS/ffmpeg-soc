@@ -772,7 +772,7 @@ static int16_t step_envelope(AVSequencerContext *const avctx, AVSequencerPlayerE
 
     if (player_envelope->flags & AVSEQ_PLAYER_ENVELOPE_FLAG_RANDOM) {
         avctx->seed     = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
-        randomize_value = ((uint16_t) player_envelope->value_max - (uint16_t) player_envelope->value_min) + 1;
+        randomize_value = (player_envelope->value_max - player_envelope->value_min) + 1;
         value           = ((uint64_t) seed * randomize_value) >> 32;
         value          += player_envelope->value_min;
     }
@@ -3142,7 +3142,7 @@ EXECUTE_EFFECT(volume_slide_to)
 EXECUTE_EFFECT(tremolo)
 {
     const AVSequencerSong *const song = avctx->player_song;
-    int32_t tremolo_slide_value;
+    int16_t tremolo_slide_value;
     uint8_t tremolo_rate;
     int16_t tremolo_depth;
 
@@ -3164,7 +3164,7 @@ EXECUTE_EFFECT(tremolo)
             tremolo_depth = -63;
     }
 
-    tremolo_slide_value = (-tremolo_depth * run_envelope(avctx, &player_host_channel->tremolo_env, tremolo_rate, 0)) >> 7;
+    tremolo_slide_value = ((int32_t) -tremolo_depth * run_envelope(avctx, &player_host_channel->tremolo_env, tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         tremolo_slide_value <<= 2;
@@ -3597,7 +3597,7 @@ EXECUTE_EFFECT(panning_slide_to)
 
 EXECUTE_EFFECT(pannolo)
 {
-    int32_t pannolo_slide_value;
+    int16_t pannolo_slide_value;
     uint8_t pannolo_rate;
     int16_t pannolo_depth;
 
@@ -3611,7 +3611,7 @@ EXECUTE_EFFECT(pannolo)
 
     player_host_channel->pannolo_depth = pannolo_depth;
 
-    pannolo_slide_value = (-pannolo_depth * run_envelope(avctx, &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
+    pannolo_slide_value = ((int32_t) -pannolo_depth * run_envelope(avctx, &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
 
     if (player_channel->host_channel == channel) {
         const int16_t panning = (uint8_t) player_channel->panning;
@@ -3818,7 +3818,7 @@ EXECUTE_EFFECT(track_panning_slide_to)
 
 EXECUTE_EFFECT(track_pannolo)
 {
-    int32_t track_pannolo_slide_value;
+    int16_t track_pannolo_slide_value;
     uint8_t track_pannolo_rate;
     int16_t track_pannolo_depth;
     uint16_t track_panning;
@@ -3832,7 +3832,7 @@ EXECUTE_EFFECT(track_pannolo)
         track_pannolo_depth = player_host_channel->track_pan_depth;
 
     player_host_channel->track_pan_depth = track_pannolo_depth;
-    track_pannolo_slide_value            = (-track_pannolo_depth * run_envelope(avctx, &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
+    track_pannolo_slide_value            = ((int32_t) -track_pannolo_depth * run_envelope(avctx, &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
 
     track_panning              = (uint8_t) player_host_channel->track_panning;
     track_pannolo_slide_value -= player_host_channel->track_pan_slide;
@@ -4848,7 +4848,7 @@ EXECUTE_EFFECT(global_tremolo)
 {
     const AVSequencerSong *const song              = avctx->player_song;
     AVSequencerPlayerGlobals *const player_globals = avctx->player_globals;
-    int32_t global_tremolo_slide_value;
+    int16_t global_tremolo_slide_value;
     uint8_t global_tremolo_rate;
     int16_t global_tremolo_depth;
     uint16_t global_volume;
@@ -4871,7 +4871,7 @@ EXECUTE_EFFECT(global_tremolo)
             global_tremolo_depth = -63;
     }
 
-    global_tremolo_slide_value = (-global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7;
+    global_tremolo_slide_value = ((int32_t) -global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         global_tremolo_slide_value <<= 2;
@@ -5082,7 +5082,7 @@ EXECUTE_EFFECT(global_panning_slide_to)
 EXECUTE_EFFECT(global_pannolo)
 {
     AVSequencerPlayerGlobals *const player_globals = avctx->player_globals;
-    int32_t global_pannolo_slide_value;
+    int16_t global_pannolo_slide_value;
     uint8_t global_pannolo_rate;
     int16_t global_pannolo_depth;
     uint16_t global_panning;
@@ -5096,7 +5096,7 @@ EXECUTE_EFFECT(global_pannolo)
         global_pannolo_depth = player_globals->pannolo_depth;
 
     player_globals->pannolo_depth = global_pannolo_depth;
-    global_pannolo_slide_value    = (-global_pannolo_depth * run_envelope(avctx, &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
+    global_pannolo_slide_value    = ((int32_t) -global_pannolo_depth * run_envelope(avctx, &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
     global_panning                = (uint8_t) player_globals->global_panning;
     global_pannolo_slide_value   -= player_globals->pannolo_slide;
 

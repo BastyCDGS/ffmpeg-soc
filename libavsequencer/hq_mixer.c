@@ -445,10 +445,13 @@ static void get_next_sample_8(struct AV_HQMixerChannelInfo *const channel_info, 
                     sample     = (const int8_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -494,10 +497,13 @@ static void get_backwards_next_sample_8(struct AV_HQMixerChannelInfo *const chan
                     sample     = (const int8_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -543,10 +549,13 @@ static void get_next_sample_16_to_8(struct AV_HQMixerChannelInfo *const channel_
                     sample     = (const int16_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -592,10 +601,13 @@ static void get_backwards_next_sample_16_to_8(struct AV_HQMixerChannelInfo *cons
                     sample     = (const int16_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -641,10 +653,13 @@ static void get_next_sample_32_to_8(struct AV_HQMixerChannelInfo *const channel_
                     sample     = (const int32_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -690,10 +705,13 @@ static void get_backwards_next_sample_32_to_8(struct AV_HQMixerChannelInfo *cons
                     sample     = (const int32_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -743,10 +761,13 @@ static void get_next_sample_x_to_8(struct AV_HQMixerChannelInfo *const channel_i
                     sample     = (const int32_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -806,10 +827,13 @@ static void get_backwards_next_sample_x_to_8(struct AV_HQMixerChannelInfo *const
                     sample     = (const int32_t *) channel_next_block->data;
                     volume_lut = channel_info->mix_right ? channel_next_block->volume_right_lut : channel_next_block->volume_left_lut;
                     offset     = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -867,10 +891,13 @@ static void get_next_sample_16(struct AV_HQMixerChannelInfo *const channel_info,
                     mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
                     div_volume  = channel_next_block->div_volume;
                     offset      = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -919,10 +946,13 @@ static void get_backwards_next_sample_16(struct AV_HQMixerChannelInfo *const cha
                     mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
                     div_volume  = channel_next_block->div_volume;
                     offset      = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -971,10 +1001,13 @@ static void get_next_sample_32(struct AV_HQMixerChannelInfo *const channel_info,
                     mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
                     div_volume  = channel_next_block->div_volume;
                     offset      = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -1023,10 +1056,13 @@ static void get_backwards_next_sample_32(struct AV_HQMixerChannelInfo *const cha
                     mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
                     div_volume  = channel_next_block->div_volume;
                     offset      = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -1079,10 +1115,13 @@ static void get_next_sample_x(struct AV_HQMixerChannelInfo *const channel_info, 
                     mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
                     div_volume  = channel_next_block->div_volume;
                     offset      = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset -= channel_block->restart_offset;
@@ -1145,10 +1184,13 @@ static void get_backwards_next_sample_x(struct AV_HQMixerChannelInfo *const chan
                     mult_volume = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
                     div_volume  = channel_next_block->div_volume;
                     offset      = channel_next_block->offset;
-                } else if (channel_info->mix_right) {
-                    channel_info->next_sample_r = 0;
                 } else {
-                    channel_info->next_sample = 0;
+                    if (channel_info->mix_right)
+                        channel_info->next_sample_r = 0;
+                    else
+                        channel_info->next_sample = 0;
+
+                    return;
                 }
             } else {
                 offset += channel_block->restart_offset;
@@ -1275,15 +1317,12 @@ static int32_t get_curr_sample_x(const struct AV_HQMixerChannelInfo *const chann
     return ((int64_t) smp_data * mult_volume) / div_volume;
 }
 
-static int32_t get_sample_1_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int8_t *sample      = (const int8_t *) channel_block->data;
     const int32_t *volume_lut = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1295,15 +1334,12 @@ static int32_t get_sample_1_8(const struct AV_HQMixerChannelInfo *const channel_
     return volume_lut[(uint8_t) sample[offset]];
 }
 
-static int32_t get_backwards_sample_1_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int8_t *sample      = (const int8_t *) channel_block->data;
     const int32_t *volume_lut = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1315,15 +1351,12 @@ static int32_t get_backwards_sample_1_8(const struct AV_HQMixerChannelInfo *cons
     return volume_lut[(uint8_t) sample[offset]];
 }
 
-static int32_t get_sample_1_16_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_16_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample     = (const int16_t *) channel_block->data;
     const int32_t *volume_lut = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1335,15 +1368,12 @@ static int32_t get_sample_1_16_to_8(const struct AV_HQMixerChannelInfo *const ch
     return volume_lut[(uint16_t) sample[offset] >> 8];
 }
 
-static int32_t get_backwards_sample_1_16_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_16_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample     = (const int16_t *) channel_block->data;
     const int32_t *volume_lut = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1355,15 +1385,12 @@ static int32_t get_backwards_sample_1_16_to_8(const struct AV_HQMixerChannelInfo
     return volume_lut[(uint16_t) sample[offset] >> 8];
 }
 
-static int32_t get_sample_1_32_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_32_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int32_t *sample     = (const int32_t *) channel_block->data;
     const int32_t *volume_lut = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1375,15 +1402,12 @@ static int32_t get_sample_1_32_to_8(const struct AV_HQMixerChannelInfo *const ch
     return volume_lut[(uint32_t) sample[offset] >> 24];
 }
 
-static int32_t get_backwards_sample_1_32_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_32_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int32_t *sample     = (const int32_t *) channel_block->data;
     const int32_t *volume_lut = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1395,7 +1419,7 @@ static int32_t get_backwards_sample_1_32_to_8(const struct AV_HQMixerChannelInfo
     return volume_lut[(uint32_t) sample[offset] >> 24];
 }
 
-static int32_t get_sample_1_x_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_x_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int32_t *sample          = (const int32_t *) channel_block->data;
     const int32_t *volume_lut      = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
@@ -1405,9 +1429,6 @@ static int32_t get_sample_1_x_to_8(const struct AV_HQMixerChannelInfo *const cha
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1429,7 +1450,7 @@ static int32_t get_sample_1_x_to_8(const struct AV_HQMixerChannelInfo *const cha
     return volume_lut[(uint32_t) smp_data >> 24];
 }
 
-static int32_t get_backwards_sample_1_x_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_x_to_8(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int32_t *sample          = (const int32_t *) channel_block->data;
     const int32_t *volume_lut      = channel_info->mix_right ? channel_block->volume_right_lut : channel_block->volume_left_lut;
@@ -1439,9 +1460,6 @@ static int32_t get_backwards_sample_1_x_to_8(const struct AV_HQMixerChannelInfo 
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1463,16 +1481,13 @@ static int32_t get_backwards_sample_1_x_to_8(const struct AV_HQMixerChannelInfo 
     return volume_lut[(uint32_t) smp_data >> 24];
 }
 
-static int32_t get_sample_1_16(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_16(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample     = (const int16_t *) channel_block->data;
     const int32_t mult_volume = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume  = channel_block->div_volume;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1484,16 +1499,13 @@ static int32_t get_sample_1_16(const struct AV_HQMixerChannelInfo *const channel
     return ((int64_t) sample[offset] * mult_volume) / div_volume;
 }
 
-static int32_t get_backwards_sample_1_16(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_16(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample     = (const int16_t *) channel_block->data;
     const int32_t mult_volume = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume  = channel_block->div_volume;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1505,16 +1517,13 @@ static int32_t get_backwards_sample_1_16(const struct AV_HQMixerChannelInfo *con
     return ((int64_t) sample[offset] * mult_volume) / div_volume;
 }
 
-static int32_t get_sample_1_32(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_32(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample     = (const int16_t *) channel_block->data;
     const int32_t mult_volume = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume  = channel_block->div_volume;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1526,16 +1535,13 @@ static int32_t get_sample_1_32(const struct AV_HQMixerChannelInfo *const channel
     return ((int64_t) sample[offset] * mult_volume) / div_volume;
 }
 
-static int32_t get_backwards_sample_1_32(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_32(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample     = (const int16_t *) channel_block->data;
     const int32_t mult_volume = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume  = channel_block->div_volume;
     uint32_t end_offset       = channel_block->end_offset;
     uint32_t restart_offset   = channel_block->restart_offset;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1547,7 +1553,7 @@ static int32_t get_backwards_sample_1_32(const struct AV_HQMixerChannelInfo *con
     return ((int64_t) sample[offset] * mult_volume) / div_volume;
 }
 
-static int32_t get_sample_1_x(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_sample_1_x(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample          = (const int16_t *) channel_block->data;
     const int32_t mult_volume      = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
@@ -1558,9 +1564,6 @@ static int32_t get_sample_1_x(const struct AV_HQMixerChannelInfo *const channel_
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while (offset >= end_offset) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1582,7 +1585,7 @@ static int32_t get_sample_1_x(const struct AV_HQMixerChannelInfo *const channel_
     return ((int64_t) smp_data * mult_volume) / div_volume;
 }
 
-static int32_t get_backwards_sample_1_x(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac)
+static int32_t get_backwards_sample_1_x(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int16_t *sample          = (const int16_t *) channel_block->data;
     const int32_t mult_volume      = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
@@ -1593,9 +1596,6 @@ static int32_t get_backwards_sample_1_x(const struct AV_HQMixerChannelInfo *cons
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
-
-    if (interpolate_frac)
-        *interpolate_frac += 0x1000000;
 
     while ((int32_t) offset <= ((int32_t) end_offset)) {
         if (!(channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
@@ -1660,7 +1660,7 @@ static void mix_mono_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMi
     *fraction = curr_frac;
 }
 
-static void mix_average_mono(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const adv_frac), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
+static void mix_average_mono(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 {
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
@@ -1676,18 +1676,20 @@ static void mix_average_mono(const AV_HQMixerData *const mixer_data, struct AV_H
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
-        smp               = get_sample_func(channel_info, channel_block, curr_offset, NULL);
+        smp               = get_sample_func(channel_info, channel_block, curr_offset);
         interpolate_frac += curr_frac >> 8;
         interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
         *mix_buf++       += ((int64_t) interpolate_div << 32) / interpolate_frac;
@@ -1702,7 +1704,7 @@ MIX(mono_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1717,7 +1719,7 @@ MIX(mono_backwards_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1732,7 +1734,7 @@ MIX(mono_16_to_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16_to_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1747,7 +1749,7 @@ MIX(mono_backwards_16_to_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16_to_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1762,7 +1764,7 @@ MIX(mono_32_to_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32_to_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1777,7 +1779,7 @@ MIX(mono_backwards_32_to_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32_to_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1792,7 +1794,7 @@ MIX(mono_x_to_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x_to_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1807,7 +1809,7 @@ MIX(mono_backwards_x_to_8)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x_to_8;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1822,7 +1824,7 @@ MIX(mono_16)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1837,7 +1839,7 @@ MIX(mono_backwards_16)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1852,7 +1854,7 @@ MIX(mono_32)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1867,7 +1869,7 @@ MIX(mono_backwards_32)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1882,7 +1884,7 @@ MIX(mono_x)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1897,7 +1899,7 @@ MIX(mono_backwards_x)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x;
 
         mix_average_mono(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -1952,7 +1954,7 @@ static void mix_left_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMi
     *fraction = curr_frac;
 }
 
-static void mix_average_left(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const adv_frac), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
+static void mix_average_left(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 {
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
@@ -1968,18 +1970,20 @@ static void mix_average_left(const AV_HQMixerData *const mixer_data, struct AV_H
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
-        smp               = get_sample_func(channel_info, channel_block, curr_offset, NULL);
+        smp               = get_sample_func(channel_info, channel_block, curr_offset);
         interpolate_frac += curr_frac >> 8;
         interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
         *mix_buf         += ((int64_t) interpolate_div << 32) / interpolate_frac;
@@ -1995,7 +1999,7 @@ MIX(stereo_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2010,7 +2014,7 @@ MIX(stereo_backwards_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2025,7 +2029,7 @@ MIX(stereo_16_to_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2040,7 +2044,7 @@ MIX(stereo_backwards_16_to_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2055,7 +2059,7 @@ MIX(stereo_32_to_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2070,7 +2074,7 @@ MIX(stereo_backwards_32_to_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2085,7 +2089,7 @@ MIX(stereo_x_to_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2100,7 +2104,7 @@ MIX(stereo_backwards_x_to_8_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2115,7 +2119,7 @@ MIX(stereo_16_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2130,7 +2134,7 @@ MIX(stereo_backwards_16_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2145,7 +2149,7 @@ MIX(stereo_32_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2160,7 +2164,7 @@ MIX(stereo_backwards_32_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2175,7 +2179,7 @@ MIX(stereo_x_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2190,7 +2194,7 @@ MIX(stereo_backwards_x_left)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x;
 
         mix_average_left(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2245,7 +2249,7 @@ static void mix_right_loop(const AV_HQMixerData *const mixer_data, struct AV_HQM
     *fraction = curr_frac;
 }
 
-static void mix_average_right(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const adv_frac), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
+static void mix_average_right(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 {
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
@@ -2261,18 +2265,20 @@ static void mix_average_right(const AV_HQMixerData *const mixer_data, struct AV_
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
-        smp               = get_sample_func(channel_info, channel_block, curr_offset, NULL);
+        smp               = get_sample_func(channel_info, channel_block, curr_offset);
         interpolate_frac += curr_frac >> 8;
         interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
         mix_buf++;
@@ -2290,7 +2296,7 @@ MIX(stereo_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2309,7 +2315,7 @@ MIX(stereo_backwards_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2328,7 +2334,7 @@ MIX(stereo_16_to_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16_to_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2347,7 +2353,7 @@ MIX(stereo_backwards_16_to_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16_to_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2366,7 +2372,7 @@ MIX(stereo_32_to_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32_to_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2385,7 +2391,7 @@ MIX(stereo_backwards_32_to_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32_to_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2404,7 +2410,7 @@ MIX(stereo_x_to_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x_to_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2423,7 +2429,7 @@ MIX(stereo_backwards_x_to_8_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x_to_8;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2442,7 +2448,7 @@ MIX(stereo_16_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2461,7 +2467,7 @@ MIX(stereo_backwards_16_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2480,7 +2486,7 @@ MIX(stereo_32_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2499,7 +2505,7 @@ MIX(stereo_backwards_32_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2518,7 +2524,7 @@ MIX(stereo_x_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2537,7 +2543,7 @@ MIX(stereo_backwards_x_right)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x;
 
         mix_average_right(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -2558,7 +2564,7 @@ MIX(stereo_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_8;
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
         channel_info->mix_right = 1;
@@ -2585,7 +2591,7 @@ MIX(stereo_backwards_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2613,7 +2619,7 @@ MIX(stereo_16_to_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2641,7 +2647,7 @@ MIX(stereo_backwards_16_to_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2669,7 +2675,7 @@ MIX(stereo_32_to_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2697,7 +2703,7 @@ MIX(stereo_backwards_32_to_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2725,7 +2731,7 @@ MIX(stereo_x_to_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2753,7 +2759,7 @@ MIX(stereo_backwards_x_to_8)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x_to_8;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2781,7 +2787,7 @@ MIX(stereo_16)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2809,7 +2815,7 @@ MIX(stereo_backwards_16)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2837,7 +2843,7 @@ MIX(stereo_32)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2865,7 +2871,7 @@ MIX(stereo_backwards_32)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2893,7 +2899,7 @@ MIX(stereo_x)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, 1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2921,7 +2927,7 @@ MIX(stereo_backwards_x)
 
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x;
 
         mix_average_left(mixer_data, channel_info, channel_block, &mix_buf, get_curr_sample_func, get_sample_func, -1, &curr_offset, &curr_frac, advance, adv_frac, len);
 
@@ -2985,7 +2991,7 @@ static void mix_center_loop(const AV_HQMixerData *const mixer_data, struct AV_HQ
     *fraction = curr_frac;
 }
 
-static void mix_average_center(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const adv_frac), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
+static void mix_average_center(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 {
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
@@ -3001,18 +3007,20 @@ static void mix_average_center(const AV_HQMixerData *const mixer_data, struct AV
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
-        smp               = get_sample_func(channel_info, channel_block, curr_offset, NULL);
+        smp               = get_sample_func(channel_info, channel_block, curr_offset);
         interpolate_frac += curr_frac >> 8;
         interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
         smp               = ((int64_t) interpolate_div << 32) / interpolate_frac;
@@ -3029,7 +3037,7 @@ MIX(stereo_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3044,7 +3052,7 @@ MIX(stereo_backwards_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3059,7 +3067,7 @@ MIX(stereo_16_to_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16_to_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3074,7 +3082,7 @@ MIX(stereo_backwards_16_to_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16_to_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3089,7 +3097,7 @@ MIX(stereo_32_to_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32_to_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3104,7 +3112,7 @@ MIX(stereo_backwards_32_to_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32_to_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3119,7 +3127,7 @@ MIX(stereo_x_to_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x_to_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3134,7 +3142,7 @@ MIX(stereo_backwards_x_to_8_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x_to_8;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3149,7 +3157,7 @@ MIX(stereo_16_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3164,7 +3172,7 @@ MIX(stereo_backwards_16_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3179,7 +3187,7 @@ MIX(stereo_32_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3194,7 +3202,7 @@ MIX(stereo_backwards_32_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3209,7 +3217,7 @@ MIX(stereo_x_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3224,7 +3232,7 @@ MIX(stereo_backwards_x_center)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x;
 
         mix_average_center(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3279,7 +3287,7 @@ static void mix_surround_loop(const AV_HQMixerData *const mixer_data, struct AV_
     *fraction = curr_frac;
 }
 
-static void mix_average_surround(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const adv_frac), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
+static void mix_average_surround(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, int32_t **const buf, int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset), int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 {
     int32_t *mix_buf     = *buf;
     uint32_t curr_offset = *offset;
@@ -3295,18 +3303,20 @@ static void mix_average_surround(const AV_HQMixerData *const mixer_data, struct 
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_div += get_sample_func(channel_info, channel_block, curr_offset, &interpolate_frac) >> 8;
-            curr_offset     += offset_inc;
+            interpolate_frac += 0x1000000;
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            curr_offset      += offset_inc;
         }
 
-        smp               = get_sample_func(channel_info, channel_block, curr_offset, NULL);
+        smp               = get_sample_func(channel_info, channel_block, curr_offset);
         interpolate_frac += curr_frac >> 8;
         interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
         smp               = ((int64_t) interpolate_div << 32) / interpolate_frac;
@@ -3323,7 +3333,7 @@ MIX(stereo_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3338,7 +3348,7 @@ MIX(stereo_backwards_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3353,7 +3363,7 @@ MIX(stereo_16_to_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16_to_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3368,7 +3378,7 @@ MIX(stereo_backwards_16_to_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16_to_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3383,7 +3393,7 @@ MIX(stereo_32_to_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32_to_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3398,7 +3408,7 @@ MIX(stereo_backwards_32_to_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32_to_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3413,7 +3423,7 @@ MIX(stereo_x_to_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x_to_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3428,7 +3438,7 @@ MIX(stereo_backwards_x_to_8_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x_to_8;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x_to_8;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x_to_8;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3443,7 +3453,7 @@ MIX(stereo_16_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_16;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3458,7 +3468,7 @@ MIX(stereo_backwards_16_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_16;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_16;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_16;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3473,7 +3483,7 @@ MIX(stereo_32_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_32;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3488,7 +3498,7 @@ MIX(stereo_backwards_32_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_32;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_32;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_32;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3503,7 +3513,7 @@ MIX(stereo_x_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_sample_1_x;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, 1, offset, fraction, advance, adv_frac, len);
    } else {
@@ -3518,7 +3528,7 @@ MIX(stereo_backwards_x_surround)
 {
     if (advance) {
         int32_t (*get_curr_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset) = get_curr_sample_x;
-        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset, uint32_t *const interpolate_frac) = get_backwards_sample_1_x;
+        int32_t (*get_sample_func)(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, uint32_t offset) = get_backwards_sample_1_x;
 
         mix_average_surround(mixer_data, channel_info, channel_block, buf, get_curr_sample_func, get_sample_func, -1, offset, fraction, advance, adv_frac, len);
    } else {
