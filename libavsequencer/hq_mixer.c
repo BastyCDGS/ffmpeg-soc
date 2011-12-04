@@ -2859,8 +2859,8 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -2882,8 +2882,8 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -2908,8 +2908,8 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
                 }
 
                 sample         = (const int16_t *) channel_next_block->data;
-                mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                div_volume     = channel_block->div_volume;
+                mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                div_volume     = channel_next_block->div_volume;
                 offset         = channel_next_block->offset + (offset - end_offset);
                 end_offset     = channel_next_block->end_offset;
                 restart_offset = channel_next_block->restart_offset;
@@ -2951,8 +2951,8 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -2974,8 +2974,8 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -3000,8 +3000,8 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
                 }
 
                 sample         = (const int16_t *) channel_next_block->data;
-                mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                div_volume     = channel_block->div_volume;
+                mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                div_volume     = channel_next_block->div_volume;
                 offset         = channel_next_block->offset + (offset - end_offset);
                 end_offset     = channel_next_block->end_offset;
                 restart_offset = channel_next_block->restart_offset;
@@ -3043,8 +3043,8 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -3066,8 +3066,8 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -3092,8 +3092,8 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
                 }
 
                 sample         = (const int32_t *) channel_next_block->data;
-                mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                div_volume     = channel_block->div_volume;
+                mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                div_volume     = channel_next_block->div_volume;
                 offset         = channel_next_block->offset + (offset - end_offset);
                 end_offset     = channel_next_block->end_offset;
                 restart_offset = channel_next_block->restart_offset;
@@ -3135,8 +3135,8 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -3158,8 +3158,8 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
-                    mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume     = channel_block->div_volume;
+                    mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume     = channel_next_block->div_volume;
                     offset         = channel_next_block->offset + (offset - end_offset);
                     end_offset     = channel_next_block->end_offset;
                     restart_offset = channel_next_block->restart_offset;
@@ -3184,8 +3184,8 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
                 }
 
                 sample         = (const int32_t *) channel_next_block->data;
-                mult_volume    = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                div_volume     = channel_block->div_volume;
+                mult_volume    = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                div_volume     = channel_next_block->div_volume;
                 offset         = channel_next_block->offset + (offset - end_offset);
                 end_offset     = channel_next_block->end_offset;
                 restart_offset = channel_next_block->restart_offset;
@@ -3222,8 +3222,8 @@ static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data, const stru
             if (count_restart && (count_restart == ++counted)) {
                 if (channel_next_block->data) {
                     sample          = (const int32_t *) channel_next_block->data;
-                    mult_volume     = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume      = channel_block->div_volume;
+                    mult_volume     = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume      = channel_next_block->div_volume;
                     bits_per_sample = channel_next_block->bits_per_sample;
                     offset          = channel_next_block->offset + (offset - end_offset);
                     end_offset      = channel_next_block->end_offset;
@@ -3237,8 +3237,8 @@ static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data, const stru
             } else {
                 if (channel_next_block->data) {
                     sample          = (const int32_t *) channel_next_block->data;
-                    mult_volume     = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume      = channel_block->div_volume;
+                    mult_volume     = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume      = channel_next_block->div_volume;
                     bits_per_sample = channel_next_block->bits_per_sample;
                     offset          = channel_next_block->offset + (offset - end_offset);
                     end_offset      = channel_next_block->end_offset;
@@ -3255,8 +3255,8 @@ static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data, const stru
 
             if (channel_next_block->data) {
                 sample          = (const int32_t *) channel_next_block->data;
-                mult_volume     = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                div_volume      = channel_block->div_volume;
+                mult_volume     = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                div_volume      = channel_next_block->div_volume;
                 bits_per_sample = channel_next_block->bits_per_sample;
                 offset          = channel_next_block->offset + (offset - end_offset);
                 end_offset      = channel_next_block->end_offset;
@@ -3304,8 +3304,8 @@ static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data, 
             if (count_restart && (count_restart == ++counted)) {
                 if (channel_next_block->data) {
                     sample          = (const int32_t *) channel_next_block->data;
-                    mult_volume     = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume      = channel_block->div_volume;
+                    mult_volume     = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume      = channel_next_block->div_volume;
                     bits_per_sample = channel_next_block->bits_per_sample;
                     offset          = channel_next_block->offset + (offset - end_offset);
                     end_offset      = channel_next_block->end_offset;
@@ -3319,8 +3319,8 @@ static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data, 
             } else {
                 if (channel_next_block->data) {
                     sample          = (const int32_t *) channel_next_block->data;
-                    mult_volume     = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                    div_volume      = channel_block->div_volume;
+                    mult_volume     = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                    div_volume      = channel_next_block->div_volume;
                     bits_per_sample = channel_next_block->bits_per_sample;
                     offset          = channel_next_block->offset + (offset - end_offset);
                     end_offset      = channel_next_block->end_offset;
@@ -3337,8 +3337,8 @@ static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data, 
 
             if (channel_next_block->data) {
                 sample          = (const int32_t *) channel_next_block->data;
-                mult_volume     = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
-                div_volume      = channel_block->div_volume;
+                mult_volume     = channel_info->mix_right ? channel_next_block->mult_right_volume : channel_next_block->mult_left_volume;
+                div_volume      = channel_next_block->div_volume;
                 bits_per_sample = channel_next_block->bits_per_sample;
                 offset          = channel_next_block->offset + (offset - end_offset);
                 end_offset      = channel_next_block->end_offset;
