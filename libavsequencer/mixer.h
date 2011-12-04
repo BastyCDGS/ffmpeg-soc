@@ -331,6 +331,11 @@ typedef struct AVMixerContext {
     /** Run the actual mixing engine by filling the buffer, i.e. the
        player data is converted to SAMPLE_FMT_S32.  */
     void (*mix)(AVMixerData *mixer_data, int32_t *buf);
+
+    /** Run the actual mixing engine by filling the buffer by
+       specifying a channel range suitable for parallelziation, i.e.
+       the player data is converted to SAMPLE_FMT_S32.  */
+    void (*mix_parallel)(AVMixerData *mixer_data, int32_t *buf, const uint32_t first_channel, const uint32_t last_channel);
 } AVMixerContext;
 
 #endif /* AVSEQUENCER_MIXER_H */

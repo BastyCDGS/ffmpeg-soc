@@ -354,9 +354,9 @@ void avseq_mixer_get_both_channels(AVMixerData *mixer_data,
 }
 
 void avseq_mixer_set_both_channels(AVMixerData *mixer_data,
-                             AVMixerChannel *mixer_channel_current,
-                             AVMixerChannel *mixer_channel_next,
-                             uint32_t channel)
+                                   AVMixerChannel *mixer_channel_current,
+                                   AVMixerChannel *mixer_channel_next,
+                                   uint32_t channel)
 {
     AVMixerContext *mixctx;
 
@@ -383,5 +383,24 @@ void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf)
             mixctx->mix(mixer_data, buf);
         else if (mixer_data->mix_buf)
             mixctx->mix(mixer_data, mixer_data->mix_buf);
+    }
+}
+
+void avseq_mixer_do_mix_parallel(AVMixerData *mixer_data, int32_t *buf,
+                                 const uint32_t first_channel,
+                                 const uint32_t last_channel)
+{
+    AVMixerContext *mixctx;
+
+    if (!mixer_data)
+        return;
+
+    mixctx = mixer_data->mixctx;
+
+    if (mixctx && mixctx->mix && (first_channel <= last_channel) && (last_channel < mixer_data->channels_in)) {
+        if (buf)
+            mixctx->mix_parallel(mixer_data, buf, first_channel, last_channel);
+        else if (mixer_data->mix_buf)
+            mixctx->mix_parallel(mixer_data, mixer_data->mix_buf, first_channel, last_channel);
     }
 }

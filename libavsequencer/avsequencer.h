@@ -417,6 +417,26 @@ void avseq_mixer_set_both_channels(AVMixerData *mixer_data,
 void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf);
 
 /**
+ * Fills the output mixing buffer by calculating all the input channel samples
+ * by allowing parallelization through specifying a channel range to be
+ * calculated by one thread.
+ *
+ * @param mixer_data the AVMixerData to do the actual mixing step
+ * @param buf the target buffer to mix the output data to
+ * @param first_channel the first channel to be mixed into the output
+ *                      buffer
+ * @param last_channel the last channel to be mixed into the output
+ *                     buffer
+ *
+ * @note This is part of the new sequencer API which is still under construction.
+ *       Thus do not use this yet. It may change at any time, do not expect
+ *       ABI compatibility yet!
+ */
+void avseq_mixer_do_mix_parallel(AVMixerData *mixer_data, int32_t *buf,
+                                 const uint32_t first_channel,
+                                 const uint32_t last_channel);
+
+/**
  * Creates a new uninitialized empty module.
  *
  * @return pointer to freshly allocated AVSequencerModule, NULL if allocation failed
