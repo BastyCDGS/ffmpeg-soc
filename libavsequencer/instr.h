@@ -546,6 +546,18 @@ typedef struct AVSequencerInstrument {
     /** MIDI pitch bender (in half-tones).  */
     uint8_t midi_pitch_bender;
 
+    /** Default (resonance) filter cutoff for this channel which
+       ranges from 0 to 127. Natural frequency is calculated by
+       nat_freq = 2*PI*110*(2^0.25)*2^(filter_cutoff/24). If set to
+       255, the default (resonance) filter cutoff is not applied.  */
+    uint8_t filter_cutoff;
+
+    /** Default (resonance) filter damping for this channel which
+       ranges from 0 to 127. Damping factor is calculated by
+       damp_factor = 10^(-((24/128)*filter_damping)/20). If set to
+       255, the default (resonance) filter damping is not applied.  */
+    uint8_t filter_damping;
+
     /** Array of pointers containing every unknown data field where
        the last element is indicated by a NULL pointer reference. The
        first 64-bit of the unknown data contains an unique identifier

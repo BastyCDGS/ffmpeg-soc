@@ -772,7 +772,7 @@ static int16_t step_envelope(AVSequencerContext *const avctx, AVSequencerPlayerE
 
     if (player_envelope->flags & AVSEQ_PLAYER_ENVELOPE_FLAG_RANDOM) {
         avctx->seed     = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
-        randomize_value = (player_envelope->value_max - player_envelope->value_min) + 1;
+        randomize_value = ((int32_t) player_envelope->value_max - (int32_t) player_envelope->value_min) + 1;
         value           = ((uint64_t) seed * randomize_value) >> 32;
         value          += player_envelope->value_min;
     }

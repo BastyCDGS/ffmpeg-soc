@@ -1628,8 +1628,8 @@ static void mix_mono_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMi
     get_next_sample_func(channel_info, channel_block, curr_offset);
 
     do {
-        int32_t interpolate_frac = -(channel_info->prev_sample - channel_info->curr_sample);
-        int32_t interpolate_div  = (channel_info->next_sample - (channel_info->curr_sample + interpolate_frac)) >> 2;
+        int64_t interpolate_frac = -((int64_t) channel_info->prev_sample - (int64_t) channel_info->curr_sample);
+        int64_t interpolate_div  = ((int64_t) channel_info->next_sample - ((int64_t) channel_info->curr_sample + interpolate_frac)) >> 2;
         int32_t smp_value;
 
         smp = (uint32_t) curr_frac >> 1;
@@ -1637,8 +1637,8 @@ static void mix_mono_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMi
         interpolate_div   = ((interpolate_div << 2) + interpolate_frac) >> 2;
         interpolate_div   = ((int64_t) smp * interpolate_div) >> 32;
         interpolate_div <<= 3;
-        smp_value         = (channel_info->prev_sample + channel_info->curr_sample) >> 1;
-        smp               = smp_value + interpolate_div;
+        smp_value         = ((int64_t) channel_info->prev_sample + (int64_t) channel_info->curr_sample) >> 1;
+        smp               = (uint32_t) smp_value + (uint32_t) interpolate_div;
 
         if (((smp_value ^ smp) & (interpolate_div ^ smp)) < 0)
             smp = channel_info->curr_sample;
@@ -1669,30 +1669,30 @@ static void mix_average_mono(const AV_HQMixerData *const mixer_data, struct AV_H
 
     do {
         int32_t smp                = get_curr_sample_func(channel_info, channel_block, curr_offset);
-        int32_t interpolate_div    = ((int64_t) (~curr_frac >> 1) * smp) >> 39;
-        int32_t interpolate_frac   = ~curr_frac >> 8;
+        int64_t interpolate_div    = ((int64_t) (~(uint64_t) curr_frac >> 1) * smp) >> 31;
+        int64_t interpolate_frac   = ~(uint64_t) curr_frac;
         uint32_t interpolate_count = advance - 1;
 
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += UINT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += UINT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         smp               = get_sample_func(channel_info, channel_block, curr_offset);
-        interpolate_frac += curr_frac >> 8;
-        interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
-        *mix_buf++       += ((int64_t) interpolate_div << 32) / interpolate_frac;
+        interpolate_frac += curr_frac;
+        interpolate_div  += (((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31);
+        *mix_buf++       += (interpolate_div << 32) / interpolate_frac;
     } while (--i);
 
     *buf      = mix_buf;
@@ -1921,8 +1921,8 @@ static void mix_left_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMi
     get_next_sample_func(channel_info, channel_block, curr_offset);
 
     do {
-        int32_t interpolate_frac = -(channel_info->prev_sample - channel_info->curr_sample);
-        int32_t interpolate_div  = (channel_info->next_sample - (channel_info->curr_sample + interpolate_frac)) >> 2;
+        int64_t interpolate_frac = -((int64_t) channel_info->prev_sample - (int64_t) channel_info->curr_sample);
+        int64_t interpolate_div  = ((int64_t) channel_info->next_sample - ((int64_t) channel_info->curr_sample + interpolate_frac)) >> 2;
         int32_t smp_value;
 
         smp = (uint32_t) curr_frac >> 1;
@@ -1930,8 +1930,8 @@ static void mix_left_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMi
         interpolate_div   = ((interpolate_div << 2) + interpolate_frac) >> 2;
         interpolate_div   = ((int64_t) smp * interpolate_div) >> 32;
         interpolate_div <<= 3;
-        smp_value         = (channel_info->prev_sample + channel_info->curr_sample) >> 1;
-        smp               = smp_value + interpolate_div;
+        smp_value         = ((int64_t) channel_info->prev_sample + (int64_t) channel_info->curr_sample) >> 1;
+        smp               = (uint32_t) smp_value + (uint32_t) interpolate_div;
 
         if (((smp_value ^ smp) & (interpolate_div ^ smp)) < 0)
             smp = channel_info->curr_sample;
@@ -1963,30 +1963,30 @@ static void mix_average_left(const AV_HQMixerData *const mixer_data, struct AV_H
 
     do {
         int32_t smp                = get_curr_sample_func(channel_info, channel_block, curr_offset);
-        int32_t interpolate_div    = ((int64_t) (~curr_frac >> 1) * smp) >> 39;
-        int32_t interpolate_frac   = ~curr_frac >> 8;
+        int64_t interpolate_div    = ((int64_t) (~(uint64_t) curr_frac >> 1) * smp) >> 31;
+        int64_t interpolate_frac   = ~(uint64_t) curr_frac;
         uint32_t interpolate_count = advance - 1;
 
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         smp               = get_sample_func(channel_info, channel_block, curr_offset);
-        interpolate_frac += curr_frac >> 8;
-        interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
-        *mix_buf         += ((int64_t) interpolate_div << 32) / interpolate_frac;
+        interpolate_frac += curr_frac;
+        interpolate_div  += (((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31);
+        *mix_buf         += (interpolate_div << 32) / interpolate_frac;
         mix_buf          += 2;
     } while (--i);
 
@@ -2216,8 +2216,8 @@ static void mix_right_loop(const AV_HQMixerData *const mixer_data, struct AV_HQM
     get_next_sample_func(channel_info, channel_block, curr_offset);
 
     do {
-        int32_t interpolate_frac = -(channel_info->prev_sample_r - channel_info->curr_sample_r);
-        int32_t interpolate_div  = (channel_info->next_sample_r - (channel_info->curr_sample_r + interpolate_frac)) >> 2;
+        int64_t interpolate_frac = -((int64_t) channel_info->prev_sample - (int64_t) channel_info->curr_sample);
+        int64_t interpolate_div  = ((int64_t) channel_info->next_sample - ((int64_t) channel_info->curr_sample + interpolate_frac)) >> 2;
         int32_t smp_value;
 
         smp = (uint32_t) curr_frac >> 1;
@@ -2225,8 +2225,8 @@ static void mix_right_loop(const AV_HQMixerData *const mixer_data, struct AV_HQM
         interpolate_div   = ((interpolate_div << 2) + interpolate_frac) >> 2;
         interpolate_div   = ((int64_t) smp * interpolate_div) >> 32;
         interpolate_div <<= 3;
-        smp_value         = (channel_info->prev_sample_r + channel_info->curr_sample_r) >> 1;
-        smp               = smp_value + interpolate_div;
+        smp_value         = ((int64_t) channel_info->prev_sample_r + (int64_t) channel_info->curr_sample_r) >> 1;
+        smp               = (uint32_t) smp_value + (uint32_t) interpolate_div;
 
         if (((smp_value ^ smp) & (interpolate_div ^ smp)) < 0)
             smp = channel_info->curr_sample_r;
@@ -2258,31 +2258,31 @@ static void mix_average_right(const AV_HQMixerData *const mixer_data, struct AV_
 
     do {
         int32_t smp                = get_curr_sample_func(channel_info, channel_block, curr_offset);
-        int32_t interpolate_div    = ((int64_t) (~curr_frac >> 1) * smp) >> 39;
-        int32_t interpolate_frac   = ~curr_frac >> 8;
+        int64_t interpolate_div    = ((int64_t) (~(uint64_t) curr_frac >> 1) * smp) >> 31;
+        int64_t interpolate_frac   = ~(uint64_t) curr_frac;
         uint32_t interpolate_count = advance - 1;
 
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         smp               = get_sample_func(channel_info, channel_block, curr_offset);
-        interpolate_frac += curr_frac >> 8;
-        interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
+        interpolate_frac += curr_frac;
+        interpolate_div  += (((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31);
         mix_buf++;
-        *mix_buf++       += ((int64_t) interpolate_div << 32) / interpolate_frac;
+        *mix_buf++       += (interpolate_div << 32) / interpolate_frac;
     } while (--i);
 
     *buf      = mix_buf;
@@ -2958,8 +2958,8 @@ static void mix_center_loop(const AV_HQMixerData *const mixer_data, struct AV_HQ
     get_next_sample_func(channel_info, channel_block, curr_offset);
 
     do {
-        int32_t interpolate_frac = -(channel_info->prev_sample - channel_info->curr_sample);
-        int32_t interpolate_div  = (channel_info->next_sample - (channel_info->curr_sample + interpolate_frac)) >> 2;
+        int64_t interpolate_frac = -((int64_t) channel_info->prev_sample - (int64_t) channel_info->curr_sample);
+        int64_t interpolate_div  = ((int64_t) channel_info->next_sample - ((int64_t) channel_info->curr_sample + interpolate_frac)) >> 2;
         int32_t smp_value;
 
         smp = (uint32_t) curr_frac >> 1;
@@ -2967,8 +2967,8 @@ static void mix_center_loop(const AV_HQMixerData *const mixer_data, struct AV_HQ
         interpolate_div   = ((interpolate_div << 2) + interpolate_frac) >> 2;
         interpolate_div   = ((int64_t) smp * interpolate_div) >> 32;
         interpolate_div <<= 3;
-        smp_value         = (channel_info->prev_sample + channel_info->curr_sample) >> 1;
-        smp               = smp_value + interpolate_div;
+        smp_value         = ((int64_t) channel_info->prev_sample + (int64_t) channel_info->curr_sample) >> 1;
+        smp               = (uint32_t) smp_value + (uint32_t) interpolate_div;
 
         if (((smp_value ^ smp) & (interpolate_div ^ smp)) < 0)
             smp = channel_info->curr_sample;
@@ -3000,30 +3000,30 @@ static void mix_average_center(const AV_HQMixerData *const mixer_data, struct AV
 
     do {
         int32_t smp                = get_curr_sample_func(channel_info, channel_block, curr_offset);
-        int32_t interpolate_div    = ((int64_t) (~curr_frac >> 1) * smp) >> 39;
-        int32_t interpolate_frac   = ~curr_frac >> 8;
+        int64_t interpolate_div    = ((int64_t) (~(uint64_t) curr_frac >> 1) * smp) >> 31;
+        int64_t interpolate_frac   = ~(uint64_t) curr_frac;
         uint32_t interpolate_count = advance - 1;
 
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         smp               = get_sample_func(channel_info, channel_block, curr_offset);
-        interpolate_frac += curr_frac >> 8;
-        interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
-        smp               = ((int64_t) interpolate_div << 32) / interpolate_frac;
+        interpolate_frac += curr_frac;
+        interpolate_div  += (((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31);
+        smp               = (interpolate_div << 32) / interpolate_frac;
         *mix_buf++       += smp;
         *mix_buf++       += smp;
     } while (--i);
@@ -3254,8 +3254,8 @@ static void mix_surround_loop(const AV_HQMixerData *const mixer_data, struct AV_
     get_next_sample_func(channel_info, channel_block, curr_offset);
 
     do {
-        int32_t interpolate_frac = -(channel_info->prev_sample - channel_info->curr_sample);
-        int32_t interpolate_div  = (channel_info->next_sample - (channel_info->curr_sample + interpolate_frac)) >> 2;
+        int64_t interpolate_frac = -((int64_t) channel_info->prev_sample - (int64_t) channel_info->curr_sample);
+        int64_t interpolate_div  = ((int64_t) channel_info->next_sample - ((int64_t) channel_info->curr_sample + interpolate_frac)) >> 2;
         int32_t smp_value;
 
         smp = (uint32_t) curr_frac >> 1;
@@ -3263,8 +3263,8 @@ static void mix_surround_loop(const AV_HQMixerData *const mixer_data, struct AV_
         interpolate_div   = ((interpolate_div << 2) + interpolate_frac) >> 2;
         interpolate_div   = ((int64_t) smp * interpolate_div) >> 32;
         interpolate_div <<= 3;
-        smp_value         = (channel_info->prev_sample + channel_info->curr_sample) >> 1;
-        smp               = smp_value + interpolate_div;
+        smp_value         = ((int64_t) channel_info->prev_sample + (int64_t) channel_info->curr_sample) >> 1;
+        smp               = (uint32_t) smp_value + (uint32_t) interpolate_div;
 
         if (((smp_value ^ smp) & (interpolate_div ^ smp)) < 0)
             smp = channel_info->curr_sample;
@@ -3296,30 +3296,30 @@ static void mix_average_surround(const AV_HQMixerData *const mixer_data, struct 
 
     do {
         int32_t smp                = get_curr_sample_func(channel_info, channel_block, curr_offset);
-        int32_t interpolate_div    = ((int64_t) (~curr_frac >> 1) * smp) >> 39;
-        int32_t interpolate_frac   = ~curr_frac >> 8;
+        int64_t interpolate_div    = ((int64_t) (~(uint64_t) curr_frac >> 1) * smp) >> 31;
+        int64_t interpolate_frac   = ~(uint64_t) curr_frac;
         uint32_t interpolate_count = advance - 1;
 
         curr_offset += offset_inc;
 
         while (interpolate_count--) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         curr_frac += adv_frac;
 
         if (curr_frac < adv_frac) {
-            interpolate_frac += 0x1000000;
-            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset) >> 8;
+            interpolate_frac += INT64_C(0x100000000);
+            interpolate_div  += get_sample_func(channel_info, channel_block, curr_offset);
             curr_offset      += offset_inc;
         }
 
         smp               = get_sample_func(channel_info, channel_block, curr_offset);
-        interpolate_frac += curr_frac >> 8;
-        interpolate_div  += (((int64_t) (curr_frac >> 1) * smp) >> 39);
-        smp               = ((int64_t) interpolate_div << 32) / interpolate_frac;
+        interpolate_frac += curr_frac;
+        interpolate_div  += (((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31);
+        smp               = (interpolate_div << 32) / interpolate_frac;
         *mix_buf++       += smp;
         *mix_buf++       += ~smp;
     } while (--i);
