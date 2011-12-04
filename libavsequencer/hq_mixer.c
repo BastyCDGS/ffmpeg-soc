@@ -2231,17 +2231,17 @@ static int32_t get_backwards_sample_1_8(const AV_HQMixerData *const mixer_data, 
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if ((channel_next_block->bits_per_sample <= 8) || !mixer_data->real_16_bit_mode) {
                             if (channel_next_block->bits_per_sample == 16)
-                                return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                                return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                             else if (channel_next_block->bits_per_sample == 32)
-                                return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                                return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                             else
-                                return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                                return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         } else if (channel_next_block->bits_per_sample == 16) {
-                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         } else if (channel_next_block->bits_per_sample == 32) {
-                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         } else {
-                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         }
                     }
 
@@ -2261,17 +2261,17 @@ static int32_t get_backwards_sample_1_8(const AV_HQMixerData *const mixer_data, 
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if ((channel_next_block->bits_per_sample <= 8) || !mixer_data->real_16_bit_mode) {
                             if (channel_next_block->bits_per_sample == 16)
-                                return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                                return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                             else if (channel_next_block->bits_per_sample == 32)
-                                return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                                return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                             else
-                                return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                                return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         } else if (channel_next_block->bits_per_sample == 16) {
-                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         } else if (channel_next_block->bits_per_sample == 32) {
-                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         } else {
-                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         }
                     }
 
@@ -2294,17 +2294,17 @@ static int32_t get_backwards_sample_1_8(const AV_HQMixerData *const mixer_data, 
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if ((channel_next_block->bits_per_sample <= 8) || !mixer_data->real_16_bit_mode) {
                         if (channel_next_block->bits_per_sample == 16)
-                            return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     } else if (channel_next_block->bits_per_sample == 16) {
-                        return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     } else if (channel_next_block->bits_per_sample == 32) {
-                        return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     } else {
-                        return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
                 }
 
@@ -2342,11 +2342,11 @@ static int32_t get_sample_1_16_to_8(const AV_HQMixerData *const mixer_data, cons
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2364,11 +2364,11 @@ static int32_t get_sample_1_16_to_8(const AV_HQMixerData *const mixer_data, cons
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2389,11 +2389,11 @@ static int32_t get_sample_1_16_to_8(const AV_HQMixerData *const mixer_data, cons
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 32)
-                        return get_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int16_t *) channel_next_block->data;
@@ -2430,11 +2430,11 @@ static int32_t get_backwards_sample_1_16_to_8(const AV_HQMixerData *const mixer_
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2452,11 +2452,11 @@ static int32_t get_backwards_sample_1_16_to_8(const AV_HQMixerData *const mixer_
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2477,11 +2477,11 @@ static int32_t get_backwards_sample_1_16_to_8(const AV_HQMixerData *const mixer_
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 32)
-                        return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_32_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int16_t *) channel_next_block->data;
@@ -2518,11 +2518,11 @@ static int32_t get_sample_1_32_to_8(const AV_HQMixerData *const mixer_data, cons
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -2540,11 +2540,11 @@ static int32_t get_sample_1_32_to_8(const AV_HQMixerData *const mixer_data, cons
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -2565,11 +2565,11 @@ static int32_t get_sample_1_32_to_8(const AV_HQMixerData *const mixer_data, cons
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 16)
-                        return get_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int32_t *) channel_next_block->data;
@@ -2606,11 +2606,11 @@ static int32_t get_backwards_sample_1_32_to_8(const AV_HQMixerData *const mixer_
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -2628,11 +2628,11 @@ static int32_t get_backwards_sample_1_32_to_8(const AV_HQMixerData *const mixer_
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -2653,11 +2653,11 @@ static int32_t get_backwards_sample_1_32_to_8(const AV_HQMixerData *const mixer_
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 16)
-                        return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_16_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_x_to_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int32_t *) channel_next_block->data;
@@ -2851,11 +2851,11 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2874,11 +2874,11 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2900,11 +2900,11 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 32)
-                        return get_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int16_t *) channel_next_block->data;
@@ -2943,11 +2943,11 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2966,11 +2966,11 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 32)
-                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int16_t *) channel_next_block->data;
@@ -2992,11 +2992,11 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 32)
-                        return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_32(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int16_t *) channel_next_block->data;
@@ -3035,11 +3035,11 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -3058,11 +3058,11 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -3084,11 +3084,11 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 16)
-                        return get_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int32_t *) channel_next_block->data;
@@ -3127,11 +3127,11 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -3150,11 +3150,11 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
                 if (channel_next_block->data) {
                     if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                         if (channel_next_block->bits_per_sample == 8)
-                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else if (channel_next_block->bits_per_sample == 16)
-                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                         else
-                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                            return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     }
 
                     sample         = (const int32_t *) channel_next_block->data;
@@ -3176,11 +3176,11 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
             if (channel_next_block->data) {
                 if (channel_block->bits_per_sample != channel_next_block->bits_per_sample) {
                     if (channel_next_block->bits_per_sample == 8)
-                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_8(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else if (channel_next_block->bits_per_sample == 16)
-                        return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_16(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                     else
-                        return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset);
+                        return get_backwards_sample_1_x(mixer_data, channel_info, channel_next_block, channel_next_block->offset + (offset - end_offset));
                 }
 
                 sample         = (const int32_t *) channel_next_block->data;
