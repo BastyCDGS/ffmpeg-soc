@@ -625,7 +625,7 @@ mix_sample_synth:
 }
 
 #define MIX_FUNCTION(INIT, TYPE, OP1, OP2, OFFSET_START, OFFSET_END,        \
-                     SKIP, NEXTS, NEXTA, SHIFTS, SHIFTN, SHIFTB)            \
+                     SKIP, NEXTS, NEXTA, NEXTI, SHIFTS, SHIFTN, SHIFTB)     \
     const TYPE *sample              = (const TYPE *) channel_block->data;   \
     int32_t *mix_buf                = *buf;                                 \
     uint32_t curr_offset            = *offset;                              \
@@ -725,8 +725,9 @@ get_second_advance_sample:                                                  \
             NEXTS;                                                          \
             smp_value = 0;                                                  \
                                                                             \
-            if (len)                                                        \
-                smp_value = (*sample - smp) * (int64_t) adv_frac;           \
+            if (len > 1) {                                                  \
+                NEXTI;                                                      \
+            }                                                               \
                                                                             \
             interpolate_div   = smp_value >> 32;                            \
             interpolate_frac  = smp_value;                                  \
@@ -745,10 +746,7 @@ get_second_advance_sample:                                                  \
                                                                             \
                 if (curr_frac < adv_frac) {                                 \
                     NEXTS;                                                  \
-                    smp_value = 0;                                          \
-                                                                            \
-                    if (len)                                                \
-                        smp_value = (*sample - smp) * (int64_t) adv_frac;   \
+                    NEXTI;                                                  \
                                                                             \
                     interpolate_div   = smp_value >> 32;                    \
                     interpolate_frac  = smp_value;                          \
@@ -772,8 +770,9 @@ get_second_interpolated_sample:                                             \
                     NEXTS;                                                  \
                     smp_value = 0;                                          \
                                                                             \
-                    if (len)                                                \
-                        smp_value = (*sample - smp) * (int64_t) adv_frac;   \
+                    if (i > 1) {                                            \
+                        NEXTI;                                              \
+                    }                                                       \
                                                                             \
                     interpolate_div   = smp_value >> 32;                    \
                     interpolate_frac  = smp_value;                          \
@@ -875,6 +874,7 @@ MIX(mono_8)
                  *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint8_t) smp],
                  smp = volume_lut[(uint8_t) *sample++],
                  *mix_buf++ += smp)
@@ -889,6 +889,7 @@ MIX(mono_backwards_8)
                  *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint8_t) smp],
                  smp = volume_lut[(uint8_t) *--sample],
                  *mix_buf++ += smp)
@@ -903,6 +904,7 @@ MIX(mono_16_to_8)
                  *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint16_t) smp >> 8],
                  smp = volume_lut[(uint16_t) *sample++ >> 8],
                  *mix_buf++ += smp)
@@ -917,6 +919,7 @@ MIX(mono_backwards_16_to_8)
                  *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint16_t) smp >> 8],
                  smp = volume_lut[(uint16_t) *--sample >> 8],
                  *mix_buf++ += smp)
@@ -931,6 +934,7 @@ MIX(mono_32_to_8)
                  *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                  smp = volume_lut[(uint32_t) *sample++ >> 24],
                  *mix_buf++ += smp)
@@ -945,6 +949,7 @@ MIX(mono_backwards_32_to_8)
                  *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                  smp = volume_lut[(uint32_t) *--sample >> 24],
                  *mix_buf++ += smp)
@@ -987,6 +992,14 @@ MIX(mono_x_to_8)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -1050,6 +1063,29 @@ MIX(mono_backwards_x_to_8)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -1079,6 +1115,7 @@ MIX(mono_16)
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
                  smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf++ += smp)
@@ -1093,6 +1130,7 @@ MIX(mono_backwards_16)
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
                  smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf++ += smp)
@@ -1107,6 +1145,7 @@ MIX(mono_32)
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
                  smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf++ += smp)
@@ -1121,6 +1160,7 @@ MIX(mono_backwards_32)
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
                  smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf++ += smp)
@@ -1163,6 +1203,14 @@ MIX(mono_x)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -1226,6 +1274,29 @@ MIX(mono_backwards_x)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -1255,6 +1326,7 @@ MIX(stereo_8)
                  smp_in = sample[curr_offset]; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_left_lut[(uint8_t) smp]; *mix_buf++ += volume_right_lut[(uint8_t) smp],
                  smp_in = *sample++; smp = volume_left_lut[(uint8_t) smp_in]; smp_right = volume_right_lut[(uint8_t) smp_in],
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1269,6 +1341,7 @@ MIX(stereo_backwards_8)
                  smp_in = sample[curr_offset]; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += volume_left_lut[(uint8_t) smp]; *mix_buf++ += volume_right_lut[(uint8_t) smp],
                  smp_in = *--sample; smp = volume_left_lut[(uint8_t) smp_in]; smp_right = volume_right_lut[(uint8_t) smp_in],
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1283,6 +1356,7 @@ MIX(stereo_16_to_8)
                  smp_in = (uint16_t) sample[curr_offset] >> 8; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = (uint16_t) smp >> 8; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp_in = (uint16_t) *sample++ >> 8; smp = volume_left_lut[(uint8_t) smp_in]; smp_right = volume_right_lut[(uint8_t) smp_in],
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1297,6 +1371,7 @@ MIX(stereo_backwards_16_to_8)
                  smp_in = (uint16_t) sample[curr_offset] >> 8; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = (uint16_t) smp >> 8; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp_in = (uint16_t) *--sample >> 8; smp = volume_left_lut[(uint8_t) smp_in]; smp_right = volume_right_lut[(uint8_t) smp_in],
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1311,6 +1386,7 @@ MIX(stereo_32_to_8)
                  smp_in = (uint32_t) sample[curr_offset] >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = (uint32_t) smp >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp_in = (uint32_t) *sample++ >> 24; smp = volume_left_lut[(uint8_t) smp_in]; smp_right = volume_right_lut[(uint8_t) smp_in],
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1325,6 +1401,7 @@ MIX(stereo_backwards_32_to_8)
                  smp_in = (uint32_t) sample[curr_offset] >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = (uint32_t) smp >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                  smp_in = (uint32_t) *--sample >> 24; smp = volume_left_lut[(uint8_t) smp_in]; smp_right = volume_right_lut[(uint8_t) smp_in],
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1369,6 +1446,14 @@ MIX(stereo_x_to_8)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = (uint32_t) smp >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -1436,6 +1521,29 @@ MIX(stereo_backwards_x_to_8)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = (uint32_t) smp >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -1467,6 +1575,7 @@ MIX(stereo_16)
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp_in = *sample++; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1481,6 +1590,7 @@ MIX(stereo_backwards_16)
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp_in = *--sample; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1495,6 +1605,7 @@ MIX(stereo_32)
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp_in = *sample++; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1509,6 +1620,7 @@ MIX(stereo_backwards_32)
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp_in = *--sample; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
@@ -1553,6 +1665,14 @@ MIX(stereo_x)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -1620,6 +1740,29 @@ MIX(stereo_backwards_x)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -1651,6 +1794,7 @@ MIX(stereo_8_left)
                  *mix_buf += volume_lut[(uint8_t) sample[curr_offset]]; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint8_t) smp]; mix_buf += 2,
                  smp = volume_lut[(uint8_t) *sample++],
                  *mix_buf += smp; mix_buf += 2)
@@ -1665,6 +1809,7 @@ MIX(stereo_backwards_8_left)
                  *mix_buf += volume_lut[(uint8_t) sample[curr_offset]]; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint8_t) smp]; mix_buf += 2,
                  smp = volume_lut[(uint8_t) *--sample],
                  *mix_buf += smp; mix_buf += 2)
@@ -1679,6 +1824,7 @@ MIX(stereo_16_to_8_left)
                  *mix_buf += volume_lut[(uint16_t) sample[curr_offset] >> 8]; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint16_t) smp >> 8]; mix_buf += 2,
                  smp = volume_lut[(uint16_t) *sample++ >> 8],
                  *mix_buf += smp; mix_buf += 2)
@@ -1693,6 +1839,7 @@ MIX(stereo_backwards_16_to_8_left)
                  *mix_buf += volume_lut[(uint16_t) sample[curr_offset] >> 8]; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint16_t) smp >> 8]; mix_buf += 2,
                  smp = volume_lut[(uint16_t) *--sample >> 8],
                  *mix_buf += smp; mix_buf += 2)
@@ -1707,6 +1854,7 @@ MIX(stereo_32_to_8_left)
                  *mix_buf += volume_lut[(uint32_t) sample[curr_offset] >> 24]; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint32_t) smp >> 24]; mix_buf += 2,
                  smp = volume_lut[(uint32_t) *sample++ >> 24],
                  *mix_buf += smp; mix_buf += 2)
@@ -1721,6 +1869,7 @@ MIX(stereo_backwards_32_to_8_left)
                  *mix_buf += volume_lut[(uint32_t) sample[curr_offset] >> 24]; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint32_t) smp >> 24]; mix_buf += 2,
                  smp = volume_lut[(uint32_t) *--sample >> 24],
                  *mix_buf += smp; mix_buf += 2)
@@ -1764,6 +1913,14 @@ MIX(stereo_x_to_8_left)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint32_t) smp >> 24]; mix_buf += 2,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -1828,6 +1985,29 @@ MIX(stereo_backwards_x_to_8_left)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf += volume_lut[(uint32_t) smp >> 24]; mix_buf += 2,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -1857,6 +2037,7 @@ MIX(stereo_16_left)
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf += smp; mix_buf += 2)
@@ -1871,6 +2052,7 @@ MIX(stereo_backwards_16_left)
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf += smp; mix_buf += 2)
@@ -1885,6 +2067,7 @@ MIX(stereo_32_left)
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf += smp; mix_buf += 2)
@@ -1899,6 +2082,7 @@ MIX(stereo_backwards_32_left)
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
                  smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf += smp; mix_buf += 2)
@@ -1942,6 +2126,14 @@ MIX(stereo_x_left)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2006,6 +2198,29 @@ MIX(stereo_backwards_x_left)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -2035,6 +2250,7 @@ MIX(stereo_8_right)
                  mix_buf++; *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint8_t) smp],
                  smp = volume_lut[(uint8_t) *sample++],
                  mix_buf++; *mix_buf++ += smp)
@@ -2049,6 +2265,7 @@ MIX(stereo_backwards_8_right)
                  mix_buf++; *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint8_t) smp],
                  smp = volume_lut[(uint8_t) *--sample],
                  mix_buf++; *mix_buf++ += smp)
@@ -2063,6 +2280,7 @@ MIX(stereo_16_to_8_right)
                  mix_buf++; *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint16_t) smp >> 8],
                  smp = volume_lut[(uint16_t) *sample++ >> 8],
                  mix_buf++; *mix_buf++ += smp)
@@ -2077,6 +2295,7 @@ MIX(stereo_backwards_16_to_8_right)
                  mix_buf++; *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint16_t) smp >> 8],
                  smp = volume_lut[(uint16_t) *--sample >> 8],
                  mix_buf++; *mix_buf++ += smp)
@@ -2091,6 +2310,7 @@ MIX(stereo_32_to_8_right)
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                  smp = volume_lut[(uint32_t) *sample++ >> 24],
                  mix_buf++; *mix_buf++ += smp)
@@ -2105,6 +2325,7 @@ MIX(stereo_backwards_32_to_8_right)
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                  smp = volume_lut[(uint32_t) *--sample >> 24],
                  mix_buf++; *mix_buf++ += smp)
@@ -2148,6 +2369,14 @@ MIX(stereo_x_to_8_right)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2212,6 +2441,29 @@ MIX(stereo_backwards_x_to_8_right)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) smp >> 24],
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -2241,6 +2493,7 @@ MIX(stereo_16_right)
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp = ((int64_t) *sample++ * mult_right_volume) / div_volume,
                  mix_buf++; *mix_buf++ += smp)
@@ -2255,6 +2508,7 @@ MIX(stereo_backwards_16_right)
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp = ((int64_t) *--sample * mult_right_volume) / div_volume,
                  mix_buf++; *mix_buf++ += smp)
@@ -2269,6 +2523,7 @@ MIX(stereo_32_right)
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp = ((int64_t) *sample++ * mult_right_volume) / div_volume,
                  mix_buf++; *mix_buf++ += smp)
@@ -2283,6 +2538,7 @@ MIX(stereo_backwards_32_right)
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                  smp = ((int64_t) *--sample * mult_right_volume) / div_volume,
                  mix_buf++; *mix_buf++ += smp)
@@ -2326,6 +2582,14 @@ MIX(stereo_x_right)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2390,6 +2654,29 @@ MIX(stereo_backwards_x_right)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -2419,6 +2706,7 @@ MIX(stereo_8_center)
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint8_t) smp]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = volume_lut[(uint8_t) *sample++],
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2433,6 +2721,7 @@ MIX(stereo_backwards_8_center)
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint8_t) smp]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = volume_lut[(uint8_t) *--sample],
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2447,6 +2736,7 @@ MIX(stereo_16_to_8_center)
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint16_t) smp >> 8]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = volume_lut[(uint16_t) *sample++ >> 8],
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2461,6 +2751,7 @@ MIX(stereo_backwards_16_to_8_center)
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint16_t) smp >> 8]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = volume_lut[(uint16_t) *--sample >> 8],
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2475,6 +2766,7 @@ MIX(stereo_32_to_8_center)
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = volume_lut[(uint32_t) *sample++ >> 24],
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2489,6 +2781,7 @@ MIX(stereo_backwards_32_to_8_center)
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = volume_lut[(uint32_t) *--sample >> 24],
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2533,6 +2826,14 @@ MIX(stereo_x_to_8_center)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2598,6 +2899,29 @@ MIX(stereo_backwards_x_to_8_center)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -2627,6 +2951,7 @@ MIX(stereo_16_center)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2641,6 +2966,7 @@ MIX(stereo_backwards_16_center)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2655,6 +2981,7 @@ MIX(stereo_32_center)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2669,6 +2996,7 @@ MIX(stereo_backwards_32_center)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
@@ -2713,6 +3041,14 @@ MIX(stereo_x_center)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2778,6 +3114,29 @@ MIX(stereo_backwards_x_center)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -2807,6 +3166,7 @@ MIX(stereo_8_surround)
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint8_t) smp]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = volume_lut[(uint8_t) *sample++],
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -2821,6 +3181,7 @@ MIX(stereo_backwards_8_surround)
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint8_t) smp]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = volume_lut[(uint8_t) *--sample],
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -2835,6 +3196,7 @@ MIX(stereo_16_to_8_surround)
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint16_t) smp >> 8]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = volume_lut[(uint16_t) *sample++ >> 8],
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -2849,6 +3211,7 @@ MIX(stereo_backwards_16_to_8_surround)
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint16_t) smp >> 8]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = volume_lut[(uint16_t) *--sample >> 8],
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -2863,6 +3226,7 @@ MIX(stereo_32_to_8_surround)
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = volume_lut[(uint32_t) *sample++ >> 24],
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -2877,6 +3241,7 @@ MIX(stereo_backwards_32_to_8_surround)
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = volume_lut[(uint32_t) *--sample >> 24],
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -2921,6 +3286,14 @@ MIX(stereo_x_to_8_surround)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2986,6 +3359,29 @@ MIX(stereo_backwards_x_to_8_surround)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = volume_lut[(uint32_t) smp >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -3015,6 +3411,7 @@ MIX(stereo_16_surround)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -3029,6 +3426,7 @@ MIX(stereo_backwards_16_surround)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -3043,6 +3441,7 @@ MIX(stereo_32_surround)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
+                 smp_value = (*sample - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -3057,6 +3456,7 @@ MIX(stereo_backwards_32_surround)
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
+                 smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
@@ -3101,6 +3501,14 @@ MIX(stereo_x_surround)
                     bit += bits_per_sample;
                     curr_offset++;
                     smp += smp_data,
+                    if (((bit &= 31) + bits_per_sample) < 32) {
+                        smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                    } else {
+                        smp_data  = (uint32_t) *sample++ << bit;
+                        smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                    }
+
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -3166,6 +3574,29 @@ MIX(stereo_backwards_x_surround)
                     }
 
                     smp += smp_data,
+                    smp_value = bits_per_sample;
+                    bit      -= bits_per_sample;
+
+                    if ((int32_t) bit < 0) {
+                        bit &= 31;
+
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *(sample-1) << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *(sample-1) << bit;
+                            smp_data |= ((uint32_t) *sample & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    } else {
+                        if ((bit + bits_per_sample) < 32) {
+                            smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+                        } else {
+                            smp_data  = (uint32_t) *sample << bit;
+                            smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+                        }
+                    }
+
+                    bit       = smp_value;
+                    smp_value = (smp_data - smp) * (int64_t) adv_frac,
                  smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                     curr_offset--;
                     bit -= bits_per_sample;
