@@ -1297,24 +1297,15 @@ static uint32_t get_tone_pitch(const AVSequencerContext *const avctx, AVSequence
     }
 
     if ((finetune = player_host_channel->finetune) < 0) {
-        finetune += -0x80;
         note--;
+        finetune += -0x80;
     }
 
     frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
     frequency      = *frequency_lut++;
     next_frequency = *frequency_lut - frequency;
-    frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 7;
-
-    if ((int16_t) (octave -= 4) < 0) {
-        octave = -octave;
-
-        return ((uint64_t) frequency * sample->rate) >> (16 + octave);
-    } else {
-        frequency <<= octave;
-
-        return ((uint64_t) frequency * sample->rate) >> 16;
-    }
+    frequency     += ((int32_t) finetune * (int32_t) next_frequency) >> 7;
+    return ((uint64_t) frequency * sample->rate) >> ((16+4) - octave);
 }
 
 static void portamento_slide_up(const AVSequencerContext *const avctx, AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel, const uint32_t data_word, const uint32_t carry_add, const uint32_t portamento_shift, const uint16_t channel)
@@ -1584,7 +1575,7 @@ static void do_vibrato(AVSequencerContext *const avctx, AVSequencerPlayerHostCha
 
     player_host_channel->vibrato_depth = vibrato_depth;
 
-    vibrato_slide_value = ((-vibrato_depth * run_envelope(avctx, &player_host_channel->vibrato_env, vibrato_rate, 0)) >> (7 - 2)) << 8;
+    vibrato_slide_value = ((-(int32_t) vibrato_depth * run_envelope(avctx, &player_host_channel->vibrato_env, vibrato_rate, 0)) >> (7 - 2)) << 8;
 
     if (player_channel->host_channel == channel) {
         const uint32_t old_frequency = player_channel->frequency;
@@ -2129,22 +2120,13 @@ EXECUTE_EFFECT(arpeggio)
 
         if (note < 0) {
             octave--;
-
             note += 12;
         }
 
-        old_frequency = player_channel->frequency;
-        frequency     = old_frequency + player_host_channel->arpeggio_freq;
-        arpeggio_freq = (avctx->frequency_lut ? avctx->frequency_lut[note + 1] : pitch_lut[note + 1]);
-
-        if ((int16_t) octave < 0) {
-            octave          = -octave;
-            arpeggio_freq   = ((uint64_t) frequency * arpeggio_freq) >> (16 + octave);
-        } else {
-            arpeggio_freq <<= octave;
-            arpeggio_freq   = ((uint64_t) frequency * arpeggio_freq) >> 16;
-        }
-
+        old_frequency                       = player_channel->frequency;
+        frequency                           = old_frequency + player_host_channel->arpeggio_freq;
+        arpeggio_freq                       = (avctx->frequency_lut ? avctx->frequency_lut[note + 1] : pitch_lut[note + 1]);
+        arpeggio_freq                       = ((uint64_t) frequency * arpeggio_freq) >> (16 - octave);
         player_host_channel->arpeggio_freq += old_frequency - arpeggio_freq;
         player_channel->frequency           = arpeggio_freq;
     }
@@ -3164,7 +3146,7 @@ EXECUTE_EFFECT(tremolo)
             tremolo_depth = -63;
     }
 
-    tremolo_slide_value = ((int32_t) -tremolo_depth * run_envelope(avctx, &player_host_channel->tremolo_env, tremolo_rate, 0)) >> 7;
+    tremolo_slide_value = (-(int32_t) tremolo_depth * run_envelope(avctx, &player_host_channel->tremolo_env, tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         tremolo_slide_value <<= 2;
@@ -3379,7 +3361,7 @@ EXECUTE_EFFECT(track_tremolo)
             track_tremolo_depth = -63;
     }
 
-    track_tremolo_slide_value = (-track_tremolo_depth * run_envelope(avctx, &player_host_channel->track_trem_env, track_tremolo_rate, 0)) >> 7;
+    track_tremolo_slide_value = (-(int32_t) track_tremolo_depth * run_envelope(avctx, &player_host_channel->track_trem_env, track_tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         track_tremolo_slide_value <<= 2;
@@ -3611,7 +3593,7 @@ EXECUTE_EFFECT(pannolo)
 
     player_host_channel->pannolo_depth = pannolo_depth;
 
-    pannolo_slide_value = ((int32_t) -pannolo_depth * run_envelope(avctx, &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
+    pannolo_slide_value = (-(int32_t) pannolo_depth * run_envelope(avctx, &player_host_channel->pannolo_env, pannolo_rate, 0)) >> 7;
 
     if (player_channel->host_channel == channel) {
         const int16_t panning = (uint8_t) player_channel->panning;
@@ -3832,7 +3814,7 @@ EXECUTE_EFFECT(track_pannolo)
         track_pannolo_depth = player_host_channel->track_pan_depth;
 
     player_host_channel->track_pan_depth = track_pannolo_depth;
-    track_pannolo_slide_value            = ((int32_t) -track_pannolo_depth * run_envelope(avctx, &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
+    track_pannolo_slide_value            = (-(int32_t) track_pannolo_depth * run_envelope(avctx, &player_host_channel->track_pan_env, track_pannolo_rate, 0)) >> 7;
 
     track_panning              = (uint8_t) player_host_channel->track_panning;
     track_pannolo_slide_value -= player_host_channel->track_pan_slide;
@@ -4871,7 +4853,7 @@ EXECUTE_EFFECT(global_tremolo)
             global_tremolo_depth = -63;
     }
 
-    global_tremolo_slide_value = ((int32_t) -global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7;
+    global_tremolo_slide_value = (-(int32_t) global_tremolo_depth * run_envelope(avctx, &player_globals->tremolo_env, global_tremolo_rate, 0)) >> 7;
 
     if (song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES)
         global_tremolo_slide_value <<= 2;
@@ -5096,7 +5078,7 @@ EXECUTE_EFFECT(global_pannolo)
         global_pannolo_depth = player_globals->pannolo_depth;
 
     player_globals->pannolo_depth = global_pannolo_depth;
-    global_pannolo_slide_value    = ((int32_t) -global_pannolo_depth * run_envelope(avctx, &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
+    global_pannolo_slide_value    = (-(int32_t) global_pannolo_depth * run_envelope(avctx, &player_globals->pannolo_env, global_pannolo_rate, 0)) >> 7;
     global_panning                = (uint8_t) player_globals->global_panning;
     global_pannolo_slide_value   -= player_globals->pannolo_slide;
 
@@ -5137,38 +5119,31 @@ static void se_vibrato_do(const AVSequencerContext *const avctx, AVSequencerPlay
     player_channel->vibrato_slide -= old_frequency - player_channel->frequency;
 }
 
-static void se_arpegio_do(const AVSequencerContext *const avctx, AVSequencerPlayerChannel *const player_channel, const int16_t arpeggio_transpose, uint16_t arpeggio_finetune)
+static void se_arpegio_do(const AVSequencerContext *const avctx, AVSequencerPlayerChannel *const player_channel, const int16_t arpeggio_transpose, uint8_t arpeggio_finetune)
 {
     const uint32_t *frequency_lut;
     uint32_t frequency, next_frequency, slide_frequency, old_frequency;
     uint16_t octave;
     int16_t note;
+    int32_t finetune = arpeggio_finetune;
 
     octave = arpeggio_transpose / 12;
     note   = arpeggio_transpose % 12;
 
     if (note < 0) {
         octave--;
-        note             += 12;
-        arpeggio_finetune = -arpeggio_finetune;
+        note    += 12;
+        finetune = -finetune;
     }
 
-    frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
-    frequency      = *frequency_lut++;
-    next_frequency = *frequency_lut - frequency;
-    frequency     += (int32_t) (arpeggio_finetune * (int16_t) next_frequency) >> 8;
-
-    if ((int16_t) (octave) < 0) {
-        octave      = -octave;
-        frequency >>= octave;
-    } else {
-        frequency <<= octave;
-    }
-
-    old_frequency                           = player_channel->frequency;
-    slide_frequency                         = player_channel->arpeggio_slide + old_frequency;
-    player_channel->frequency               = frequency = ((uint64_t) frequency * slide_frequency) >> 16;
-    player_channel->arpeggio_slide         += old_frequency - frequency;
+    frequency_lut                   = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+    frequency                       = *frequency_lut++;
+    next_frequency                  = *frequency_lut - frequency;
+    frequency                      += ((int32_t) finetune * (int32_t) next_frequency) >> 8;
+    old_frequency                   = player_channel->frequency;
+    slide_frequency                 = player_channel->arpeggio_slide + old_frequency;
+    player_channel->frequency       = frequency = ((uint64_t) frequency * slide_frequency) >> (16 - octave);
+    player_channel->arpeggio_slide += old_frequency - frequency;
 }
 
 static void se_tremolo_do(const AVSequencerContext *const avctx, AVSequencerPlayerChannel *const player_channel, int32_t tremolo_slide_value)
@@ -6826,7 +6801,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(getrnd)
 /** Sine table for very fast sine calculation. Value is
    sin(x)*32767 with one element being one degree.  */
 static const int16_t sine_lut[] = {
-         0,    571,   1143,   1714,   2285,   2855,   3425,   3993,   4560,   5125,   5689,   6252,  6812,    7370,   7927,  8480,
+         0,    571,   1143,   1714,   2285,   2855,   3425,   3993,   4560,   5125,   5689,   6252,   6812,   7370,   7927,  8480,
       9031,   9580,  10125,  10667,  11206,  11742,  12274,  12803,  13327,  13847,  14364,  14875,  15383,  15885,  16383,  16876,
      17363,  17846,  18323,  18794,  19259,  19719,  20173,  20620,  21062,  21497,  21925,  22347,  22761,  23169,  23570,  23964,
      24350,  24729,  25100,  25464,  25820,  26168,  26509,  26841,  27165,  27480,  27787,  28086,  28377,  28658,  28931,  29195,
@@ -7046,31 +7021,35 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(arpwavp)
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(arpegio)
 {
-    const AVSequencerSynthWave *waveform;
-    uint16_t arpeggio_speed;
+    const AVSequencerSynthWave *const waveform = player_channel->arpeggio_waveform;
 
-    instruction_data += player_channel->variable[src_var];
-
-    if (!(arpeggio_speed = (instruction_data >> 8)))
-        arpeggio_speed = player_channel->arpeggio_speed;
-
-    player_channel->arpeggio_speed = arpeggio_speed;
-
-    if ((waveform = player_channel->arpeggio_waveform)) {
-        int8_t arpeggio_transpose;
+    if (waveform) {
+        uint16_t arpeggio_speed;
+        int16_t arpeggio_transpose;
         uint8_t arpeggio_finetune;
         const uint32_t waveform_pos = player_channel->arpeggio_pos % waveform->samples;
 
-        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT)
-            arpeggio_transpose = ((int8_t *) waveform->data)[waveform_pos] << 8;
-        else
-            arpeggio_transpose = waveform->data[waveform_pos];
+        instruction_data += player_channel->variable[src_var];
 
-        player_channel->arpeggio_finetune  = arpeggio_finetune = arpeggio_transpose;
-        player_channel->arpeggio_transpose = (arpeggio_transpose >>= 8);
+        if (!(arpeggio_speed = (instruction_data >> 8)))
+            arpeggio_speed = player_channel->arpeggio_speed;
+
+        player_channel->arpeggio_speed = arpeggio_speed;
+
+        if (waveform->flags & AVSEQ_SYNTH_WAVE_FLAG_8BIT) {
+            arpeggio_finetune  = 0;
+            arpeggio_transpose = ((int8_t *) waveform->data)[waveform_pos];
+        } else {
+            arpeggio_speed     = waveform->data[waveform_pos];
+            arpeggio_finetune  = arpeggio_speed;
+            arpeggio_transpose = (int16_t) arpeggio_speed >> 8;
+        }
+
+        player_channel->arpeggio_finetune  = arpeggio_finetune;
+        player_channel->arpeggio_transpose = arpeggio_transpose;
         player_channel->arpeggio_pos       = (waveform_pos + arpeggio_speed) % waveform->samples;
 
-        se_arpegio_do(avctx, player_channel, arpeggio_transpose, arpeggio_finetune);
+        se_arpegio_do(avctx, player_channel, arpeggio_transpose, arpeggio_finetune + instruction_data);
     }
 
     return synth_code_line;
@@ -7078,12 +7057,12 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(arpegio)
 
 EXECUTE_SYNTH_CODE_INSTRUCTION(arpval)
 {
-    int8_t arpeggio_transpose;
+    int16_t arpeggio_transpose;
     uint8_t arpeggio_finetune;
 
     instruction_data                  += player_channel->variable[src_var];
     player_channel->arpeggio_finetune  = arpeggio_finetune  = instruction_data;
-    player_channel->arpeggio_transpose = arpeggio_transpose = (instruction_data >> 8);
+    player_channel->arpeggio_transpose = arpeggio_transpose = (int16_t) instruction_data >> 8;
 
     se_arpegio_do(avctx, player_channel, arpeggio_transpose, arpeggio_finetune);
 
@@ -7254,36 +7233,24 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setrans)
     int8_t finetune;
 
     player_channel->final_note = (instruction_data += player_channel->variable[src_var] + player_channel->sample_note);
-
-    octave = (int16_t) instruction_data / 12;
-    note   = (int16_t) instruction_data % 12;
+    note                       = (int16_t) instruction_data % 12;
+    octave                     = (int16_t) instruction_data / 12;
 
     if (note < 0) {
         octave--;
-
         note += 12;
     }
 
     if ((finetune = player_channel->finetune) < 0) {
-        finetune += -0x80;
-
         note--;
+        finetune += -0x80;
     }
 
-    frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
-    frequency      = *frequency_lut++;
-    next_frequency = *frequency_lut - frequency;
-    frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 7;
-
-    if ((int16_t) (octave -= 4) < 0) {
-        octave = -octave;
-
-        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> (16 + octave);
-    } else {
-        frequency <<= octave;
-
-        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> 16;
-    }
+    frequency_lut             = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+    frequency                 = *frequency_lut++;
+    next_frequency            = *frequency_lut - frequency;
+    frequency                += ((int32_t) finetune * (int32_t) next_frequency) >> 7;
+    player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> ((16+4) - octave);
 
     return synth_code_line;
 }
@@ -7297,35 +7264,24 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setnote)
     int8_t finetune;
 
     instruction_data += player_channel->variable[src_var];
-    octave            = (int16_t) instruction_data / 12;
     note              = (int16_t) instruction_data % 12;
+    octave            = (int16_t) instruction_data / 12;
 
     if (note < 0) {
         octave--;
-
         note += 12;
     }
 
     if ((finetune = player_channel->finetune) < 0) {
-        finetune += -0x80;
-
         note--;
+        finetune += -0x80;
     }
 
-    frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
-    frequency      = *frequency_lut++;
-    next_frequency = *frequency_lut - frequency;
-    frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 7;
-
-    if ((int16_t) (octave -= 4) < 0) {
-        octave = -octave;
-
-        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> (16 + octave);
-    } else {
-        frequency <<= octave;
-
-        player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> 16;
-    }
+    frequency_lut             = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+    frequency                 = *frequency_lut++;
+    next_frequency            = *frequency_lut - frequency;
+    frequency                += ((int32_t) finetune * (int32_t) next_frequency) >> 7;
+    player_channel->frequency = ((uint64_t) frequency * player_channel->sample->rate) >> ((16+4) - octave);
 
     return synth_code_line;
 }
@@ -8911,7 +8867,7 @@ static void init_new_instrument(AVSequencerContext *const avctx, AVSequencerPlay
             }
         }
 
-        panning_separation = (((int16_t) player_host_channel->instr_note - ((uint8_t) instrument->pitch_pan_center + 1)) * instrument->pitch_pan_separation) >> 8;
+        panning_separation = ((int32_t) instrument->pitch_pan_separation * (int32_t) (player_host_channel->instr_note - (instrument->pitch_pan_center + 1))) >> 8;
         panning_swing      = (instrument->panning_swing << 1) + 1;
         avctx->seed        = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
         panning_swing      = ((uint64_t) seed * panning_swing) >> 32;
@@ -9798,10 +9754,10 @@ instrument_found:
                 uint32_t frequency, next_frequency, slide_envelope_frequency, old_frequency;
                 int16_t octave, note;
                 const int16_t slide_note = (int16_t) slide_envelope_value >> 8;
-                int16_t finetune         = slide_envelope_value & 0xFF;
+                int32_t finetune         = slide_envelope_value & 0xFF;
 
-                octave             = slide_note / 12;
-                note               = slide_note % 12;
+                octave = slide_note / 12;
+                note   = slide_note % 12;
 
                 if (note < 0) {
                     octave--;
@@ -9809,22 +9765,14 @@ instrument_found:
                     finetune = -finetune;
                 }
 
-                frequency_lut  = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
-                frequency      = *frequency_lut++;
-                next_frequency = *frequency_lut - frequency;
-                frequency     += (int32_t) (finetune * (int16_t) next_frequency) >> 8;
-
-                if ((int16_t) octave < 0) {
-                    octave      = -octave;
-                    frequency >>= octave;
-                } else {
-                    frequency <<= octave;
-                }
-
+                frequency_lut                   = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
+                frequency                       = *frequency_lut++;
+                next_frequency                  = *frequency_lut - frequency;
+                frequency                      += (finetune * (int32_t) next_frequency) >> 8;
                 slide_envelope_frequency        = player_channel->slide_env_freq;
                 old_frequency                   = player_channel->frequency;
                 slide_envelope_frequency       += old_frequency;
-                player_channel->frequency       = frequency = ((uint64_t) frequency * slide_envelope_frequency) >> 16;
+                player_channel->frequency       = frequency = ((uint64_t) frequency * slide_envelope_frequency) >> (16 - octave);
                 player_channel->slide_env_freq += old_frequency - frequency;
             }
 
