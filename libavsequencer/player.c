@@ -1471,7 +1471,7 @@ static uint32_t amiga_slide_down(AVSequencerPlayerChannel *const player_channel,
     return (player_channel->frequency = new_frequency);
 }
 
-/** Note frequency lookup table. Value is 16777216*2^(x/12), where x=1
+/** Note frequency lookup table. Value is 16777216*2^(x/12), where x=0
    equals note C-4.  */
 static const uint32_t pitch_lut[] = {
     0x00F1A1BF, // B-3
