@@ -121,14 +121,14 @@ typedef struct AVMixerChannel {
     int8_t panning;
 
     /** Current (resonance) filter cutoff for this channel which
-       ranges from 0 to 127. Natural frequency is calculated by
-       nat_freq = 2*PI*110*(2^0.25)*2^(filter_cutoff/24).  */
-    uint8_t filter_cutoff;
+       ranges from 0 to 4095. Natural frequency is calculated by
+       nat_freq = 2*PI*110*(2^0.25)*2^(filter_cutoff/768).  */
+    uint16_t filter_cutoff;
 
     /** Current (resonance) filter damping for this channel which
-       ranges from 0 to 127. Damping factor is calculated by
-       damp_factor = 10^(-((24/128)*filter_damping)/20).  */
-    uint8_t filter_damping;
+       ranges from 0 to 4095. Damping factor is calculated by
+       damp_factor = 10^(-((24/128)*filter_damping)/640).  */
+    uint16_t filter_damping;
 } AVMixerChannel;
 
 /** AVMixerData->flags bitfield.  */

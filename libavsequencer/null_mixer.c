@@ -61,8 +61,8 @@ typedef struct AV_NULLMixerChannelInfo {
         uint8_t flags;
         uint8_t volume;
         uint8_t panning;
-        uint8_t filter_cutoff;
-        uint8_t filter_damping;
+        uint16_t filter_cutoff;
+        uint16_t filter_damping;
     } current;
     struct ChannelBlock next;
 } AV_NULLMixerChannelInfo;
@@ -544,8 +544,8 @@ static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void 
     null_mixer_data->channels_out            = channels_out;
 
     for (i = null_mixer_data->channels_in; i > 0; i--) {
-        channel_info->current.filter_cutoff = 127;
-        channel_info->next.filter_cutoff    = 127;
+        channel_info->current.filter_cutoff = 4095;
+        channel_info->next.filter_cutoff    = 4095;
 
         channel_info++;
     }
@@ -671,8 +671,8 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
         channel_info += copy_channels;
 
         for (i = copy_channels; i < channels; ++i) {
-            channel_info->current.filter_cutoff = 127;
-            channel_info->next.filter_cutoff    = 127;
+            channel_info->current.filter_cutoff = 4095;
+            channel_info->next.filter_cutoff    = 4095;
 
             channel_info++;
         }
@@ -758,11 +758,11 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     channel_block->count_restart  = mixer_channel->repeat_count;
     channel_block->counted        = mixer_channel->repeat_counted;
 
-    if ((int8_t) (channel_block->filter_cutoff = mixer_channel->filter_cutoff) < 0)
-        channel_block->filter_cutoff = 127;
+    if ((channel_block->filter_cutoff = mixer_channel->filter_cutoff) > 4095)
+        channel_block->filter_cutoff = 4095;
 
-    if ((int8_t) (channel_block->filter_damping = mixer_channel->filter_damping) < 0)
-        channel_block->filter_damping = 127;
+    if ((channel_block->filter_damping = mixer_channel->filter_damping) > 4095)
+        channel_block->filter_damping = 4095;
 
     set_sample_mix_rate(null_mixer_data, channel_block, mixer_channel->rate);
 }
@@ -790,7 +790,7 @@ static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
     channel_block->restart_offset   = 0;
     channel_block->count_restart    = 0;
     channel_block->counted          = 0;
-    channel_block->filter_cutoff    = 127;
+    channel_block->filter_cutoff    = 4095;
     channel_block->filter_damping   = 0;
 
     channel_block                   = &channel_info->next;
@@ -810,7 +810,7 @@ static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
     channel_block->restart_offset   = 0;
     channel_block->count_restart    = 0;
     channel_block->counted          = 0;
-    channel_block->filter_cutoff    = 127;
+    channel_block->filter_cutoff    = 4095;
     channel_block->filter_damping   = 0;
 }
 
@@ -889,11 +889,11 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->count_restart  = mixer_channel_current->repeat_count;
     channel_block->counted        = mixer_channel_current->repeat_counted;
 
-    if ((int8_t) (channel_block->filter_cutoff = mixer_channel_current->filter_cutoff) < 0)
-        channel_block->filter_cutoff = 127;
+    if ((channel_block->filter_cutoff = mixer_channel_current->filter_cutoff) > 4095)
+        channel_block->filter_cutoff = 4095;
 
-    if ((int8_t) (channel_block->filter_damping = mixer_channel_current->filter_damping) < 0)
-        channel_block->filter_damping = 127;
+    if ((channel_block->filter_damping = mixer_channel_current->filter_damping) > 4095)
+        channel_block->filter_damping = 4095;
 
     set_sample_mix_rate(null_mixer_data, channel_block, mixer_channel_current->rate);
 
@@ -930,11 +930,11 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     channel_block->count_restart  = mixer_channel_next->repeat_count;
     channel_block->counted        = mixer_channel_next->repeat_counted;
 
-    if ((int8_t) (channel_block->filter_cutoff = mixer_channel_next->filter_cutoff) < 0)
-        channel_block->filter_cutoff = 127;
+    if ((channel_block->filter_cutoff = mixer_channel_next->filter_cutoff) > 4095)
+        channel_block->filter_cutoff = 4095;
 
-    if ((int8_t) (channel_block->filter_damping = mixer_channel_next->filter_damping) < 0)
-        channel_block->filter_damping = 127;
+    if ((channel_block->filter_damping = mixer_channel_next->filter_damping) > 4095)
+        channel_block->filter_damping = 4095;
 
     set_sample_mix_rate(null_mixer_data, channel_block, mixer_channel_next->rate);
 }
@@ -1055,11 +1055,11 @@ static av_cold void set_channel_filter(AVMixerData *mixer_data, AVMixerChannel *
     const AV_NULLMixerData *const null_mixer_data = (AV_NULLMixerData *) mixer_data;
     AV_NULLMixerChannelInfo *const channel_info   = null_mixer_data->channel_info + channel;
 
-    if ((int8_t) (channel_info->current.filter_cutoff = mixer_channel->filter_cutoff) < 0)
-        channel_info->current.filter_cutoff = 127;
+    if ((channel_info->current.filter_cutoff = mixer_channel->filter_cutoff) > 4095)
+        channel_info->current.filter_cutoff = 4095;
 
-    if ((int8_t) (channel_info->current.filter_damping = mixer_channel->filter_damping) < 0)
-        channel_info->current.filter_damping = 127;
+    if ((channel_info->current.filter_damping = mixer_channel->filter_damping) > 4095)
+        channel_info->current.filter_damping = 4095;
 }
 
 static av_cold void mix(AVMixerData *mixer_data, int32_t *buf)

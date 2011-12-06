@@ -107,8 +107,8 @@ int avseq_instrument_open(AVSequencerModule *module, AVSequencerInstrument *inst
     instrument->global_volume    = 255;
     instrument->default_panning  = -128;
     instrument->env_usage_flags  = ~(AVSEQ_INSTRUMENT_FLAG_USE_VOLUME_ENV|AVSEQ_INSTRUMENT_FLAG_USE_PANNING_ENV|AVSEQ_INSTRUMENT_FLAG_USE_SLIDE_ENV|-0x2000);
-    instrument->filter_cutoff    = 255;
-    instrument->filter_damping   = 255;
+    instrument->filter_cutoff    = -1;
+    instrument->filter_damping   = -1;
 
     instrument_list[instruments - 1] = instrument;
     module->instrument_list          = instrument_list;

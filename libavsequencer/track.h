@@ -879,7 +879,9 @@ enum AVSequencerTrackEffectCommand {
        8 | Set pitch panning center to the lower 8 bits of yyy.
        9 | Set DCA (Decay Action) to either cut when yyy equals zero,
            keyoff if yyy equals 0x001 and fadeout for yyy
-           being 0x002.  */
+           being 0x002.
+       A | Set (resonance) filter cutoff to yyy.
+       B | Set (resonance) filter damping to yyy.  */
     AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE    = 0x56,
 
     /** Synth control:
