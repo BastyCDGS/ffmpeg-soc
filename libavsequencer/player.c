@@ -9412,7 +9412,7 @@ static void init_new_instrument(AVSequencerContext *const avctx, AVSequencerPlay
 
         player_channel->global_instr_volume = instrument->global_volume;
         player_channel->volume_swing        = instrument->volume_swing;
-        volume                              = sample->global_volume * player_channel->global_volume;
+        volume                              = sample->global_volume * player_channel->global_instr_volume;
         volume_swing                        = (volume * player_channel->volume_swing) >> 8;
         abs_volume_swing                    = (volume_swing << 1) + 1;
         avctx->seed                         = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
