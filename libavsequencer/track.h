@@ -825,9 +825,10 @@ enum AVSequencerTrackEffectCommand {
 
     /** Instrument control:
        Data word consists of two 8-bit pairs named xx and yy
-       where xx are the turn off bits and yy the turn off bits.
+       where xx are the turn off bits and yy the turn on bits.
        Bits not touched by either will be prevented from the
-       special instrument control changes. The table is declared as:
+       special instrument control changes and bits touched by
+       both will be flipped. The table is declared as:
        xx/yy | Meanings
         0x01 | Apply to use sample panning bit. If set, the sample
                panning with be used instead of the instrument panning.
@@ -858,7 +859,7 @@ enum AVSequencerTrackEffectCommand {
        0 | Change instrument global volume to the lower 8 bits of yyy.
        1 | Change instrument volume swing to yyy.
        2 | Change instrument panning swing to yyy.
-       3 | Change instrument pitch swing to to yyy in percentage.
+       3 | Change instrument pitch swing to yyy in percentage.
        4 | Change instrument fadeout to yyy * 0x10.
        5 | Change fadeout count to yyy * 0x10 if yyy is non-zero,
            otherwise immediately stop the fadeout.
@@ -881,7 +882,8 @@ enum AVSequencerTrackEffectCommand {
            keyoff if yyy equals 0x001 and fadeout for yyy
            being 0x002.
        A | Set (resonance) filter cutoff to yyy.
-       B | Set (resonance) filter damping to yyy.  */
+       B | Set (resonance) filter damping to yyy.
+       C | Change instrument note swing to the lower 8 bits of yyy.  */
     AVSEQ_TRACK_EFFECT_CMD_INS_CHANGE    = 0x56,
 
     /** Synth control:

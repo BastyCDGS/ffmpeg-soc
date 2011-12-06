@@ -1550,8 +1550,9 @@ typedef struct AVSequencerPlayerChannel {
        sub-volume doesn't account into actual mixer output.  */
     uint8_t sub_volume;
 
-    /** Current instrument global volume of currently playing
-       instrument being played by this virtual channel.  */
+    /** Current instrument global volume multiplied with current
+       sample global volume of currently playing instrument
+       being played by this virtual channel.  */
     uint16_t instr_volume;
 
     /** Current sample panning position of currently playing sample
@@ -1591,6 +1592,15 @@ typedef struct AVSequencerPlayerChannel {
        or waveform. This is basically global panning divided by 256,
        but sub-panning doesn't account into actual mixer output.  */
     uint8_t global_sub_panning;
+
+    /** Current instrument global volume of currently playing
+       instrument for this virtual channel.  */
+    uint8_t global_instr_volume;
+
+    /** Current random note swing in semi-tones. This value will
+       cause a flip between each play of this instrument making it
+       sounding more natural.  */
+    uint8_t note_swing;
 
     /** Current random volume swing in 1/256th steps (i.e. 256 means
        100%). The volume will vibrate randomnessly around that volume
@@ -1713,7 +1723,7 @@ typedef struct AVSequencerPlayerChannel {
     uint16_t auto_tremolo_sweep;
 
     /** Current auto pannolo (panbrello) sweep.  */
-    uint16_t auto_pan_sweep;
+    uint16_t auto_pannolo_sweep;
 
     /** Current auto vibrato depth.  */
     uint8_t auto_vibrato_depth;
@@ -1728,10 +1738,10 @@ typedef struct AVSequencerPlayerChannel {
     uint8_t auto_tremolo_rate;
 
     /** Current auto pannolo (panbrello) depth.  */
-    uint8_t auto_pan_depth;
+    uint8_t auto_pannolo_depth;
 
     /** Current auto pannolo (panbrello) rate.  */
-    uint8_t auto_pan_rate;
+    uint8_t auto_pannolo_rate;
 
     /** Current instrument note being played (after applying
        current instrument transpose) by the formula: current
