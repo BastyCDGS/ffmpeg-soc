@@ -3025,6 +3025,7 @@ static int iff_read_seek(AVFormatContext *s,
             } while (channel--);
 
             avseq_module_stop(iff->avctx, 0);
+            avseq_mixer_set_tempo(old_mixer_data, mixer_data->tempo);
 
             iff->avctx->player_mixer_data = old_mixer_data;
         } else {

@@ -4257,7 +4257,148 @@ EXECUTE_EFFECT(set_transpose)
 
 EXECUTE_EFFECT(instrument_ctrl)
 {
-    // TODO: Implement instrument control effect
+    const uint32_t flags = player_host_channel->flags;
+    uint8_t off_bits     = data_word >> 8;
+    uint8_t on_bits      = data_word;
+    uint8_t xor_bits     = off_bits & on_bits;
+
+    if (xor_bits & 0x01)
+        player_host_channel->flags ^= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING;
+    else if (off_bits & 0x01)
+        player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING;
+    else if (on_bits & 0x01)
+        player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING;
+
+    if (flags != player_host_channel->flags) {
+        const AVSequencerInstrument *instrument;
+        const AVSequencerSample *const sample = player_host_channel->sample;
+
+        if (sample) {
+            uint32_t panning, seed;
+
+            panning                = (uint8_t) player_host_channel->track_note_panning;
+            player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN;
+
+            if (sample->flags & AVSEQ_SAMPLE_FLAG_SAMPLE_PANNING) {
+                player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
+
+                if (sample->flags & AVSEQ_SAMPLE_FLAG_SURROUND_PANNING)
+                    player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+
+                player_channel->panning            = sample->panning;
+                player_channel->sub_panning        = sample->sub_panning;
+                player_host_channel->pannolo_slide = 0;
+                panning                            = (uint8_t) player_channel->panning;
+
+                if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
+                    player_host_channel->track_panning          = panning;
+                    player_host_channel->track_sub_panning      = player_channel->sub_panning;
+                    player_host_channel->track_note_panning     = panning;
+                    player_host_channel->track_note_sub_panning = player_channel->sub_panning;
+                    player_host_channel->flags                 &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+
+                    if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
+                        player_host_channel->flags         |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+                }
+            } else {
+                player_channel->panning     = player_host_channel->track_panning;
+                player_channel->sub_panning = player_host_channel->track_sub_panning;
+                player_channel->flags      &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+
+                if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN)
+                    player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+            }
+
+            player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
+
+            if ((instrument = player_channel->instrument)) {
+                uint32_t panning_swing;
+                int32_t panning_separation;
+
+                if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
+                    player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
+
+                if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING) {
+                    player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
+
+                    if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
+                        player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
+
+                    player_channel->panning            = instrument->default_panning;
+                    player_channel->sub_panning        = instrument->default_sub_pan;
+                    player_host_channel->pannolo_slide = 0;
+                    panning                            = (uint8_t) player_channel->panning;
+
+                    if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
+                        player_host_channel->track_panning     = player_channel->panning;
+                        player_host_channel->track_sub_panning = player_channel->sub_panning;
+                        player_host_channel->flags            &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+
+                        if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
+                            player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+                    }
+                }
+
+                panning_separation = ((int32_t) player_channel->pitch_pan_separation * (int32_t) (player_host_channel->instr_note - (player_channel->pitch_pan_center + 1))) >> 8;
+                panning_swing      = (player_channel->panning_swing << 1) + 1;
+                avctx->seed        = seed = ((int32_t) avctx->seed * AVSEQ_RANDOM_CONST) + 1;
+                panning_swing      = ((uint64_t) seed * panning_swing) >> 32;
+                panning_swing     -= instrument->panning_swing;
+                panning           += panning_swing;
+
+                if ((int32_t) (panning += panning_separation) < 0)
+                    panning = 0;
+
+                if (panning > 255)
+                    panning = 255;
+
+                if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN)
+                    player_host_channel->track_panning = panning;
+                else
+                    player_channel->panning            = panning;
+
+                if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN) {
+                    player_host_channel->track_panning = panning;
+                    player_channel->panning            = panning;
+                }
+            }
+        }
+    }
+
+    if (xor_bits & 0x02)
+        player_host_channel->flags ^= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE;
+    else if (off_bits & 0x02)
+        player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE;
+    else if (on_bits & 0x02)
+        player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE;
+
+    if (xor_bits & 0x08)
+        player_channel->flags ^= AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV;
+    else if (off_bits & 0x08)
+        player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV;
+    else if (on_bits & 0x08)
+        player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV;
+
+    if (xor_bits & 0x10)
+        player_channel->flags ^= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV;
+    else if (off_bits & 0x10)
+        player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV;
+    else if (on_bits & 0x10)
+        player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_SLIDE_ENV;
+
+    if (xor_bits & 0x20)
+        player_host_channel->flags ^= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SMP_OFFSET_REL;
+    else if (off_bits & 0x20)
+        player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SMP_OFFSET_REL;
+    else if (on_bits & 0x20)
+        player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SMP_OFFSET_REL;
+
+    if (xor_bits & 0x80)
+        player_channel->flags ^= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
+    else if (off_bits & 0x80)
+        player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
+    else if (on_bits & 0x80)
+        player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
 }
 
 EXECUTE_EFFECT(instrument_change)
@@ -4352,7 +4493,7 @@ EXECUTE_EFFECT(instrument_change)
                         player_host_channel->track_note_panning     = panning;
                         player_host_channel->track_note_sub_panning = player_channel->sub_panning;
                         player_host_channel->flags                 &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
-    
+
                         if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                             player_host_channel->flags         |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
                     }
@@ -4360,7 +4501,7 @@ EXECUTE_EFFECT(instrument_change)
                     player_channel->panning     = player_host_channel->track_panning;
                     player_channel->sub_panning = player_host_channel->track_sub_panning;
                     player_channel->flags      &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
-    
+
                     if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN)
                         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
                 }
@@ -4376,7 +4517,7 @@ EXECUTE_EFFECT(instrument_change)
                     if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
                         player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
 
-                    if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING) {
+                    if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING) {
                         player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
 
                         if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
@@ -4390,8 +4531,8 @@ EXECUTE_EFFECT(instrument_change)
                         if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
                             player_host_channel->track_panning     = player_channel->panning;
                             player_host_channel->track_sub_panning = player_channel->sub_panning;
-                            player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
-    
+                            player_host_channel->flags            &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
+
                             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                                 player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
                         }
@@ -4525,7 +4666,7 @@ EXECUTE_EFFECT(instrument_change)
                     if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
                         player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
 
-                    if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING) {
+                    if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING) {
                         player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
 
                         if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
@@ -4539,7 +4680,7 @@ EXECUTE_EFFECT(instrument_change)
                         if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
                             player_host_channel->track_panning     = player_channel->panning;
                             player_host_channel->track_sub_panning = player_channel->sub_panning;
-                            player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
+                            player_host_channel->flags            &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
 
                             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                                 player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
@@ -4618,7 +4759,7 @@ EXECUTE_EFFECT(instrument_change)
                     if ((instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) && (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_AFFECT_CHANNEL_PAN))
                         player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
 
-                    if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING) {
+                    if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING) {
                         player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
 
                         if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
@@ -4632,7 +4773,7 @@ EXECUTE_EFFECT(instrument_change)
                         if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
                             player_host_channel->track_panning     = player_channel->panning;
                             player_host_channel->track_sub_panning = player_channel->sub_panning;
-                            player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
+                            player_host_channel->flags            &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
 
                             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                                 player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
@@ -8957,7 +9098,7 @@ do_not_play_keyboard:
 
     note += transpose;
 
-    if (!(instrument->flags & AVSEQ_INSTRUMENT_FLAG_NO_TRANSPOSE))
+    if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE))
         note += player_host_channel->order->transpose;
 
     note += player_host_channel->track->transpose;
@@ -9325,6 +9466,11 @@ static void init_new_instrument(AVSequencerContext *const avctx, AVSequencerPlay
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
 
     if (instrument) {
+        player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE;
+
+        if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_NO_TRANSPOSE)
+            player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE;
+
         if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_PORTA_SLIDE_ENV)
             player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_PORTA_SLIDE_ENV;
 
@@ -9486,7 +9632,8 @@ static void init_new_instrument(AVSequencerContext *const avctx, AVSequencerPlay
             player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_AFFECT_CHAN_PAN;
 
         if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_DEFAULT_PANNING) {
-            player_channel->flags &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
+            player_channel->flags      &= ~(AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN|AVSEQ_PLAYER_CHANNEL_FLAG_TRACK_PAN);
+            player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING;
 
             if (instrument->flags & AVSEQ_INSTRUMENT_FLAG_SURROUND_PANNING)
                 player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN;
@@ -9499,11 +9646,13 @@ static void init_new_instrument(AVSequencerContext *const avctx, AVSequencerPlay
             if (instrument->compat_flags & AVSEQ_INSTRUMENT_COMPAT_FLAG_AFFECT_CHANNEL_PAN) {
                 player_host_channel->track_panning     = player_channel->panning;
                 player_host_channel->track_sub_panning = player_channel->sub_panning;
-                player_host_channel->flags            &= ~(AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN);
+                player_host_channel->flags            &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
 
                 if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                     player_host_channel->flags |= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TRACK_SUR_PAN;
             }
+        } else {
+            player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING;
         }
 
         player_channel->pitch_pan_separation = instrument->pitch_pan_separation;

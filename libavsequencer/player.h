@@ -479,6 +479,8 @@ enum AVSequencerPlayerHostChannelFlags {
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_PATTERN_RESET    = 0x00080000, ///< Pattern loop effect needs to be resetted
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT   = 0x00100000, ///< Only playing instrument without order list and pattern processing
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE       = 0x00200000, ///< Only playing sample without instrument, order list and pattern processing
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_NO_TRANSPOSE     = 0x00400000, ///< Instrument can't be transpoed by the order list
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_DEFAULT_PANNING  = 0x00800000, ///< Use instrument panning and override sample default panning
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SONG_END         = 0x80000000, ///< Song end triggered for this host channel / track
 };
 
