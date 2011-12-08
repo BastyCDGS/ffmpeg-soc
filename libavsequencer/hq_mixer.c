@@ -3705,7 +3705,7 @@ static void mix_average_left(const AV_HQMixerData *const mixer_data, struct AV_H
 
         smp               = get_sample_func(mixer_data, channel_info, channel_block, curr_offset);
         interpolate_frac += curr_frac;
-        interpolate_div  += (((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31);
+        interpolate_div  += ((int64_t) ((uint32_t) curr_frac >> 1) * smp) >> 31;
         *mix_buf         += (interpolate_div << 24) / (interpolate_frac >> 8);
         mix_buf          += 2;
     } while (--i);
