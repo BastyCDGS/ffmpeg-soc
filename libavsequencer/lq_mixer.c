@@ -624,193 +624,193 @@ mix_sample_synth:
     } while (--i);
 }
 
-#define MIX_FUNCTION(INIT, TYPE, OP, OFFSET_START, OFFSET_END, SKIP,              \
-                     NEXTS, NEXTA, NEXTI, SHIFTS, SHIFTN, SHIFTB)                 \
-    const TYPE *sample              = (const TYPE *) channel_block->data;         \
-    int32_t *mix_buf                = *buf;                                       \
-    uint32_t curr_offset            = *offset;                                    \
-    uint32_t curr_frac              = *fraction;                                  \
-    uint32_t i;                                                                   \
-    INIT;                                                                         \
-                                                                                  \
-    if (advance) {                                                                \
-        if (mixer_data->interpolation) {                                          \
-            int32_t smp;                                                          \
-            int32_t interpolate_div;                                              \
-                                                                                  \
-            OFFSET_START;                                                         \
-            i       = (len >> 1) + 1;                                             \
-                                                                                  \
-            if (len & 1)                                                          \
-                goto get_second_advance_interpolated_sample;                      \
-                                                                                  \
-            i--;                                                                  \
-                                                                                  \
-            do {                                                                  \
-                uint32_t interpolate_offset;                                      \
-                                                                                  \
-                curr_frac          += adv_frac;                                   \
-                interpolate_offset  = advance + ((curr_frac < adv_frac) ? 1 : 0); \
-                smp                 = 0;                                          \
-                interpolate_div     = 0;                                          \
-                                                                                  \
-                do {                                                              \
-                    NEXTA;                                                        \
-                    interpolate_div++;                                            \
-                } while (--interpolate_offset);                                   \
-                                                                                  \
-                smp        /= interpolate_div;                                    \
-                SHIFTS;                                                           \
-get_second_advance_interpolated_sample:                                           \
-                curr_frac          += adv_frac;                                   \
-                interpolate_offset  = advance + ((curr_frac < adv_frac) ? 1 : 0); \
-                smp                 = 0;                                          \
-                interpolate_div     = 0;                                          \
-                                                                                  \
-                do {                                                              \
-                    NEXTA;                                                        \
-                    interpolate_div++;                                            \
-                } while (--interpolate_offset);                                   \
-                                                                                  \
-                smp        /= interpolate_div;                                    \
-                SHIFTS;                                                           \
-            } while (--i);                                                        \
-                                                                                  \
-            *buf      = mix_buf;                                                  \
-            OFFSET_END;                                                           \
-            *fraction = curr_frac;                                                \
-        } else {                                                                  \
-            i = (len >> 1) + 1;                                                   \
-                                                                                  \
-            if (len & 1)                                                          \
-                goto get_second_advance_sample;                                   \
-                                                                                  \
-            i--;                                                                  \
-                                                                                  \
-            do {                                                                  \
-                SKIP;                                                             \
-                curr_frac   += adv_frac;                                          \
-                curr_offset OP advance + ((curr_frac < adv_frac) ? 1 : 0);        \
-get_second_advance_sample:                                                        \
-                SKIP;                                                             \
-                curr_frac   += adv_frac;                                          \
-                curr_offset OP advance + ((curr_frac < adv_frac) ? 1 : 0);        \
-            } while (--i);                                                        \
-                                                                                  \
-            *buf      = mix_buf;                                                  \
-            *offset   = curr_offset;                                              \
-            *fraction = curr_frac;                                                \
-        }                                                                         \
-    } else {                                                                      \
-        int32_t smp;                                                              \
-                                                                                  \
-        if (mixer_data->interpolation > 1) {                                      \
-            uint32_t interpolate_frac, interpolate_count;                         \
-            int32_t interpolate_div;                                              \
-            int64_t smp_value;                                                    \
-                                                                                  \
-            OFFSET_START;                                                         \
-            NEXTS;                                                                \
-            smp_value = 0;                                                        \
-                                                                                  \
-            if (len > 1) {                                                        \
-                NEXTI;                                                            \
-            }                                                                     \
-                                                                                  \
-            interpolate_div   = smp_value >> 32;                                  \
-            interpolate_frac  = smp_value;                                        \
-            interpolate_count = 0;                                                \
-                                                                                  \
-            i = (len >> 1) + 1;                                                   \
-                                                                                  \
-            if (len & 1)                                                          \
-                goto get_second_interpolated_sample;                              \
-                                                                                  \
-            i--;                                                                  \
-                                                                                  \
-            do {                                                                  \
-                SHIFTS;                                                           \
-                curr_frac  += adv_frac;                                           \
-                                                                                  \
-                if (curr_frac < adv_frac) {                                       \
-                    NEXTS;                                                        \
-                    NEXTI;                                                        \
-                                                                                  \
-                    interpolate_div   = smp_value >> 32;                          \
-                    interpolate_frac  = smp_value;                                \
-                    interpolate_count = 0;                                        \
-                } else {                                                          \
-                    smp               += interpolate_div;                         \
-                    interpolate_count += interpolate_frac;                        \
-                                                                                  \
-                    if (interpolate_count < interpolate_frac) {                   \
-                        smp++;                                                    \
-                                                                                  \
-                        if (interpolate_div < 0)                                  \
-                            smp -= 2;                                             \
-                    }                                                             \
-                }                                                                 \
-get_second_interpolated_sample:                                                   \
-                SHIFTS;                                                           \
-                curr_frac  += adv_frac;                                           \
-                                                                                  \
-                if (curr_frac < adv_frac) {                                       \
-                    NEXTS;                                                        \
-                    smp_value = 0;                                                \
-                                                                                  \
-                    if (i > 1) {                                                  \
-                        NEXTI;                                                    \
-                    }                                                             \
-                                                                                  \
-                    interpolate_div   = smp_value >> 32;                          \
-                    interpolate_frac  = smp_value;                                \
-                    interpolate_count = 0;                                        \
-                } else {                                                          \
-                    smp               += interpolate_div;                         \
-                    interpolate_count += interpolate_frac;                        \
-                                                                                  \
-                    if (interpolate_count < interpolate_frac) {                   \
-                        smp++;                                                    \
-                                                                                  \
-                        if (interpolate_div < 0)                                  \
-                            smp -= 2;                                             \
-                    }                                                             \
-                }                                                                 \
-            } while (--i);                                                        \
-                                                                                  \
-            *buf      = mix_buf;                                                  \
-            OFFSET_END;                                                           \
-            *fraction = curr_frac;                                                \
-        } else {                                                                  \
-            OFFSET_START;                                                         \
-            SHIFTN;                                                               \
-            i       = (len >> 1) + 1;                                             \
-                                                                                  \
-            if (len & 1)                                                          \
-                goto get_second_sample;                                           \
-                                                                                  \
-            i--;                                                                  \
-                                                                                  \
-            do {                                                                  \
-                SHIFTB;                                                           \
-                curr_frac  += adv_frac;                                           \
-                                                                                  \
-                if (curr_frac < adv_frac) {                                       \
-                    SHIFTN;                                                       \
-                }                                                                 \
-get_second_sample:                                                                \
-                SHIFTB;                                                           \
-                curr_frac  += adv_frac;                                           \
-                                                                                  \
-                if (curr_frac < adv_frac) {                                       \
-                    SHIFTN;                                                       \
-                }                                                                 \
-            } while (--i);                                                        \
-                                                                                  \
-            *buf      = mix_buf;                                                  \
-            OFFSET_END;                                                           \
-            *fraction = curr_frac;                                                \
-        }                                                                         \
+#define MIX_FUNCTION(INIT, TYPE, OP, OFFSET_START, OFFSET_END, SKIP,      \
+                     NEXTS, NEXTA, NEXTI, SHIFTS, SHIFTN, SHIFTB)         \
+    const TYPE *sample              = (const TYPE *) channel_block->data; \
+    int32_t *mix_buf                = *buf;                               \
+    uint32_t curr_offset            = *offset;                            \
+    uint32_t curr_frac              = *fraction;                          \
+    uint32_t i;                                                           \
+    INIT;                                                                 \
+                                                                          \
+    if (advance) {                                                        \
+        if (mixer_data->interpolation) {                                  \
+            int32_t smp;                                                  \
+            int32_t interpolate_div;                                      \
+                                                                          \
+            OFFSET_START;                                                 \
+            i       = (len >> 1) + 1;                                     \
+                                                                          \
+            if (len & 1)                                                  \
+                goto get_second_advance_interpolated_sample;              \
+                                                                          \
+            i--;                                                          \
+                                                                          \
+            do {                                                          \
+                uint32_t interpolate_offset;                              \
+                                                                          \
+                curr_frac          += adv_frac;                           \
+                interpolate_offset  = advance + (curr_frac < adv_frac);   \
+                smp                 = 0;                                  \
+                interpolate_div     = 0;                                  \
+                                                                          \
+                do {                                                      \
+                    NEXTA;                                                \
+                    interpolate_div++;                                    \
+                } while (--interpolate_offset);                           \
+                                                                          \
+                smp        /= interpolate_div;                            \
+                SHIFTS;                                                   \
+get_second_advance_interpolated_sample:                                   \
+                curr_frac          += adv_frac;                           \
+                interpolate_offset  = advance + (curr_frac < adv_frac);   \
+                smp                 = 0;                                  \
+                interpolate_div     = 0;                                  \
+                                                                          \
+                do {                                                      \
+                    NEXTA;                                                \
+                    interpolate_div++;                                    \
+                } while (--interpolate_offset);                           \
+                                                                          \
+                smp        /= interpolate_div;                            \
+                SHIFTS;                                                   \
+            } while (--i);                                                \
+                                                                          \
+            *buf      = mix_buf;                                          \
+            OFFSET_END;                                                   \
+            *fraction = curr_frac;                                        \
+        } else {                                                          \
+            i = (len >> 1) + 1;                                           \
+                                                                          \
+            if (len & 1)                                                  \
+                goto get_second_advance_sample;                           \
+                                                                          \
+            i--;                                                          \
+                                                                          \
+            do {                                                          \
+                SKIP;                                                     \
+                curr_frac   += adv_frac;                                  \
+                curr_offset OP advance + (curr_frac < adv_frac);          \
+get_second_advance_sample:                                                \
+                SKIP;                                                     \
+                curr_frac   += adv_frac;                                  \
+                curr_offset OP advance + (curr_frac < adv_frac);          \
+            } while (--i);                                                \
+                                                                          \
+            *buf      = mix_buf;                                          \
+            *offset   = curr_offset;                                      \
+            *fraction = curr_frac;                                        \
+        }                                                                 \
+    } else {                                                              \
+        int32_t smp;                                                      \
+                                                                          \
+        if (mixer_data->interpolation > 1) {                              \
+            uint32_t interpolate_frac, interpolate_count;                 \
+            int32_t interpolate_div;                                      \
+            int64_t smp_value;                                            \
+                                                                          \
+            OFFSET_START;                                                 \
+            NEXTS;                                                        \
+            smp_value = 0;                                                \
+                                                                          \
+            if (len > 1) {                                                \
+                NEXTI;                                                    \
+            }                                                             \
+                                                                          \
+            interpolate_div   = smp_value >> 32;                          \
+            interpolate_frac  = smp_value;                                \
+            interpolate_count = 0;                                        \
+                                                                          \
+            i = (len >> 1) + 1;                                           \
+                                                                          \
+            if (len & 1)                                                  \
+                goto get_second_interpolated_sample;                      \
+                                                                          \
+            i--;                                                          \
+                                                                          \
+            do {                                                          \
+                SHIFTS;                                                   \
+                curr_frac  += adv_frac;                                   \
+                                                                          \
+                if (curr_frac < adv_frac) {                               \
+                    NEXTS;                                                \
+                    NEXTI;                                                \
+                                                                          \
+                    interpolate_div   = smp_value >> 32;                  \
+                    interpolate_frac  = smp_value;                        \
+                    interpolate_count = 0;                                \
+                } else {                                                  \
+                    smp               += interpolate_div;                 \
+                    interpolate_count += interpolate_frac;                \
+                                                                          \
+                    if (interpolate_count < interpolate_frac) {           \
+                        smp++;                                            \
+                                                                          \
+                        if (interpolate_div < 0)                          \
+                            smp -= 2;                                     \
+                    }                                                     \
+                }                                                         \
+get_second_interpolated_sample:                                           \
+                SHIFTS;                                                   \
+                curr_frac  += adv_frac;                                   \
+                                                                          \
+                if (curr_frac < adv_frac) {                               \
+                    NEXTS;                                                \
+                    smp_value = 0;                                        \
+                                                                          \
+                    if (i > 1) {                                          \
+                        NEXTI;                                            \
+                    }                                                     \
+                                                                          \
+                    interpolate_div   = smp_value >> 32;                  \
+                    interpolate_frac  = smp_value;                        \
+                    interpolate_count = 0;                                \
+                } else {                                                  \
+                    smp               += interpolate_div;                 \
+                    interpolate_count += interpolate_frac;                \
+                                                                          \
+                    if (interpolate_count < interpolate_frac) {           \
+                        smp++;                                            \
+                                                                          \
+                        if (interpolate_div < 0)                          \
+                            smp -= 2;                                     \
+                    }                                                     \
+                }                                                         \
+            } while (--i);                                                \
+                                                                          \
+            *buf      = mix_buf;                                          \
+            OFFSET_END;                                                   \
+            *fraction = curr_frac;                                        \
+        } else {                                                          \
+            OFFSET_START;                                                 \
+            SHIFTN;                                                       \
+            i       = (len >> 1) + 1;                                     \
+                                                                          \
+            if (len & 1)                                                  \
+                goto get_second_sample;                                   \
+                                                                          \
+            i--;                                                          \
+                                                                          \
+            do {                                                          \
+                SHIFTB;                                                   \
+                curr_frac  += adv_frac;                                   \
+                                                                          \
+                if (curr_frac < adv_frac) {                               \
+                    SHIFTN;                                               \
+                }                                                         \
+get_second_sample:                                                        \
+                SHIFTB;                                                   \
+                curr_frac  += adv_frac;                                   \
+                                                                          \
+                if (curr_frac < adv_frac) {                               \
+                    SHIFTN;                                               \
+                }                                                         \
+            } while (--i);                                                \
+                                                                          \
+            *buf      = mix_buf;                                          \
+            OFFSET_END;                                                   \
+            *fraction = curr_frac;                                        \
+        }                                                                 \
     }
 
 #define MIX(type)                                                                                   \

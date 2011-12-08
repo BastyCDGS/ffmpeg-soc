@@ -10287,13 +10287,13 @@ int avseq_playback_handler(AVMixerData *mixer_data)
         play_time_advance               = UINT64_C(AV_TIME_BASE * 655360) / play_time_calc;
         play_time_fraction              = ((UINT64_C(AV_TIME_BASE * 655360) % play_time_calc) << 32) / play_time_calc;
         player_globals->play_time_frac += play_time_fraction;
-        play_time_advance              += (player_globals->play_time_frac < play_time_fraction) ? 1 : 0;
+        play_time_advance              += (player_globals->play_time_frac < play_time_fraction);
         player_globals->play_time      += play_time_advance;
         play_time_calc                  = player_globals->tempo;
         play_time_advance               = UINT64_C(AV_TIME_BASE * 655360) / play_time_calc;
         play_time_fraction              = ((UINT64_C(AV_TIME_BASE * 655360) % play_time_calc) << 32) / play_time_calc;
         player_globals->play_tics_frac += play_time_fraction;
-        play_time_advance              += (player_globals->play_tics_frac < play_time_fraction) ? 1 : 0;
+        play_time_advance              += (player_globals->play_tics_frac < play_time_fraction);
         player_globals->play_tics      += play_time_advance;
     }
 
