@@ -6502,42 +6502,47 @@ static const int32_t damp_factor_lut[] = {
      2140116,  2138673,  2137231,  2135790,  2134349,  2132910,  2131472,  2130034,  2128598,  2127163,  2125728,  2124295,  2122862,  2121430,  2120000,  2118570
 };
 
-static inline void mulu_128(uint64_t *result, const uint64_t a, const uint64_t b)
+static inline void mulu_128(uint64_t *const result, const uint64_t a, const uint64_t b)
 {
     const uint32_t a_hi = a >> 32;
     const uint32_t a_lo = (uint32_t) a;
     const uint32_t b_hi = b >> 32;
     const uint32_t b_lo = (uint32_t) b;
-
-    uint64_t x0 = (uint64_t) a_hi * b_hi;
-    uint64_t x1 = (uint64_t) a_lo * b_hi;
+    const uint64_t x1 = (uint64_t) a_lo * b_hi;
     uint64_t x2 = (uint64_t) a_hi * b_lo;
-    uint64_t x3 = (uint64_t) a_lo * b_lo;
+    const uint64_t x3 = (uint64_t) a_lo * b_lo;
+    uint64_t x0 = (uint64_t) a_hi * b_hi;
 
-    x2 += x3 >> 32;
-    x2 += x1;
-
-    if (x2 < x1)
-        x0 += UINT64_C(0x100000000);
-
-    *result++ = x0 + (x2 >> 32);
-    *result = ((x2 & UINT64_C(0xFFFFFFFF)) << 32) + (x3 & UINT64_C(0xFFFFFFFF));
+    x2       += x3 >> 32;
+    x2       += x1;
+    x0       += (x2 < x1) ? UINT64_C(0x100000000) : 0;
+    result[0] = x0 + (x2 >> 32);
+    result[1] = (x2 << 32) + (x3 & UINT64_C(0xFFFFFFFF));
 }
 
-static inline void muls_128(int64_t *result, const int64_t a, const int64_t b)
+static inline void neg_128(uint64_t *const result)
 {
-    int sign = (a ^ b) < 0;
+    result[1]  = ~result[1];
+    result[0]  = ~result[0];
+    result[0] += (++result[1] ? 0 : 1);
+}
 
-    mulu_128(result, a < 0 ? -a : a, b < 0 ? -b : b );
+static inline void muls_128(int64_t *const result, const int64_t a, const int64_t b)
+{
+    const int sign = (a ^ b) < 0;
+
+    mulu_128(result, a < 0 ? -a : a, b < 0 ? -b : b);
 
     if (sign)
-        *result = -(*result);
+        neg_128(result);
 }
 
-static inline uint64_t divu_128(uint64_t a_hi, uint64_t a_lo, const uint64_t b)
+static inline uint64_t divu_128(const uint64_t *const a, const uint64_t b)
 {
+    uint64_t a_hi   = a[0];
+    uint64_t a_lo   = a[1];
     uint64_t result = 0, result_r = 0;
-    uint16_t i = 128;
+    uint16_t i      = 128;
 
     while (i--) {
         const uint64_t carry  = a_lo >> 63;
@@ -6557,10 +6562,15 @@ static inline uint64_t divu_128(uint64_t a_hi, uint64_t a_lo, const uint64_t b)
     return result;
 }
 
-static inline int64_t divs_128(int64_t a_hi, uint64_t a_lo, const int64_t b)
+static inline int64_t divs_128(int64_t *const a, const int64_t b)
 {
-    int sign = (a_hi ^ b) < 0;
-    int64_t result = divu_128(a_hi < 0 ? -a_hi : a_hi, a_lo, b < 0 ? -b : b );
+    const int sign = (a[0] ^ b) < 0;
+    int64_t result;
+
+    if (a[0] < 0)
+        neg_128(a);
+
+    result = divu_128(a, b < 0 ? -b : b);
 
     if (sign)
         result = -result;
@@ -6592,10 +6602,10 @@ static void update_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMi
         d = INT64_C(33554432);
 
     muls_128(tmp_128, damp_factor - d, (int64_t) mix_rate << 24);
-    d = divs_128(tmp_128[0], tmp_128[1], nat_freq);
+    d = divs_128(tmp_128, nat_freq);
 
     mulu_128(tmp_128, (uint64_t) mix_rate << 29, (uint64_t) mix_rate << 29); // Using more than 58 (2*29) bits in total will result in 128-bit integer multiply overflow for maximum allowed mixing rate of 768kHz
-    e = (divu_128(tmp_128[0], tmp_128[1], nat_freq) / nat_freq) << 14;
+    e = (divu_128(tmp_128, nat_freq) / nat_freq) << 14;
 
     tmp                      = INT64_C(16777216) + d + e;
     channel_block->filter_c1 = (int32_t) (INT64_C(281474976710656) / tmp);

@@ -430,7 +430,7 @@ int avseq_module_set_channels(AVSequencerContext *avctx, AVSequencerModule *modu
             }
 
             if (channels > module->channels)
-                memset ( player_channel + module->channels, 0, (channels - module->channels) * sizeof(AVSequencerPlayerChannel) );
+                memset(player_channel + module->channels, 0, (channels - module->channels) * sizeof(AVSequencerPlayerChannel));
 
             if ((song = avctx->player_song)) {
                 AVSequencerPlayerHostChannel *player_host_channel;

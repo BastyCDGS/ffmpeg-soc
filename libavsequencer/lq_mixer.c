@@ -624,205 +624,193 @@ mix_sample_synth:
     } while (--i);
 }
 
-#define MIX_FUNCTION(INIT, TYPE, OP1, OP2, OFFSET_START, OFFSET_END,        \
-                     SKIP, NEXTS, NEXTA, NEXTI, SHIFTS, SHIFTN, SHIFTB)     \
-    const TYPE *sample              = (const TYPE *) channel_block->data;   \
-    int32_t *mix_buf                = *buf;                                 \
-    uint32_t curr_offset            = *offset;                              \
-    uint32_t curr_frac              = *fraction;                            \
-    uint32_t i;                                                             \
-    INIT;                                                                   \
-                                                                            \
-    if (advance) {                                                          \
-        if (mixer_data->interpolation) {                                    \
-            int32_t smp;                                                    \
-            int32_t interpolate_div;                                        \
-                                                                            \
-            OFFSET_START;                                                   \
-            i       = (len >> 1) + 1;                                       \
-                                                                            \
-            if (len & 1)                                                    \
-                goto get_second_advance_interpolated_sample;                \
-                                                                            \
-            i--;                                                            \
-                                                                            \
-            do {                                                            \
-                uint32_t interpolate_offset = advance;                      \
-                curr_frac += adv_frac;                                      \
-                                                                            \
-                if (curr_frac < adv_frac)                                   \
-                    interpolate_offset++;                                   \
-                                                                            \
-                smp             = 0;                                        \
-                interpolate_div = 0;                                        \
-                                                                            \
-                do {                                                        \
-                    NEXTA;                                                  \
-                    interpolate_div++;                                      \
-                } while (--interpolate_offset);                             \
-                                                                            \
-                smp        /= interpolate_div;                              \
-                SHIFTS;                                                     \
-get_second_advance_interpolated_sample:                                     \
-                interpolate_offset = advance;                               \
-                curr_frac         += adv_frac;                              \
-                                                                            \
-                if (curr_frac < adv_frac)                                   \
-                    interpolate_offset++;                                   \
-                                                                            \
-                smp             = 0;                                        \
-                interpolate_div = 0;                                        \
-                                                                            \
-                do {                                                        \
-                    NEXTA;                                                  \
-                    interpolate_div++;                                      \
-                } while (--interpolate_offset);                             \
-                                                                            \
-                smp        /= interpolate_div;                              \
-                SHIFTS;                                                     \
-            } while (--i);                                                  \
-                                                                            \
-            *buf      = mix_buf;                                            \
-            OFFSET_END;                                                     \
-            *fraction = curr_frac;                                          \
-        } else {                                                            \
-            i = (len >> 1) + 1;                                             \
-                                                                            \
-            if (len & 1)                                                    \
-                goto get_second_advance_sample;                             \
-                                                                            \
-            i--;                                                            \
-                                                                            \
-            do {                                                            \
-                SKIP;                                                       \
-                curr_frac   += adv_frac;                                    \
-                curr_offset OP1 advance;                                    \
-                                                                            \
-                if (curr_frac < adv_frac)                                   \
-                    curr_offset OP2;                                        \
-get_second_advance_sample:                                                  \
-                SKIP;                                                       \
-                curr_frac   += adv_frac;                                    \
-                curr_offset OP1 advance;                                    \
-                                                                            \
-                if (curr_frac < adv_frac)                                   \
-                    curr_offset OP2;                                        \
-            } while (--i);                                                  \
-                                                                            \
-            *buf      = mix_buf;                                            \
-            *offset   = curr_offset;                                        \
-            *fraction = curr_frac;                                          \
-        }                                                                   \
-    } else {                                                                \
-        int32_t smp;                                                        \
-                                                                            \
-        if (mixer_data->interpolation > 1) {                                \
-            uint32_t interpolate_frac, interpolate_count;                   \
-            int32_t interpolate_div;                                        \
-            int64_t smp_value;                                              \
-                                                                            \
-            OFFSET_START;                                                   \
-            NEXTS;                                                          \
-            smp_value = 0;                                                  \
-                                                                            \
-            if (len > 1) {                                                  \
-                NEXTI;                                                      \
-            }                                                               \
-                                                                            \
-            interpolate_div   = smp_value >> 32;                            \
-            interpolate_frac  = smp_value;                                  \
-            interpolate_count = 0;                                          \
-                                                                            \
-            i = (len >> 1) + 1;                                             \
-                                                                            \
-            if (len & 1)                                                    \
-                goto get_second_interpolated_sample;                        \
-                                                                            \
-            i--;                                                            \
-                                                                            \
-            do {                                                            \
-                SHIFTS;                                                     \
-                curr_frac  += adv_frac;                                     \
-                                                                            \
-                if (curr_frac < adv_frac) {                                 \
-                    NEXTS;                                                  \
-                    NEXTI;                                                  \
-                                                                            \
-                    interpolate_div   = smp_value >> 32;                    \
-                    interpolate_frac  = smp_value;                          \
-                    interpolate_count = 0;                                  \
-                } else {                                                    \
-                    smp               += interpolate_div;                   \
-                    interpolate_count += interpolate_frac;                  \
-                                                                            \
-                    if (interpolate_count < interpolate_frac) {             \
-                        smp++;                                              \
-                                                                            \
-                        if (interpolate_div < 0)                            \
-                            smp -= 2;                                       \
-                    }                                                       \
-                }                                                           \
-get_second_interpolated_sample:                                             \
-                SHIFTS;                                                     \
-                curr_frac  += adv_frac;                                     \
-                                                                            \
-                if (curr_frac < adv_frac) {                                 \
-                    NEXTS;                                                  \
-                    smp_value = 0;                                          \
-                                                                            \
-                    if (i > 1) {                                            \
-                        NEXTI;                                              \
-                    }                                                       \
-                                                                            \
-                    interpolate_div   = smp_value >> 32;                    \
-                    interpolate_frac  = smp_value;                          \
-                    interpolate_count = 0;                                  \
-                } else {                                                    \
-                    smp               += interpolate_div;                   \
-                    interpolate_count += interpolate_frac;                  \
-                                                                            \
-                    if (interpolate_count < interpolate_frac) {             \
-                        smp++;                                              \
-                                                                            \
-                        if (interpolate_div < 0)                            \
-                            smp -= 2;                                       \
-                    }                                                       \
-                }                                                           \
-            } while (--i);                                                  \
-                                                                            \
-            *buf      = mix_buf;                                            \
-            OFFSET_END;                                                     \
-            *fraction = curr_frac;                                          \
-        } else {                                                            \
-            OFFSET_START;                                                   \
-            SHIFTN;                                                         \
-            i       = (len >> 1) + 1;                                       \
-                                                                            \
-            if (len & 1)                                                    \
-                goto get_second_sample;                                     \
-                                                                            \
-            i--;                                                            \
-                                                                            \
-            do {                                                            \
-                SHIFTB;                                                     \
-                curr_frac  += adv_frac;                                     \
-                                                                            \
-                if (curr_frac < adv_frac) {                                 \
-                    SHIFTN;                                                 \
-                }                                                           \
-get_second_sample:                                                          \
-                SHIFTB;                                                     \
-                curr_frac  += adv_frac;                                     \
-                                                                            \
-                if (curr_frac < adv_frac) {                                 \
-                    SHIFTN;                                                 \
-                }                                                           \
-            } while (--i);                                                  \
-                                                                            \
-            *buf      = mix_buf;                                            \
-            OFFSET_END;                                                     \
-            *fraction = curr_frac;                                          \
-        }                                                                   \
+#define MIX_FUNCTION(INIT, TYPE, OP, OFFSET_START, OFFSET_END, SKIP,              \
+                     NEXTS, NEXTA, NEXTI, SHIFTS, SHIFTN, SHIFTB)                 \
+    const TYPE *sample              = (const TYPE *) channel_block->data;         \
+    int32_t *mix_buf                = *buf;                                       \
+    uint32_t curr_offset            = *offset;                                    \
+    uint32_t curr_frac              = *fraction;                                  \
+    uint32_t i;                                                                   \
+    INIT;                                                                         \
+                                                                                  \
+    if (advance) {                                                                \
+        if (mixer_data->interpolation) {                                          \
+            int32_t smp;                                                          \
+            int32_t interpolate_div;                                              \
+                                                                                  \
+            OFFSET_START;                                                         \
+            i       = (len >> 1) + 1;                                             \
+                                                                                  \
+            if (len & 1)                                                          \
+                goto get_second_advance_interpolated_sample;                      \
+                                                                                  \
+            i--;                                                                  \
+                                                                                  \
+            do {                                                                  \
+                uint32_t interpolate_offset;                                      \
+                                                                                  \
+                curr_frac          += adv_frac;                                   \
+                interpolate_offset  = advance + ((curr_frac < adv_frac) ? 1 : 0); \
+                smp                 = 0;                                          \
+                interpolate_div     = 0;                                          \
+                                                                                  \
+                do {                                                              \
+                    NEXTA;                                                        \
+                    interpolate_div++;                                            \
+                } while (--interpolate_offset);                                   \
+                                                                                  \
+                smp        /= interpolate_div;                                    \
+                SHIFTS;                                                           \
+get_second_advance_interpolated_sample:                                           \
+                curr_frac          += adv_frac;                                   \
+                interpolate_offset  = advance + ((curr_frac < adv_frac) ? 1 : 0); \
+                smp                 = 0;                                          \
+                interpolate_div     = 0;                                          \
+                                                                                  \
+                do {                                                              \
+                    NEXTA;                                                        \
+                    interpolate_div++;                                            \
+                } while (--interpolate_offset);                                   \
+                                                                                  \
+                smp        /= interpolate_div;                                    \
+                SHIFTS;                                                           \
+            } while (--i);                                                        \
+                                                                                  \
+            *buf      = mix_buf;                                                  \
+            OFFSET_END;                                                           \
+            *fraction = curr_frac;                                                \
+        } else {                                                                  \
+            i = (len >> 1) + 1;                                                   \
+                                                                                  \
+            if (len & 1)                                                          \
+                goto get_second_advance_sample;                                   \
+                                                                                  \
+            i--;                                                                  \
+                                                                                  \
+            do {                                                                  \
+                SKIP;                                                             \
+                curr_frac   += adv_frac;                                          \
+                curr_offset OP advance + ((curr_frac < adv_frac) ? 1 : 0);        \
+get_second_advance_sample:                                                        \
+                SKIP;                                                             \
+                curr_frac   += adv_frac;                                          \
+                curr_offset OP advance + ((curr_frac < adv_frac) ? 1 : 0);        \
+            } while (--i);                                                        \
+                                                                                  \
+            *buf      = mix_buf;                                                  \
+            *offset   = curr_offset;                                              \
+            *fraction = curr_frac;                                                \
+        }                                                                         \
+    } else {                                                                      \
+        int32_t smp;                                                              \
+                                                                                  \
+        if (mixer_data->interpolation > 1) {                                      \
+            uint32_t interpolate_frac, interpolate_count;                         \
+            int32_t interpolate_div;                                              \
+            int64_t smp_value;                                                    \
+                                                                                  \
+            OFFSET_START;                                                         \
+            NEXTS;                                                                \
+            smp_value = 0;                                                        \
+                                                                                  \
+            if (len > 1) {                                                        \
+                NEXTI;                                                            \
+            }                                                                     \
+                                                                                  \
+            interpolate_div   = smp_value >> 32;                                  \
+            interpolate_frac  = smp_value;                                        \
+            interpolate_count = 0;                                                \
+                                                                                  \
+            i = (len >> 1) + 1;                                                   \
+                                                                                  \
+            if (len & 1)                                                          \
+                goto get_second_interpolated_sample;                              \
+                                                                                  \
+            i--;                                                                  \
+                                                                                  \
+            do {                                                                  \
+                SHIFTS;                                                           \
+                curr_frac  += adv_frac;                                           \
+                                                                                  \
+                if (curr_frac < adv_frac) {                                       \
+                    NEXTS;                                                        \
+                    NEXTI;                                                        \
+                                                                                  \
+                    interpolate_div   = smp_value >> 32;                          \
+                    interpolate_frac  = smp_value;                                \
+                    interpolate_count = 0;                                        \
+                } else {                                                          \
+                    smp               += interpolate_div;                         \
+                    interpolate_count += interpolate_frac;                        \
+                                                                                  \
+                    if (interpolate_count < interpolate_frac) {                   \
+                        smp++;                                                    \
+                                                                                  \
+                        if (interpolate_div < 0)                                  \
+                            smp -= 2;                                             \
+                    }                                                             \
+                }                                                                 \
+get_second_interpolated_sample:                                                   \
+                SHIFTS;                                                           \
+                curr_frac  += adv_frac;                                           \
+                                                                                  \
+                if (curr_frac < adv_frac) {                                       \
+                    NEXTS;                                                        \
+                    smp_value = 0;                                                \
+                                                                                  \
+                    if (i > 1) {                                                  \
+                        NEXTI;                                                    \
+                    }                                                             \
+                                                                                  \
+                    interpolate_div   = smp_value >> 32;                          \
+                    interpolate_frac  = smp_value;                                \
+                    interpolate_count = 0;                                        \
+                } else {                                                          \
+                    smp               += interpolate_div;                         \
+                    interpolate_count += interpolate_frac;                        \
+                                                                                  \
+                    if (interpolate_count < interpolate_frac) {                   \
+                        smp++;                                                    \
+                                                                                  \
+                        if (interpolate_div < 0)                                  \
+                            smp -= 2;                                             \
+                    }                                                             \
+                }                                                                 \
+            } while (--i);                                                        \
+                                                                                  \
+            *buf      = mix_buf;                                                  \
+            OFFSET_END;                                                           \
+            *fraction = curr_frac;                                                \
+        } else {                                                                  \
+            OFFSET_START;                                                         \
+            SHIFTN;                                                               \
+            i       = (len >> 1) + 1;                                             \
+                                                                                  \
+            if (len & 1)                                                          \
+                goto get_second_sample;                                           \
+                                                                                  \
+            i--;                                                                  \
+                                                                                  \
+            do {                                                                  \
+                SHIFTB;                                                           \
+                curr_frac  += adv_frac;                                           \
+                                                                                  \
+                if (curr_frac < adv_frac) {                                       \
+                    SHIFTN;                                                       \
+                }                                                                 \
+get_second_sample:                                                                \
+                SHIFTB;                                                           \
+                curr_frac  += adv_frac;                                           \
+                                                                                  \
+                if (curr_frac < adv_frac) {                                       \
+                    SHIFTN;                                                       \
+                }                                                                 \
+            } while (--i);                                                        \
+                                                                                  \
+            *buf      = mix_buf;                                                  \
+            OFFSET_END;                                                           \
+            *fraction = curr_frac;                                                \
+        }                                                                         \
     }
 
 #define MIX(type)                                                                                   \
@@ -868,7 +856,7 @@ MIX(skip_backwards)
 MIX(mono_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int8_t *const pos = sample,
-                 int8_t, +=, ++,
+                 int8_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
@@ -883,7 +871,7 @@ MIX(mono_8)
 MIX(mono_backwards_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int8_t *const pos = sample,
-                 int8_t, -=, --,
+                 int8_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
@@ -898,7 +886,7 @@ MIX(mono_backwards_8)
 MIX(mono_16_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
@@ -913,7 +901,7 @@ MIX(mono_16_to_8)
 MIX(mono_backwards_16_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
@@ -928,7 +916,7 @@ MIX(mono_backwards_16_to_8)
 MIX(mono_32_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
@@ -943,7 +931,7 @@ MIX(mono_32_to_8)
 MIX(mono_backwards_32_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
@@ -958,7 +946,7 @@ MIX(mono_backwards_32_to_8)
 MIX(mono_x_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1017,7 +1005,7 @@ MIX(mono_x_to_8)
 MIX(mono_backwards_x_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1109,7 +1097,7 @@ MIX(mono_backwards_x_to_8)
 MIX(mono_16)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
@@ -1124,7 +1112,7 @@ MIX(mono_16)
 MIX(mono_backwards_16)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample, 
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
@@ -1139,7 +1127,7 @@ MIX(mono_backwards_16)
 MIX(mono_32)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
@@ -1154,7 +1142,7 @@ MIX(mono_32)
 MIX(mono_backwards_32)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
@@ -1169,7 +1157,7 @@ MIX(mono_backwards_32)
 MIX(mono_x)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1228,7 +1216,7 @@ MIX(mono_x)
 MIX(mono_backwards_x)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1320,7 +1308,7 @@ MIX(mono_backwards_x)
 MIX(stereo_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int8_t smp_in; int32_t smp_right; const int8_t *const pos = sample,
-                 int8_t, +=, ++,
+                 int8_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = sample[curr_offset]; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
@@ -1335,7 +1323,7 @@ MIX(stereo_8)
 MIX(stereo_backwards_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int8_t smp_in; int32_t smp_right; const int8_t *const pos = sample,
-                 int8_t, -=, --,
+                 int8_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = sample[curr_offset]; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
@@ -1350,7 +1338,7 @@ MIX(stereo_backwards_8)
 MIX(stereo_16_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = (uint16_t) sample[curr_offset] >> 8; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
@@ -1365,7 +1353,7 @@ MIX(stereo_16_to_8)
 MIX(stereo_backwards_16_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = (uint16_t) sample[curr_offset] >> 8; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
@@ -1380,7 +1368,7 @@ MIX(stereo_backwards_16_to_8)
 MIX(stereo_32_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = (uint32_t) sample[curr_offset] >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
@@ -1395,7 +1383,7 @@ MIX(stereo_32_to_8)
 MIX(stereo_backwards_32_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = (uint32_t) sample[curr_offset] >> 24; *mix_buf++ += volume_left_lut[(uint8_t) smp_in]; *mix_buf++ += volume_right_lut[(uint8_t) smp_in],
@@ -1410,7 +1398,7 @@ MIX(stereo_backwards_32_to_8)
 MIX(stereo_x_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1473,7 +1461,7 @@ MIX(stereo_x_to_8)
 MIX(stereo_backwards_x_to_8)
 {
     MIX_FUNCTION(const int32_t *const volume_left_lut = channel_block->volume_left_lut; const int32_t *const volume_right_lut = channel_block->volume_right_lut; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1569,7 +1557,7 @@ MIX(stereo_backwards_x_to_8)
 MIX(stereo_16)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
@@ -1584,7 +1572,7 @@ MIX(stereo_16)
 MIX(stereo_backwards_16)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
@@ -1599,7 +1587,7 @@ MIX(stereo_backwards_16)
 MIX(stereo_32)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
@@ -1614,7 +1602,7 @@ MIX(stereo_32)
 MIX(stereo_backwards_32)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
@@ -1629,7 +1617,7 @@ MIX(stereo_backwards_32)
 MIX(stereo_x)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1692,7 +1680,7 @@ MIX(stereo_x)
 MIX(stereo_backwards_x)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1788,7 +1776,7 @@ MIX(stereo_backwards_x)
 MIX(stereo_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int8_t *const pos = sample,
-                 int8_t, +=, ++,
+                 int8_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += volume_lut[(uint8_t) sample[curr_offset]]; mix_buf += 2,
@@ -1803,7 +1791,7 @@ MIX(stereo_8_left)
 MIX(stereo_backwards_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int8_t *const pos = sample,
-                 int8_t, -=, --,
+                 int8_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += volume_lut[(uint8_t) sample[curr_offset]]; mix_buf += 2,
@@ -1818,7 +1806,7 @@ MIX(stereo_backwards_8_left)
 MIX(stereo_16_to_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += volume_lut[(uint16_t) sample[curr_offset] >> 8]; mix_buf += 2,
@@ -1833,7 +1821,7 @@ MIX(stereo_16_to_8_left)
 MIX(stereo_backwards_16_to_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += volume_lut[(uint16_t) sample[curr_offset] >> 8]; mix_buf += 2,
@@ -1848,7 +1836,7 @@ MIX(stereo_backwards_16_to_8_left)
 MIX(stereo_32_to_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += volume_lut[(uint32_t) sample[curr_offset] >> 24]; mix_buf += 2,
@@ -1863,7 +1851,7 @@ MIX(stereo_32_to_8_left)
 MIX(stereo_backwards_32_to_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += volume_lut[(uint32_t) sample[curr_offset] >> 24]; mix_buf += 2,
@@ -1878,7 +1866,7 @@ MIX(stereo_backwards_32_to_8_left)
 MIX(stereo_x_to_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -1938,7 +1926,7 @@ MIX(stereo_x_to_8_left)
 MIX(stereo_backwards_x_to_8_left)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2031,7 +2019,7 @@ MIX(stereo_backwards_x_to_8_left)
 MIX(stereo_16_left)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
@@ -2046,7 +2034,7 @@ MIX(stereo_16_left)
 MIX(stereo_backwards_16_left)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
@@ -2061,7 +2049,7 @@ MIX(stereo_backwards_16_left)
 MIX(stereo_32_left)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
@@ -2076,7 +2064,7 @@ MIX(stereo_32_left)
 MIX(stereo_backwards_32_left)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
@@ -2091,7 +2079,7 @@ MIX(stereo_backwards_32_left)
 MIX(stereo_x_left)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2151,7 +2139,7 @@ MIX(stereo_x_left)
 MIX(stereo_backwards_x_left)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2244,7 +2232,7 @@ MIX(stereo_backwards_x_left)
 MIX(stereo_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const int8_t *const pos = sample,
-                 int8_t, +=, ++,
+                 int8_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
@@ -2259,7 +2247,7 @@ MIX(stereo_8_right)
 MIX(stereo_backwards_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const int8_t *const pos = sample,
-                 int8_t, -=, --,
+                 int8_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += volume_lut[(uint8_t) sample[curr_offset]],
@@ -2274,7 +2262,7 @@ MIX(stereo_backwards_8_right)
 MIX(stereo_16_to_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
@@ -2289,7 +2277,7 @@ MIX(stereo_16_to_8_right)
 MIX(stereo_backwards_16_to_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += volume_lut[(uint16_t) sample[curr_offset] >> 8],
@@ -2304,7 +2292,7 @@ MIX(stereo_backwards_16_to_8_right)
 MIX(stereo_32_to_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
@@ -2319,7 +2307,7 @@ MIX(stereo_32_to_8_right)
 MIX(stereo_backwards_32_to_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += volume_lut[(uint32_t) sample[curr_offset] >> 24],
@@ -2334,7 +2322,7 @@ MIX(stereo_backwards_32_to_8_right)
 MIX(stereo_x_to_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2394,7 +2382,7 @@ MIX(stereo_x_to_8_right)
 MIX(stereo_backwards_x_to_8_right)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_right_lut; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2487,7 +2475,7 @@ MIX(stereo_backwards_x_to_8_right)
 MIX(stereo_16_right)
 {
     MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
@@ -2502,7 +2490,7 @@ MIX(stereo_16_right)
 MIX(stereo_backwards_16_right)
 {
     MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
@@ -2517,7 +2505,7 @@ MIX(stereo_backwards_16_right)
 MIX(stereo_32_right)
 {
     MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
@@ -2532,7 +2520,7 @@ MIX(stereo_32_right)
 MIX(stereo_backwards_32_right)
 {
     MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
@@ -2547,7 +2535,7 @@ MIX(stereo_backwards_32_right)
 MIX(stereo_x_right)
 {
     MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2607,7 +2595,7 @@ MIX(stereo_x_right)
 MIX(stereo_backwards_x_right)
 {
     MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2700,7 +2688,7 @@ MIX(stereo_backwards_x_right)
 MIX(stereo_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int8_t *const pos = sample,
-                 int8_t, +=, ++,
+                 int8_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2715,7 +2703,7 @@ MIX(stereo_8_center)
 MIX(stereo_backwards_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int8_t *const pos = sample,
-                 int8_t, -=, --,
+                 int8_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2730,7 +2718,7 @@ MIX(stereo_backwards_8_center)
 MIX(stereo_16_to_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2745,7 +2733,7 @@ MIX(stereo_16_to_8_center)
 MIX(stereo_backwards_16_to_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2760,7 +2748,7 @@ MIX(stereo_backwards_16_to_8_center)
 MIX(stereo_32_to_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2775,7 +2763,7 @@ MIX(stereo_32_to_8_center)
 MIX(stereo_backwards_32_to_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2790,7 +2778,7 @@ MIX(stereo_backwards_32_to_8_center)
 MIX(stereo_x_to_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2851,7 +2839,7 @@ MIX(stereo_x_to_8_center)
 MIX(stereo_backwards_x_to_8_center)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -2945,7 +2933,7 @@ MIX(stereo_backwards_x_to_8_center)
 MIX(stereo_16_center)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2960,7 +2948,7 @@ MIX(stereo_16_center)
 MIX(stereo_backwards_16_center)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2975,7 +2963,7 @@ MIX(stereo_backwards_16_center)
 MIX(stereo_32_center)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -2990,7 +2978,7 @@ MIX(stereo_32_center)
 MIX(stereo_backwards_32_center)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
@@ -3005,7 +2993,7 @@ MIX(stereo_backwards_32_center)
 MIX(stereo_x_center)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -3066,7 +3054,7 @@ MIX(stereo_x_center)
 MIX(stereo_backwards_x_center)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -3160,7 +3148,7 @@ MIX(stereo_backwards_x_center)
 MIX(stereo_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int8_t *const pos = sample,
-                 int8_t, +=, ++,
+                 int8_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3175,7 +3163,7 @@ MIX(stereo_8_surround)
 MIX(stereo_backwards_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int8_t *const pos = sample,
-                 int8_t, -=, --,
+                 int8_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint8_t) sample[curr_offset]]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3190,7 +3178,7 @@ MIX(stereo_backwards_8_surround)
 MIX(stereo_16_to_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3205,7 +3193,7 @@ MIX(stereo_16_to_8_surround)
 MIX(stereo_backwards_16_to_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint16_t) sample[curr_offset] >> 8]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3220,7 +3208,7 @@ MIX(stereo_backwards_16_to_8_surround)
 MIX(stereo_32_to_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3235,7 +3223,7 @@ MIX(stereo_32_to_8_surround)
 MIX(stereo_backwards_32_to_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = volume_lut[(uint32_t) sample[curr_offset] >> 24]; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3250,7 +3238,7 @@ MIX(stereo_backwards_32_to_8_surround)
 MIX(stereo_x_to_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -3311,7 +3299,7 @@ MIX(stereo_x_to_8_surround)
 MIX(stereo_backwards_x_to_8_surround)
 {
     MIX_FUNCTION(const int32_t *const volume_lut = channel_block->volume_left_lut; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -3405,7 +3393,7 @@ MIX(stereo_backwards_x_to_8_surround)
 MIX(stereo_16_surround)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, +=, ++,
+                 int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3420,7 +3408,7 @@ MIX(stereo_16_surround)
 MIX(stereo_backwards_16_surround)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
-                 int16_t, -=, --,
+                 int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3435,7 +3423,7 @@ MIX(stereo_backwards_16_surround)
 MIX(stereo_32_surround)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3450,7 +3438,7 @@ MIX(stereo_32_surround)
 MIX(stereo_backwards_32_surround)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
                  smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
@@ -3465,7 +3453,7 @@ MIX(stereo_backwards_32_surround)
 MIX(stereo_x_surround)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, +=, ++,
+                 int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -3526,7 +3514,7 @@ MIX(stereo_x_surround)
 MIX(stereo_backwards_x_surround)
 {
     MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
-                 int32_t, -=, --,
+                 int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
                     bit        = curr_offset * bits_per_sample;
@@ -4860,42 +4848,47 @@ static const int32_t damp_factor_lut[] = {
      2140116,  2138673,  2137231,  2135790,  2134349,  2132910,  2131472,  2130034,  2128598,  2127163,  2125728,  2124295,  2122862,  2121430,  2120000,  2118570
 };
 
-static inline void mulu_128(uint64_t *result, const uint64_t a, const uint64_t b)
+static inline void mulu_128(uint64_t *const result, const uint64_t a, const uint64_t b)
 {
     const uint32_t a_hi = a >> 32;
     const uint32_t a_lo = (uint32_t) a;
     const uint32_t b_hi = b >> 32;
     const uint32_t b_lo = (uint32_t) b;
-
-    uint64_t x0 = (uint64_t) a_hi * b_hi;
-    uint64_t x1 = (uint64_t) a_lo * b_hi;
+    const uint64_t x1 = (uint64_t) a_lo * b_hi;
     uint64_t x2 = (uint64_t) a_hi * b_lo;
-    uint64_t x3 = (uint64_t) a_lo * b_lo;
+    const uint64_t x3 = (uint64_t) a_lo * b_lo;
+    uint64_t x0 = (uint64_t) a_hi * b_hi;
 
-    x2 += x3 >> 32;
-    x2 += x1;
-
-    if (x2 < x1)
-        x0 += UINT64_C(0x100000000);
-
-    *result++ = x0 + (x2 >> 32);
-    *result = ((x2 & UINT64_C(0xFFFFFFFF)) << 32) + (x3 & UINT64_C(0xFFFFFFFF));
+    x2       += x3 >> 32;
+    x2       += x1;
+    x0       += (x2 < x1) ? UINT64_C(0x100000000) : 0;
+    result[0] = x0 + (x2 >> 32);
+    result[1] = (x2 << 32) + (x3 & UINT64_C(0xFFFFFFFF));
 }
 
-static inline void muls_128(int64_t *result, const int64_t a, const int64_t b)
+static inline void neg_128(uint64_t *const result)
 {
-    int sign = (a ^ b) < 0;
+    result[1]  = ~result[1];
+    result[0]  = ~result[0];
+    result[0] += (++result[1] ? 0 : 1);
+}
 
-    mulu_128(result, a < 0 ? -a : a, b < 0 ? -b : b );
+static inline void muls_128(int64_t *const result, const int64_t a, const int64_t b)
+{
+    const int sign = (a ^ b) < 0;
+
+    mulu_128(result, a < 0 ? -a : a, b < 0 ? -b : b);
 
     if (sign)
-        *result = -(*result);
+        neg_128(result);
 }
 
-static inline uint64_t divu_128(uint64_t a_hi, uint64_t a_lo, const uint64_t b)
+static inline uint64_t divu_128(const uint64_t *const a, const uint64_t b)
 {
+    uint64_t a_hi   = a[0];
+    uint64_t a_lo   = a[1];
     uint64_t result = 0, result_r = 0;
-    uint16_t i = 128;
+    uint16_t i      = 128;
 
     while (i--) {
         const uint64_t carry  = a_lo >> 63;
@@ -4915,10 +4908,15 @@ static inline uint64_t divu_128(uint64_t a_hi, uint64_t a_lo, const uint64_t b)
     return result;
 }
 
-static inline int64_t divs_128(int64_t a_hi, uint64_t a_lo, const int64_t b)
+static inline int64_t divs_128(int64_t *const a, const int64_t b)
 {
-    int sign = (a_hi ^ b) < 0;
-    int64_t result = divu_128(a_hi < 0 ? -a_hi : a_hi, a_lo, b < 0 ? -b : b );
+    const int sign = (a[0] ^ b) < 0;
+    int64_t result;
+
+    if (a[0] < 0)
+        neg_128(a);
+
+    result = divu_128(a, b < 0 ? -b : b);
 
     if (sign)
         result = -result;
@@ -4950,10 +4948,10 @@ static void update_sample_filter(const AV_LQMixerData *const mixer_data, AV_LQMi
         d = INT64_C(33554432);
 
     muls_128(tmp_128, damp_factor - d, (int64_t) mix_rate << 24);
-    d = divs_128(tmp_128[0], tmp_128[1], nat_freq);
+    d = divs_128(tmp_128, nat_freq);
 
     mulu_128(tmp_128, (uint64_t) mix_rate << 29, (uint64_t) mix_rate << 29); // Using more than 58 (2*29) bits in total will result in 128-bit integer multiply overflow for maximum allowed mixing rate of 768kHz
-    e = (divu_128(tmp_128[0], tmp_128[1], nat_freq) / nat_freq) << 14;
+    e = (divu_128(tmp_128, nat_freq) / nat_freq) << 14;
 
     tmp                      = INT64_C(16777216) + d + e;
     channel_block->filter_c1 = (int32_t) (INT64_C(281474976710656) / tmp);

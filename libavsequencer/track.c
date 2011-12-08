@@ -189,7 +189,7 @@ int avseq_track_data_open(AVSequencerTrack *track, uint32_t rows)
     if (!rows)
         rows = 64;
 
-    if (!rows || rows >= 0x10000) {
+    if (rows >= 0x10000) {
         return AVERROR_INVALIDDATA;
     } else if (!(data = av_realloc(data, (rows * sizeof(AVSequencerTrackRow)) + FF_INPUT_BUFFER_PADDING_SIZE))) {
         av_log(track, AV_LOG_ERROR, "Cannot allocate storage container.\n");

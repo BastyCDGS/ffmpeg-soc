@@ -6289,7 +6289,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(add)
     int32_t add_data;
 
     instruction_data                 += player_channel->variable[src_var];
-    add_data                          = (int16_t) player_channel->variable[dst_var] + (int16_t) instruction_data;
+    add_data                          = (int32_t) player_channel->variable[dst_var] + (int32_t) instruction_data;
 
     if ((((int16_t) player_channel->variable[dst_var] ^ add_data) & ((int16_t) instruction_data ^ add_data)) < 0)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
@@ -6317,7 +6317,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(addx)
     int32_t add_data;
 
     instruction_data += player_channel->variable[src_var];
-    add_data          = (int16_t) player_channel->variable[dst_var] + (int16_t) instruction_data;
+    add_data          = (int32_t) player_channel->variable[dst_var] + (int32_t) instruction_data;
     add_unsigned_data = instruction_data;
 
     if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
@@ -6352,7 +6352,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(sub)
     int32_t sub_data;
 
     instruction_data += player_channel->variable[src_var];
-    sub_data          = (int16_t) player_channel->variable[dst_var] - (int16_t) instruction_data;
+    sub_data          = (int32_t) player_channel->variable[dst_var] - (int32_t) instruction_data;
 
     if (player_channel->variable[dst_var] < instruction_data)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_CARRY|AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
@@ -6380,7 +6380,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(subx)
     int32_t sub_data;
 
     instruction_data += player_channel->variable[src_var];
-    sub_data          = (int16_t) player_channel->variable[dst_var] - (int16_t) instruction_data;
+    sub_data          = (int32_t) player_channel->variable[dst_var] - (int32_t) instruction_data;
     sub_unsigned_data = instruction_data;
 
     if (player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND) {
@@ -6415,7 +6415,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(cmp)
     int32_t sub_data;
 
     instruction_data += player_channel->variable[src_var];
-    sub_data          = (int16_t) player_channel->variable[dst_var] - (int16_t) instruction_data;
+    sub_data          = (int32_t) player_channel->variable[dst_var] - (int32_t) instruction_data;
 
     if ((((int16_t) player_channel->variable[dst_var] ^ sub_data) & (((int16_t) -instruction_data) ^ sub_data)) < 0)
         flags |= AVSEQ_PLAYER_CHANNEL_COND_VAR_OVERFLOW;
@@ -10287,20 +10287,14 @@ int avseq_playback_handler(AVMixerData *mixer_data)
         play_time_advance               = UINT64_C(AV_TIME_BASE * 655360) / play_time_calc;
         play_time_fraction              = ((UINT64_C(AV_TIME_BASE * 655360) % play_time_calc) << 32) / play_time_calc;
         player_globals->play_time_frac += play_time_fraction;
-
-        if (player_globals->play_time_frac < play_time_fraction)
-            play_time_advance++;
-
+        play_time_advance              += (player_globals->play_time_frac < play_time_fraction) ? 1 : 0;
         player_globals->play_time      += play_time_advance;
         play_time_calc                  = player_globals->tempo;
         play_time_advance               = UINT64_C(AV_TIME_BASE * 655360) / play_time_calc;
         play_time_fraction              = ((UINT64_C(AV_TIME_BASE * 655360) % play_time_calc) << 32) / play_time_calc;
         player_globals->play_tics_frac += play_time_fraction;
-
-        if (player_globals->play_tics_frac < play_time_fraction)
-            play_time_advance++;
-
-        player_globals->play_tics += play_time_advance;
+        play_time_advance              += (player_globals->play_tics_frac < play_time_fraction) ? 1 : 0;
+        player_globals->play_tics      += play_time_advance;
     }
 
     channel = 0;
