@@ -6578,11 +6578,17 @@ static inline int64_t divs_128(int64_t *const a, const int64_t b)
     return result;
 }
 
+static inline void add_128(int64_t *const a, const int64_t b)
+{
+    a[1] += b;
+    a[0] += ((uint64_t) a[1] < (uint64_t) b);
+}
+
 static void update_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block)
 {
     const uint32_t mix_rate = mixer_data->mix_rate;
     uint64_t tmp_128[2];
-    int64_t nat_freq, damp_factor, d, e, tmp;
+    int64_t nat_freq, damp_factor, d, e, tmp, tmp_round;
 
     if ((channel_block->filter_cutoff == 4095) && (channel_block->filter_damping == 0)) {
         channel_block->filter_c1  = 16777216;
@@ -6596,21 +6602,25 @@ static void update_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMi
 
     nat_freq    = nat_freq_lut[channel_block->filter_cutoff];
     damp_factor = damp_factor_lut[channel_block->filter_damping];
-    d           = (nat_freq * (INT64_C(16777216) - damp_factor)) / ((int64_t) mix_rate << 24);
+    d           = ((nat_freq * (INT64_C(16777216) - damp_factor)) + ((int64_t) mix_rate << 23)) / ((int64_t) mix_rate << 24);
+    tmp_round   = nat_freq >> 1;
 
     if (d > INT64_C(33554432))
         d = INT64_C(33554432);
 
     muls_128(tmp_128, damp_factor - d, (int64_t) mix_rate << 24);
+    add_128(tmp_128, tmp_round);
     d = divs_128(tmp_128, nat_freq);
 
     mulu_128(tmp_128, (uint64_t) mix_rate << 29, (uint64_t) mix_rate << 29); // Using more than 58 (2*29) bits in total will result in 128-bit integer multiply overflow for maximum allowed mixing rate of 768kHz
-    e = (divu_128(tmp_128, nat_freq) / nat_freq) << 14;
+    add_128(tmp_128, tmp_round);
+    e = ((divu_128(tmp_128, nat_freq) + tmp_round) / nat_freq) << 14;
 
     tmp                      = INT64_C(16777216) + d + e;
-    channel_block->filter_c1 = (int32_t) (INT64_C(281474976710656) / tmp);
-    channel_block->filter_c2 = (int32_t) (((d + e + e) << 24) / tmp);
-    channel_block->filter_c3 = (int32_t) (((-e) << 24) / tmp);
+    tmp_round                = tmp >> 1;
+    channel_block->filter_c1 = (INT64_C(281474976710656) + tmp_round) / tmp;
+    channel_block->filter_c2 = (((d + e + e) << 24) + tmp_round) / tmp;
+    channel_block->filter_c3 = (((-e) << 24) + tmp_round) / tmp;
 }
 
 static void set_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block, uint16_t cutoff, uint16_t damping)

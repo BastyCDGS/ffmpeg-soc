@@ -1415,14 +1415,14 @@ static uint32_t linear_slide_up(const AVSequencerContext *const avctx, AVSequenc
 static uint32_t amiga_slide_up(AVSequencerPlayerChannel *const player_channel, const uint32_t frequency, const uint32_t slide_value)
 {
     uint32_t new_frequency;
-    uint64_t period      = AVSEQ_SLIDE_CONST / frequency;
+    uint64_t period      = (AVSEQ_SLIDE_CONST + ((uint64_t) frequency >> 1)) / frequency;
     const uint64_t slide = (uint64_t) slide_value << 32;
 
     if (period <= slide)
         period = slide + UINT64_C(0x100000000);
 
     period       -= slide;
-    new_frequency = AVSEQ_SLIDE_CONST / period;
+    new_frequency = (AVSEQ_SLIDE_CONST + (period >> 1)) / period;
 
     if (new_frequency == frequency)
         new_frequency++;
@@ -1452,7 +1452,7 @@ static uint32_t linear_slide_down(const AVSequencerContext *const avctx, AVSeque
 static uint32_t amiga_slide_down(AVSequencerPlayerChannel *const player_channel, const uint32_t frequency, const uint32_t slide_value)
 {
     uint32_t new_frequency;
-    uint64_t period      = AVSEQ_SLIDE_CONST / frequency;
+    uint64_t period      = (AVSEQ_SLIDE_CONST + ((uint64_t) frequency >> 1)) / frequency;
     const uint64_t slide = (uint64_t) slide_value << 32;
 
     period += slide;
@@ -1460,7 +1460,7 @@ static uint32_t amiga_slide_down(AVSequencerPlayerChannel *const player_channel,
     if (period < slide)
         period = UINT64_C(0xFFFFFFFF00000000);
 
-    new_frequency = AVSEQ_SLIDE_CONST / period;
+    new_frequency = (AVSEQ_SLIDE_CONST + (period >> 1)) / period;
 
     if (new_frequency == frequency)
         new_frequency--;
