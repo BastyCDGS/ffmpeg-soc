@@ -1545,7 +1545,7 @@ static void get_next_sample_16(const AV_HQMixerData *const mixer_data, struct AV
         }
     }
 
-    smp = ((int64_t) sample[offset + 1] * mult_volume) / div_volume;
+    smp = (((int64_t) sample[offset + 1] * mult_volume) + (div_volume >> 1)) / div_volume;
 
     if (channel_info->mix_right)
         channel_info->next_sample_r = smp;
@@ -1642,7 +1642,7 @@ static void get_backwards_next_sample_16(const AV_HQMixerData *const mixer_data,
         }
     }
 
-    smp = ((int64_t) sample[offset - 1] * mult_volume) / div_volume;
+    smp = (((int64_t) sample[offset - 1] * mult_volume) + (div_volume >> 1)) / div_volume;
 
     if (channel_info->mix_right)
         channel_info->next_sample_r = smp;
@@ -1650,11 +1650,97 @@ static void get_backwards_next_sample_16(const AV_HQMixerData *const mixer_data,
         channel_info->next_sample = smp;
 }
 
+static inline void mulu_128(uint64_t *const result, const uint64_t a,
+                            const uint64_t b)
+{
+    const uint32_t a_hi = a >> 32;
+    const uint32_t a_lo = (uint32_t) a;
+    const uint32_t b_hi = b >> 32;
+    const uint32_t b_lo = (uint32_t) b;
+    const uint64_t x1 = (uint64_t) a_lo * b_hi;
+    uint64_t x2 = (uint64_t) a_hi * b_lo;
+    const uint64_t x3 = (uint64_t) a_lo * b_lo;
+    uint64_t x0 = (uint64_t) a_hi * b_hi;
+
+    x2       += x3 >> 32;
+    x2       += x1;
+    x0       += (x2 < x1) ? UINT64_C(0x100000000) : 0;
+    result[0] = x0 + (x2 >> 32);
+    result[1] = (x2 << 32) + (x3 & UINT64_C(0xFFFFFFFF));
+}
+
+static inline void neg_128(uint64_t *const result)
+{
+    result[1]  = ~result[1];
+    result[0]  = ~result[0];
+    result[0] += (++result[1] ? 0 : 1);
+}
+
+static inline void muls_128(int64_t *const result, const int64_t a,
+                            const int64_t b)
+{
+    const int sign = (a ^ b) < 0;
+
+    mulu_128(result, a < 0 ? -a : a, b < 0 ? -b : b);
+
+    if (sign)
+        neg_128(result);
+}
+
+static inline uint64_t divu_128(const uint64_t *const a,
+                                const uint64_t b)
+{
+    uint64_t a_hi   = a[0];
+    uint64_t a_lo   = a[1];
+    uint64_t result = 0, result_r = 0;
+    uint16_t i      = 128;
+
+    while (i--) {
+        const uint64_t carry  = a_lo >> 63;
+        const uint64_t carry2 = a_hi >> 63;
+
+        result <<= 1;
+        a_lo   <<= 1;
+        a_hi     = (((a_hi << 1) | (a_hi >> 63)) & ~UINT64_C(1)) | carry; // simulate bitwise rotate with extend (carry)
+        result_r = (((result_r << 1) | (result_r >> 63)) & ~UINT64_C(1)) | carry2; // simulate bitwise rotate with extend (carry)
+
+        if (result_r >= b) {
+            result_r -= b;
+            result++;
+        }
+    }
+
+    return result;
+}
+
+static inline int64_t divs_128(int64_t *const a, const int64_t b)
+{
+    const int sign = (a[0] ^ b) < 0;
+    int64_t result;
+
+    if (a[0] < 0)
+        neg_128(a);
+
+    result = divu_128(a, b < 0 ? -b : b);
+
+    if (sign)
+        result = -result;
+
+    return result;
+}
+
+static inline void add_128(int64_t *const a, const int64_t b)
+{
+    a[1] += b;
+    a[0] += ((uint64_t) a[1] < (uint64_t) b);
+}
+
 static void get_next_sample_32(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block, uint32_t offset)
 {
     const int32_t *sample = (const int32_t *) channel_block->data;
     int64_t mult_volume   = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     int32_t div_volume    = channel_block->div_volume;
+    int64_t tmp_128[2];
     int32_t smp;
 
     if (offset >= (channel_block->end_offset - 1)) {
@@ -1739,7 +1825,9 @@ static void get_next_sample_32(const AV_HQMixerData *const mixer_data, struct AV
         }
     }
 
-    smp = ((int64_t) sample[offset + 1] * mult_volume) / div_volume;
+    muls_128(tmp_128, sample[offset + 1], mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+    smp = divs_128(tmp_128, div_volume);
 
     if (channel_info->mix_right)
         channel_info->next_sample_r = smp;
@@ -1752,6 +1840,7 @@ static void get_backwards_next_sample_32(const AV_HQMixerData *const mixer_data,
     const int32_t *sample = (const int32_t *) channel_block->data;
     int64_t mult_volume   = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     int32_t div_volume    = channel_block->div_volume;
+    int64_t tmp_128[2];
     int32_t smp;
 
     if ((int32_t) offset <= ((int32_t) channel_block->end_offset + 1)) {
@@ -1836,7 +1925,9 @@ static void get_backwards_next_sample_32(const AV_HQMixerData *const mixer_data,
         }
     }
 
-    smp = ((int64_t) sample[offset - 1] * mult_volume) / div_volume;
+    muls_128(tmp_128, sample[offset - 1], mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+    smp = divs_128(tmp_128, div_volume);
 
     if (channel_info->mix_right)
         channel_info->next_sample_r = smp;
@@ -1850,6 +1941,7 @@ static void get_next_sample_x(const AV_HQMixerData *const mixer_data, struct AV_
     int64_t mult_volume      = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     int32_t div_volume       = channel_block->div_volume;
     uint32_t bits_per_sample = channel_block->bits_per_sample;
+    int64_t tmp_128[2];
     int32_t smp;
     uint32_t bit;
     uint32_t smp_offset;
@@ -1917,7 +2009,9 @@ static void get_next_sample_x(const AV_HQMixerData *const mixer_data, struct AV_
         smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
-    smp = ((int64_t) smp_data * mult_volume) / div_volume;
+    muls_128(tmp_128, smp_data, mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+    smp = divs_128(tmp_128, div_volume);
 
     if (channel_info->mix_right)
         channel_info->next_sample_r = smp;
@@ -1931,6 +2025,7 @@ static void get_backwards_next_sample_x(const AV_HQMixerData *const mixer_data, 
     int64_t mult_volume      = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     int32_t div_volume       = channel_block->div_volume;
     uint32_t bits_per_sample = channel_block->bits_per_sample;
+    int64_t tmp_128[2];
     int32_t smp;
     uint32_t bit;
     uint32_t smp_offset;
@@ -1998,7 +2093,9 @@ static void get_backwards_next_sample_x(const AV_HQMixerData *const mixer_data, 
         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
-    smp = ((int64_t) smp_data * mult_volume) / div_volume;
+    muls_128(tmp_128, smp_data, mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+    smp = divs_128(tmp_128, div_volume);
 
     if (channel_info->mix_right)
         channel_info->next_sample_r = smp;
@@ -2058,7 +2155,7 @@ static int32_t get_curr_sample_16(const struct AV_HQMixerChannelInfo *const chan
     const int64_t mult_volume   = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume    = channel_block->div_volume;
 
-    return ((int64_t) sample[offset] * mult_volume) / div_volume;
+    return (((int64_t) sample[offset] * mult_volume) + (div_volume >> 1)) / div_volume;
 }
 
 static int32_t get_curr_sample_32(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset)
@@ -2066,8 +2163,12 @@ static int32_t get_curr_sample_32(const struct AV_HQMixerChannelInfo *const chan
     const int32_t *const sample = (const int32_t *const) channel_block->data;
     const int64_t mult_volume   = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume    = channel_block->div_volume;
+    int64_t tmp_128[2];
 
-    return ((int64_t) sample[offset] * mult_volume) / div_volume;
+    muls_128(tmp_128, sample[offset], mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+
+    return divs_128(tmp_128, div_volume);
 }
 
 static int32_t get_curr_sample_x(const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *const channel_block, const uint32_t offset)
@@ -2076,6 +2177,7 @@ static int32_t get_curr_sample_x(const struct AV_HQMixerChannelInfo *const chann
     const int64_t mult_volume      = channel_info->mix_right ? channel_block->mult_right_volume : channel_block->mult_left_volume;
     const int32_t div_volume       = channel_block->div_volume;
     const uint32_t bits_per_sample = channel_block->bits_per_sample;
+    int64_t tmp_128[2];
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
@@ -2090,7 +2192,10 @@ static int32_t get_curr_sample_x(const struct AV_HQMixerChannelInfo *const chann
         smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
-    return ((int64_t) smp_data * mult_volume) / div_volume;
+    muls_128(tmp_128, smp_data, mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+
+    return divs_128(tmp_128, div_volume);
 }
 
 static int32_t get_sample_1_8(const AV_HQMixerData *const mixer_data, const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *channel_block, uint32_t offset);
@@ -2912,7 +3017,7 @@ static int32_t get_sample_1_16(const AV_HQMixerData *const mixer_data, const str
         }
     }
 
-    return ((int64_t) sample[offset] * mult_volume) / div_volume;
+    return (((int64_t) sample[offset] * mult_volume) + (div_volume >> 1)) / div_volume;
 }
 
 static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data, const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *channel_block, uint32_t offset)
@@ -3002,7 +3107,7 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
         }
     }
 
-    return ((int64_t) sample[offset] * mult_volume) / div_volume;
+    return (((int64_t) sample[offset] * mult_volume) + (div_volume >> 1)) / div_volume;
 }
 
 static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *channel_block, uint32_t offset)
@@ -3014,6 +3119,7 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
     uint32_t restart_offset = channel_block->restart_offset;
     uint32_t count_restart  = channel_block->count_restart;
     uint32_t counted        = channel_block->counted;
+    int64_t tmp_128[2];
 
     while (offset >= end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
@@ -3092,7 +3198,10 @@ static int32_t get_sample_1_32(const AV_HQMixerData *const mixer_data, const str
         }
     }
 
-    return ((int64_t) sample[offset] * mult_volume) / div_volume;
+    muls_128(tmp_128, sample[offset], mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+
+    return divs_128(tmp_128, div_volume);
 }
 
 static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data, const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *channel_block, uint32_t offset)
@@ -3104,6 +3213,7 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
     uint32_t restart_offset = channel_block->restart_offset;
     uint32_t count_restart  = channel_block->count_restart;
     uint32_t counted        = channel_block->counted;
+    int64_t tmp_128[2];
 
     while (offset < end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
@@ -3182,7 +3292,10 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
         }
     }
 
-    return ((int64_t) sample[offset] * mult_volume) / div_volume;
+    muls_128(tmp_128, sample[offset], mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+
+    return divs_128(tmp_128, div_volume);
 }
 
 static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data, const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *channel_block, uint32_t offset)
@@ -3195,6 +3308,7 @@ static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data, const stru
     uint32_t restart_offset  = channel_block->restart_offset;
     uint32_t count_restart   = channel_block->count_restart;
     uint32_t counted         = channel_block->counted;
+    int64_t tmp_128[2];
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
@@ -3262,7 +3376,10 @@ static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data, const stru
         smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
-    return ((int64_t) smp_data * mult_volume) / div_volume;
+    muls_128(tmp_128, smp_data, mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+
+    return divs_128(tmp_128, div_volume);
 }
 
 static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data, const struct AV_HQMixerChannelInfo *const channel_info, const struct ChannelBlock *channel_block, uint32_t offset)
@@ -3275,6 +3392,7 @@ static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data, 
     uint32_t restart_offset  = channel_block->restart_offset;
     uint32_t count_restart   = channel_block->count_restart;
     uint32_t counted         = channel_block->counted;
+    int64_t tmp_128[2];
     uint32_t bit;
     uint32_t smp_offset;
     uint32_t smp_data;
@@ -3342,7 +3460,10 @@ static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data, 
         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
-    return ((int64_t) smp_data * mult_volume) / div_volume;
+    muls_128(tmp_128, smp_data, mult_volume);
+    add_128(tmp_128, div_volume >> 1);
+
+    return divs_128(tmp_128, div_volume);
 }
 
 static void mix_mono_loop(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block, int32_t **const buf, void (*get_next_sample_func)(const AV_HQMixerData *const mixer_data, struct AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block, uint32_t offset), const uint32_t offset_inc, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
@@ -5315,73 +5436,29 @@ CHANNEL_PREPARE(stereo_8_center)
 
 CHANNEL_PREPARE(stereo_16)
 {
-    uint32_t left_volume = 255 - panning;
+    const uint64_t left_volume  = volume * (255 - panning);
+    const uint64_t right_volume = volume * panning;
 
-    left_volume                     *= mixer_data->mixer_data.volume_left * volume;
-    left_volume                    >>= 24;
-    channel_block->mult_left_volume  = (uint64_t) left_volume * mixer_data->amplify;
-    volume                           = (panning * mixer_data->mixer_data.volume_right * volume) >> 24;
-    channel_block->mult_right_volume = (uint64_t) volume * mixer_data->amplify;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 8;
+    channel_block->mult_left_volume  = (left_volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_left) >> 16;
+    channel_block->mult_right_volume = (right_volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_right) >> 16;
+    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 16;
 }
 
 CHANNEL_PREPARE(stereo_16_left)
 {
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 16;
-    channel_block->mult_left_volume = (uint64_t) volume * mixer_data->amplify;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 8;
+    channel_block->mult_left_volume = (volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_left) >> 8;
+    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 16;
 }
 
 CHANNEL_PREPARE(stereo_16_right)
 {
-    volume                          *= mixer_data->mixer_data.volume_right;
-    volume                         >>= 16;
-    channel_block->mult_right_volume = (uint64_t) volume * mixer_data->amplify;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 8;
+    channel_block->mult_right_volume = (volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_right) >> 8;
+    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 16;
 }
 
 CHANNEL_PREPARE(stereo_16_center)
 {
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 17;
-    channel_block->mult_left_volume = (uint64_t) volume * mixer_data->amplify;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 8;
-}
-
-CHANNEL_PREPARE(stereo_32)
-{
-    uint32_t left_volume = 255 - panning;
-
-    left_volume                     *= mixer_data->mixer_data.volume_left * volume;
-    left_volume                    >>= 24;
-    channel_block->mult_left_volume  = ((uint64_t) left_volume * mixer_data->amplify) >> 8;
-    volume                           = (panning * mixer_data->mixer_data.volume_right * volume) >> 24;
-    channel_block->mult_right_volume = ((uint64_t) volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 16;
-}
-
-CHANNEL_PREPARE(stereo_32_left)
-{
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 16;
-    channel_block->mult_left_volume = ((uint64_t) volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 16;
-}
-
-CHANNEL_PREPARE(stereo_32_right)
-{
-    volume                          *= mixer_data->mixer_data.volume_right;
-    volume                         >>= 16;
-    channel_block->mult_right_volume = ((uint64_t) volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 16;
-}
-
-CHANNEL_PREPARE(stereo_32_center)
-{
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 17;
-    channel_block->mult_left_volume = ((uint64_t) volume * mixer_data->amplify) >> 8;
+    channel_block->mult_left_volume = (volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_left) >> 9;
     channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 16;
 }
 
@@ -5402,7 +5479,7 @@ static const void *mixer_skip[] = {
 static const void *mixer_mono[] = {
     channel_prepare_stereo_8_center,
     channel_prepare_stereo_16_center,
-    channel_prepare_stereo_32_center,
+    channel_prepare_stereo_16_center,
     mix_mono_8,
     mix_mono_16,
     mix_mono_32,
@@ -5416,7 +5493,7 @@ static const void *mixer_mono[] = {
 static const void *mixer_stereo[] = {
     channel_prepare_stereo_8,
     channel_prepare_stereo_16,
-    channel_prepare_stereo_32,
+    channel_prepare_stereo_16,
     mix_stereo_8,
     mix_stereo_16,
     mix_stereo_32,
@@ -5430,7 +5507,7 @@ static const void *mixer_stereo[] = {
 static const void *mixer_stereo_left[] = {
     channel_prepare_stereo_8_left,
     channel_prepare_stereo_16_left,
-    channel_prepare_stereo_32_left,
+    channel_prepare_stereo_16_left,
     mix_stereo_8_left,
     mix_stereo_16_left,
     mix_stereo_32_left,
@@ -5444,7 +5521,7 @@ static const void *mixer_stereo_left[] = {
 static const void *mixer_stereo_right[] = {
     channel_prepare_stereo_8_right,
     channel_prepare_stereo_16_right,
-    channel_prepare_stereo_32_right,
+    channel_prepare_stereo_16_right,
     mix_stereo_8_right,
     mix_stereo_16_right,
     mix_stereo_32_right,
@@ -5458,7 +5535,7 @@ static const void *mixer_stereo_right[] = {
 static const void *mixer_stereo_center[] = {
     channel_prepare_stereo_8_center,
     channel_prepare_stereo_16_center,
-    channel_prepare_stereo_32_center,
+    channel_prepare_stereo_16_center,
     mix_stereo_8_center,
     mix_stereo_16_center,
     mix_stereo_32_center,
@@ -5472,7 +5549,7 @@ static const void *mixer_stereo_center[] = {
 static const void *mixer_stereo_surround[] = {
     channel_prepare_stereo_8_center,
     channel_prepare_stereo_16_center,
-    channel_prepare_stereo_32_center,
+    channel_prepare_stereo_16_center,
     mix_stereo_8_surround,
     mix_stereo_16_surround,
     mix_stereo_32_surround,
@@ -6513,91 +6590,6 @@ static const int32_t damp_factor_lut[] = {
      2140116,  2138673,  2137231,  2135790,  2134349,  2132910,  2131472,  2130034,  2128598,  2127163,  2125728,  2124295,  2122862,  2121430,  2120000,  2118570
 };
 
-static inline void mulu_128(uint64_t *const result, const uint64_t a,
-                            const uint64_t b)
-{
-    const uint32_t a_hi = a >> 32;
-    const uint32_t a_lo = (uint32_t) a;
-    const uint32_t b_hi = b >> 32;
-    const uint32_t b_lo = (uint32_t) b;
-    const uint64_t x1 = (uint64_t) a_lo * b_hi;
-    uint64_t x2 = (uint64_t) a_hi * b_lo;
-    const uint64_t x3 = (uint64_t) a_lo * b_lo;
-    uint64_t x0 = (uint64_t) a_hi * b_hi;
-
-    x2       += x3 >> 32;
-    x2       += x1;
-    x0       += (x2 < x1) ? UINT64_C(0x100000000) : 0;
-    result[0] = x0 + (x2 >> 32);
-    result[1] = (x2 << 32) + (x3 & UINT64_C(0xFFFFFFFF));
-}
-
-static inline void neg_128(uint64_t *const result)
-{
-    result[1]  = ~result[1];
-    result[0]  = ~result[0];
-    result[0] += (++result[1] ? 0 : 1);
-}
-
-static inline void muls_128(int64_t *const result, const int64_t a,
-                            const int64_t b)
-{
-    const int sign = (a ^ b) < 0;
-
-    mulu_128(result, a < 0 ? -a : a, b < 0 ? -b : b);
-
-    if (sign)
-        neg_128(result);
-}
-
-static inline uint64_t divu_128(const uint64_t *const a,
-                                const uint64_t b)
-{
-    uint64_t a_hi   = a[0];
-    uint64_t a_lo   = a[1];
-    uint64_t result = 0, result_r = 0;
-    uint16_t i      = 128;
-
-    while (i--) {
-        const uint64_t carry  = a_lo >> 63;
-        const uint64_t carry2 = a_hi >> 63;
-
-        result <<= 1;
-        a_lo   <<= 1;
-        a_hi     = (((a_hi << 1) | (a_hi >> 63)) & ~UINT64_C(1)) | carry; // simulate bitwise rotate with extend (carry)
-        result_r = (((result_r << 1) | (result_r >> 63)) & ~UINT64_C(1)) | carry2; // simulate bitwise rotate with extend (carry)
-
-        if (result_r >= b) {
-            result_r -= b;
-            result++;
-        }
-    }
-
-    return result;
-}
-
-static inline int64_t divs_128(int64_t *const a, const int64_t b)
-{
-    const int sign = (a[0] ^ b) < 0;
-    int64_t result;
-
-    if (a[0] < 0)
-        neg_128(a);
-
-    result = divu_128(a, b < 0 ? -b : b);
-
-    if (sign)
-        result = -result;
-
-    return result;
-}
-
-static inline void add_128(int64_t *const a, const int64_t b)
-{
-    a[1] += b;
-    a[0] += ((uint64_t) a[1] < (uint64_t) b);
-}
-
 static void update_sample_filter(const AV_HQMixerData *const mixer_data,
                                  AV_HQMixerChannelInfo *const channel_info,
                                  struct ChannelBlock *const channel_block)
@@ -6886,7 +6878,7 @@ static av_cold uint32_t set_volume(AVMixerData *const mixer_data,
             do {
                 const int32_t volume = (int8_t) j << 8;
 
-                *volume_lut++ = ((int64_t) volume * volume_mult) / volume_div;
+                *volume_lut++ = ((((int64_t) volume * volume_mult)) + (volume_div >> 1)) / volume_div;
             } while (++j);
 
             volume_mult += amplify;
