@@ -68,7 +68,6 @@ typedef struct AV_LQMixerChannelInfo {
         int32_t *volume_left_lut;
         int32_t *volume_right_lut;
         uint32_t mult_left_volume;
-        uint32_t div_volume;
         uint32_t mult_right_volume;
         int32_t filter_c1;
         int32_t filter_c2;
@@ -1105,67 +1104,67 @@ MIX(mono_backwards_x_to_8)
 
 MIX(mono_16)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int16_t *const pos = sample,
                  int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) >> 16,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
-                 smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 16,
+                 smp = ((int64_t) *sample++ * mult_left_volume) >> 16,
                  *mix_buf++ += smp)
 }
 
 MIX(mono_backwards_16)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample, 
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int16_t *const pos = sample, 
                  int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) >> 16,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
-                 smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 16,
+                 smp = ((int64_t) *--sample * mult_left_volume) >> 16,
                  *mix_buf++ += smp)
 }
 
 MIX(mono_32)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t *const pos = sample,
                  int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) >> 32,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
-                 smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32,
+                 smp = ((int64_t) *sample++ * mult_left_volume) >> 32,
                  *mix_buf++ += smp)
 }
 
 MIX(mono_backwards_32)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t *const pos = sample,
                  int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) sample[curr_offset] * mult_left_volume) >> 32,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
-                 smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32,
+                 smp = ((int64_t) *--sample * mult_left_volume) >> 32,
                  *mix_buf++ += smp)
 }
 
 MIX(mono_x)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -1179,7 +1178,7 @@ MIX(mono_x)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -1208,7 +1207,7 @@ MIX(mono_x)
                     }
 
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -1218,13 +1217,13 @@ MIX(mono_x)
 
                     bit += bits_per_sample;
                     curr_offset++;
-                    smp  = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp  = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf++ += smp)
 }
 
 MIX(mono_backwards_x)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -1238,7 +1237,7 @@ MIX(mono_backwards_x)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -1294,7 +1293,7 @@ MIX(mono_backwards_x)
 
                     bit       = smp_value;
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -1310,7 +1309,7 @@ MIX(mono_backwards_x)
                         smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf++ += smp)
 }
 
@@ -1565,67 +1564,67 @@ MIX(stereo_backwards_x_to_8)
 
 MIX(stereo_16)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
                  int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) >> 16; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) >> 16,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp_in = *sample++; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 16; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 16,
+                 smp_in = *sample++; smp = ((int64_t) smp_in * mult_left_volume) >> 16; smp_right = ((int64_t) smp_in * mult_right_volume) >> 16,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
 }
 
 MIX(stereo_backwards_16)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; int16_t smp_in; int32_t smp_right; const int16_t *const pos = sample,
                  int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) >> 16; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) >> 16,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp_in = *--sample; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 16; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 16,
+                 smp_in = *--sample; smp = ((int64_t) smp_in * mult_left_volume) >> 16; smp_right = ((int64_t) smp_in * mult_right_volume) >> 16,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
 }
 
 MIX(stereo_32)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
                  int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) >> 32; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) >> 32,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp_in = *sample++; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
+                 smp_in = *sample++; smp = ((int64_t) smp_in * mult_left_volume) >> 32; smp_right = ((int64_t) smp_in * mult_right_volume) >> 32,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
 }
 
 MIX(stereo_backwards_32)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; int32_t smp_in; int32_t smp_right; const int32_t *const pos = sample,
                  int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 smp_in = sample[curr_offset]; *mix_buf++ += ((int64_t) smp_in * mult_left_volume) >> 32; *mix_buf++ += ((int64_t) smp_in * mult_right_volume) >> 32,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp_in = *--sample; smp = ((int64_t) smp_in * mult_left_volume) / div_volume; smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
+                 smp_in = *--sample; smp = ((int64_t) smp_in * mult_left_volume) >> 32; smp_right = ((int64_t) smp_in * mult_right_volume) >> 32,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
 }
 
 MIX(stereo_x)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -1640,8 +1639,8 @@ MIX(stereo_x)
                     }
 
                     smp_in      = smp_data;
-                    *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume;
-                    *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
+                    *mix_buf++ += ((int64_t) smp_in * mult_left_volume) >> 32;
+                    *mix_buf++ += ((int64_t) smp_in * mult_right_volume) >> 32,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -1670,7 +1669,7 @@ MIX(stereo_x)
                     }
 
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -1681,14 +1680,14 @@ MIX(stereo_x)
                     bit      += bits_per_sample;
                     curr_offset++;
                     smp_in    = smp_data;
-                    smp       = ((int64_t) smp_in * mult_left_volume) / div_volume;
-                    smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
+                    smp       = ((int64_t) smp_in * mult_left_volume) >> 32;
+                    smp_right = ((int64_t) smp_in * mult_right_volume) >> 32,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
 }
 
 MIX(stereo_backwards_x)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t mult_right_volume = channel_block->mult_right_volume; int32_t smp_in; int32_t smp_right; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -1703,8 +1702,8 @@ MIX(stereo_backwards_x)
                     }
 
                     smp_in      = smp_data;
-                    *mix_buf++ += ((int64_t) smp_in * mult_left_volume) / div_volume;
-                    *mix_buf++ += ((int64_t) smp_in * mult_right_volume) / div_volume,
+                    *mix_buf++ += ((int64_t) smp_in * mult_left_volume) >> 32;
+                    *mix_buf++ += ((int64_t) smp_in * mult_right_volume) >> 32,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -1760,7 +1759,7 @@ MIX(stereo_backwards_x)
 
                     bit       = smp_value;
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 *mix_buf++ += ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
+                 *mix_buf++ += ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -1777,8 +1776,8 @@ MIX(stereo_backwards_x)
                     }
 
                     smp_in    = smp_data;
-                    smp       = ((int64_t) smp_in * mult_left_volume) / div_volume;
-                    smp_right = ((int64_t) smp_in * mult_right_volume) / div_volume,
+                    smp       = ((int64_t) smp_in * mult_left_volume) >> 32;
+                    smp_right = ((int64_t) smp_in * mult_right_volume) >> 32,
                  *mix_buf++ += smp; *mix_buf++ += smp_right)
 }
 
@@ -2027,67 +2026,67 @@ MIX(stereo_backwards_x_to_8_left)
 
 MIX(stereo_16_left)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int16_t *const pos = sample,
                  int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
+                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) >> 16; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
-                 smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 *mix_buf += ((int64_t) smp * mult_left_volume) >> 16; mix_buf += 2,
+                 smp = ((int64_t) *sample++ * mult_left_volume) >> 16,
                  *mix_buf += smp; mix_buf += 2)
 }
 
 MIX(stereo_backwards_16_left)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int16_t *const pos = sample,
                  int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
+                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) >> 16; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
-                 smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 *mix_buf += ((int64_t) smp * mult_left_volume) >> 16; mix_buf += 2,
+                 smp = ((int64_t) *--sample * mult_left_volume) >> 16,
                  *mix_buf += smp; mix_buf += 2)
 }
 
 MIX(stereo_32_left)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t *const pos = sample,
                  int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
+                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) >> 32; mix_buf += 2,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
-                 smp = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 *mix_buf += ((int64_t) smp * mult_left_volume) >> 32; mix_buf += 2,
+                 smp = ((int64_t) *sample++ * mult_left_volume) >> 32,
                  *mix_buf += smp; mix_buf += 2)
 }
 
 MIX(stereo_backwards_32_left)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t *const pos = sample,
                  int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; mix_buf += 2,
+                 *mix_buf += ((int64_t) sample[curr_offset] * mult_left_volume) >> 32; mix_buf += 2,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
-                 smp = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 *mix_buf += ((int64_t) smp * mult_left_volume) >> 32; mix_buf += 2,
+                 smp = ((int64_t) *--sample * mult_left_volume) >> 32,
                  *mix_buf += smp; mix_buf += 2)
 }
 
 MIX(stereo_x_left)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -2101,7 +2100,7 @@ MIX(stereo_x_left)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    *mix_buf   += ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume;
+                    *mix_buf   += ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32;
                     mix_buf    += 2,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
@@ -2131,7 +2130,7 @@ MIX(stereo_x_left)
                     }
 
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
+                 *mix_buf += ((int64_t) smp * mult_left_volume) >> 32; mix_buf += 2,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -2141,13 +2140,13 @@ MIX(stereo_x_left)
 
                     bit += bits_per_sample;
                     curr_offset++;
-                    smp  = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp  = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf += smp; mix_buf += 2)
 }
 
 MIX(stereo_backwards_x_left)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -2161,7 +2160,7 @@ MIX(stereo_backwards_x_left)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    *mix_buf   += ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume;
+                    *mix_buf   += ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32;
                     mix_buf    += 2,
                     curr_offset--;
                     bit -= bits_per_sample;
@@ -2218,7 +2217,7 @@ MIX(stereo_backwards_x_left)
 
                     bit       = smp_value;
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 *mix_buf += ((int64_t) smp * mult_left_volume) / div_volume; mix_buf += 2,
+                 *mix_buf += ((int64_t) smp * mult_left_volume) >> 32; mix_buf += 2,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -2234,7 +2233,7 @@ MIX(stereo_backwards_x_left)
                         smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf += smp; mix_buf += 2)
 }
 
@@ -2483,67 +2482,67 @@ MIX(stereo_backwards_x_to_8_right)
 
 MIX(stereo_16_right)
 {
-    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int16_t *const pos = sample,
                  int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) >> 16,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp = ((int64_t) *sample++ * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 16,
+                 smp = ((int64_t) *sample++ * mult_right_volume) >> 16,
                  mix_buf++; *mix_buf++ += smp)
 }
 
 MIX(stereo_backwards_16_right)
 {
-    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int16_t *const pos = sample,
                  int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) >> 16,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp = ((int64_t) *--sample * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 16,
+                 smp = ((int64_t) *--sample * mult_right_volume) >> 16,
                  mix_buf++; *mix_buf++ += smp)
 }
 
 MIX(stereo_32_right)
 {
-    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t *const pos = sample,
                  int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) >> 32,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp = ((int64_t) *sample++ * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
+                 smp = ((int64_t) *sample++ * mult_right_volume) >> 32,
                  mix_buf++; *mix_buf++ += smp)
 }
 
 MIX(stereo_backwards_32_right)
 {
-    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t *const pos = sample,
                  int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) sample[curr_offset] * mult_right_volume) >> 32,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
-                 smp = ((int64_t) *--sample * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
+                 smp = ((int64_t) *--sample * mult_right_volume) >> 32,
                  mix_buf++; *mix_buf++ += smp)
 }
 
 MIX(stereo_x_right)
 {
-    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -2558,7 +2557,7 @@ MIX(stereo_x_right)
                     }
 
                     mix_buf++;
-                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_right_volume) / div_volume,
+                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_right_volume) >> 32,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -2587,7 +2586,7 @@ MIX(stereo_x_right)
                     }
 
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -2597,13 +2596,13 @@ MIX(stereo_x_right)
 
                     bit += bits_per_sample;
                     curr_offset++;
-                    smp  = ((int64_t) ((int32_t) smp_data) * mult_right_volume) / div_volume,
+                    smp  = ((int64_t) ((int32_t) smp_data) * mult_right_volume) >> 32,
                  mix_buf++; *mix_buf++ += smp)
 }
 
 MIX(stereo_backwards_x_right)
 {
-    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const int32_t div_volume = channel_block->div_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_right_volume = channel_block->mult_right_volume; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -2618,7 +2617,7 @@ MIX(stereo_backwards_x_right)
                     }
 
                     mix_buf++;
-                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_right_volume) / div_volume,
+                    *mix_buf++ += ((int64_t) ((int32_t) smp_data) * mult_right_volume) >> 32,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -2674,7 +2673,7 @@ MIX(stereo_backwards_x_right)
 
                     bit       = smp_value;
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) / div_volume,
+                 mix_buf++; *mix_buf++ += ((int64_t) smp * mult_right_volume) >> 32,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -2690,7 +2689,7 @@ MIX(stereo_backwards_x_right)
                         smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp = ((int64_t) ((int32_t) smp_data) * mult_right_volume) / div_volume,
+                    smp = ((int64_t) ((int32_t) smp_data) * mult_right_volume) >> 32,
                  mix_buf++; *mix_buf++ += smp)
 }
 
@@ -2941,67 +2940,67 @@ MIX(stereo_backwards_x_to_8_center)
 
 MIX(stereo_16_center)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int16_t *const pos = sample,
                  int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
-                 smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) *sample++ * mult_left_volume) >> 16,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
 }
 
 MIX(stereo_backwards_16_center)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int16_t *const pos = sample,
                  int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
-                 smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) *--sample * mult_left_volume) >> 16,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
 }
 
 MIX(stereo_32_center)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int32_t *const pos = sample,
                  int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
-                 smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) *sample++ * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
 }
 
 MIX(stereo_backwards_32_center)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int32_t *const pos = sample,
                  int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
-                 smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) *--sample * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
 }
 
 MIX(stereo_x_center)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -3015,7 +3014,7 @@ MIX(stereo_x_center)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume;
+                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32;
                     *mix_buf++ += smp_in;
                     *mix_buf++ += smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
@@ -3046,7 +3045,7 @@ MIX(stereo_x_center)
                     }
 
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -3056,13 +3055,13 @@ MIX(stereo_x_center)
 
                     bit   += bits_per_sample;
                     curr_offset++;
-                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
 }
 
 MIX(stereo_backwards_x_center)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -3076,7 +3075,7 @@ MIX(stereo_backwards_x_center)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume;
+                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32;
                     *mix_buf++ += smp_in;
                     *mix_buf++ += smp_in,
                     curr_offset--;
@@ -3134,7 +3133,7 @@ MIX(stereo_backwards_x_center)
 
                     bit       = smp_value;
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += smp_in,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -3150,7 +3149,7 @@ MIX(stereo_backwards_x_center)
                         smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += smp_in)
 }
 
@@ -3401,67 +3400,67 @@ MIX(stereo_backwards_x_to_8_surround)
 
 MIX(stereo_16_surround)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int16_t *const pos = sample,
                  int16_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
-                 smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) *sample++ * mult_left_volume) >> 16,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
 }
 
 MIX(stereo_backwards_16_surround)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int16_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int16_t *const pos = sample,
                  int16_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
-                 smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 16; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) *--sample * mult_left_volume) >> 16,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
 }
 
 MIX(stereo_32_surround)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int32_t *const pos = sample,
                  int32_t, +=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *sample++,
                  smp += *sample++,
                  smp_value = (*sample - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
-                 smp_in = ((int64_t) *sample++ * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) *sample++ * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
 }
 
 MIX(stereo_backwards_32_surround)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const int32_t *const pos = sample,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const int32_t *const pos = sample,
                  int32_t, -=,
                  sample += curr_offset,
                  *offset = (sample - pos) - 1,
-                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) sample[curr_offset] * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                  smp = *--sample,
                  smp += *--sample,
                  smp_value = (*(sample-1) - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
-                 smp_in = ((int64_t) *--sample * mult_left_volume) / div_volume,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) *--sample * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
 }
 
 MIX(stereo_x_surround)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, +=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -3475,7 +3474,7 @@ MIX(stereo_x_surround)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume;
+                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32;
                     *mix_buf++ += smp_in;
                     *mix_buf++ += ~smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
@@ -3506,7 +3505,7 @@ MIX(stereo_x_surround)
                     }
 
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                     if (((bit &= 31) + bits_per_sample) < 32) {
                         smp_data = ((uint32_t) *sample << bit) & ~((1 << (32 - bits_per_sample)) - 1);
                     } else {
@@ -3516,13 +3515,13 @@ MIX(stereo_x_surround)
 
                     bit   += bits_per_sample;
                     curr_offset++;
-                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
 }
 
 MIX(stereo_backwards_x_surround)
 {
-    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; const int32_t div_volume = channel_block->div_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
+    MIX_FUNCTION(const int32_t mult_left_volume = channel_block->mult_left_volume; int32_t smp_in; const uint32_t bits_per_sample = channel_block->bits_per_sample; uint32_t bit = curr_offset * bits_per_sample; uint32_t smp_offset = bit >> 5; uint32_t smp_data,
                  int32_t, -=,
                  sample += smp_offset,
                  *offset = curr_offset,
@@ -3536,7 +3535,7 @@ MIX(stereo_backwards_x_surround)
                         smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume;
+                    smp_in      = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32;
                     *mix_buf++ += smp_in;
                     *mix_buf++ += ~smp_in,
                     curr_offset--;
@@ -3594,7 +3593,7 @@ MIX(stereo_backwards_x_surround)
 
                     bit       = smp_value;
                     smp_value = (smp_data - smp) * (int64_t) adv_frac,
-                 smp_in = ((int64_t) smp * mult_left_volume) / div_volume; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
+                 smp_in = ((int64_t) smp * mult_left_volume) >> 32; *mix_buf++ += smp_in; *mix_buf++ += ~smp_in,
                     curr_offset--;
                     bit -= bits_per_sample;
 
@@ -3610,7 +3609,7 @@ MIX(stereo_backwards_x_surround)
                         smp_data |= ((uint32_t) *(sample+1) & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
                     }
 
-                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) / div_volume,
+                    smp_in = ((int64_t) ((int32_t) smp_data) * mult_left_volume) >> 32,
                  *mix_buf++ += smp_in; *mix_buf++ += ~smp_in)
 }
 
@@ -3662,74 +3661,27 @@ CHANNEL_PREPARE(stereo_8_center)
 
 CHANNEL_PREPARE(stereo_16)
 {
-    uint32_t left_volume = 255 - panning;
+    const uint64_t left_volume  = volume * (255 - panning);
+    const uint64_t right_volume = volume * panning;
+    const uint32_t channels     = mixer_data->channels_in << 16;
 
-    left_volume                     *= mixer_data->mixer_data.volume_left * volume;
-    left_volume                    >>= 24;
-    channel_block->mult_left_volume  = left_volume * mixer_data->amplify;
-    volume                           = (panning * mixer_data->mixer_data.volume_right * volume) >> 24;
-    channel_block->mult_right_volume = volume * mixer_data->amplify;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 8;
+    channel_block->mult_left_volume  = (left_volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_left) / channels;
+    channel_block->mult_right_volume = (right_volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_right) / channels;
 }
 
 CHANNEL_PREPARE(stereo_16_left)
 {
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 16;
-    channel_block->mult_left_volume = volume * mixer_data->amplify;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 8;
+    channel_block->mult_left_volume  = (volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_left) / (mixer_data->channels_in << 8);
 }
 
 CHANNEL_PREPARE(stereo_16_right)
 {
-    volume                          *= mixer_data->mixer_data.volume_right;
-    volume                         >>= 16;
-    channel_block->mult_right_volume = volume * mixer_data->amplify;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 8;
+    channel_block->mult_right_volume  = (volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_right) / (mixer_data->channels_in << 8);
 }
 
 CHANNEL_PREPARE(stereo_16_center)
 {
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 17;
-    channel_block->mult_left_volume = volume * mixer_data->amplify;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 8;
-}
-
-CHANNEL_PREPARE(stereo_32)
-{
-    uint32_t left_volume = 255 - panning;
-
-    left_volume                     *= mixer_data->mixer_data.volume_left * volume;
-    left_volume                    >>= 24;
-    channel_block->mult_left_volume  = (left_volume * mixer_data->amplify) >> 8;
-    volume                           = (panning * mixer_data->mixer_data.volume_right * volume) >> 24;
-    channel_block->mult_right_volume = (volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 16;
-}
-
-CHANNEL_PREPARE(stereo_32_left)
-{
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 16;
-    channel_block->mult_left_volume = (volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 16;
-}
-
-CHANNEL_PREPARE(stereo_32_right)
-{
-    volume                          *= mixer_data->mixer_data.volume_right;
-    volume                         >>= 16;
-    channel_block->mult_right_volume = (volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume        = (uint32_t) mixer_data->channels_in << 16;
-}
-
-CHANNEL_PREPARE(stereo_32_center)
-{
-    volume                         *= mixer_data->mixer_data.volume_left;
-    volume                        >>= 17;
-    channel_block->mult_left_volume = (volume * mixer_data->amplify) >> 8;
-    channel_block->div_volume       = (uint32_t) mixer_data->channels_in << 16;
+    channel_block->mult_left_volume  = (volume * (uint64_t) mixer_data->amplify * (uint64_t) mixer_data->mixer_data.volume_left) / (mixer_data->channels_in << 9);
 }
 
 static const void *mixer_skip[] = {
@@ -3749,7 +3701,7 @@ static const void *mixer_skip[] = {
 static const void *mixer_mono[] = {
     channel_prepare_stereo_8_center,
     channel_prepare_stereo_16_center,
-    channel_prepare_stereo_32_center,
+    channel_prepare_stereo_16_center,
     mix_mono_8,
     mix_mono_16,
     mix_mono_32,
@@ -3763,7 +3715,7 @@ static const void *mixer_mono[] = {
 static const void *mixer_stereo[] = {
     channel_prepare_stereo_8,
     channel_prepare_stereo_16,
-    channel_prepare_stereo_32,
+    channel_prepare_stereo_16,
     mix_stereo_8,
     mix_stereo_16,
     mix_stereo_32,
@@ -3777,7 +3729,7 @@ static const void *mixer_stereo[] = {
 static const void *mixer_stereo_left[] = {
     channel_prepare_stereo_8_left,
     channel_prepare_stereo_16_left,
-    channel_prepare_stereo_32_left,
+    channel_prepare_stereo_16_left,
     mix_stereo_8_left,
     mix_stereo_16_left,
     mix_stereo_32_left,
@@ -3791,7 +3743,7 @@ static const void *mixer_stereo_left[] = {
 static const void *mixer_stereo_right[] = {
     channel_prepare_stereo_8_right,
     channel_prepare_stereo_16_right,
-    channel_prepare_stereo_32_right,
+    channel_prepare_stereo_16_right,
     mix_stereo_8_right,
     mix_stereo_16_right,
     mix_stereo_32_right,
@@ -3805,7 +3757,7 @@ static const void *mixer_stereo_right[] = {
 static const void *mixer_stereo_center[] = {
     channel_prepare_stereo_8_center,
     channel_prepare_stereo_16_center,
-    channel_prepare_stereo_32_center,
+    channel_prepare_stereo_16_center,
     mix_stereo_8_center,
     mix_stereo_16_center,
     mix_stereo_32_center,
@@ -3819,7 +3771,7 @@ static const void *mixer_stereo_center[] = {
 static const void *mixer_stereo_surround[] = {
     channel_prepare_stereo_8_center,
     channel_prepare_stereo_16_center,
-    channel_prepare_stereo_32_center,
+    channel_prepare_stereo_16_center,
     mix_stereo_8_surround,
     mix_stereo_16_surround,
     mix_stereo_32_surround,
@@ -5229,7 +5181,8 @@ static av_cold uint32_t set_volume(AVMixerData *const mixer_data,
 
     if ((old_channels != channels) || (lq_mixer_data->amplify != amplify)) {
         int32_t *volume_lut = lq_mixer_data->volume_lut;
-        int32_t volume_mult = 0, volume_div = channels << 8;
+        int64_t volume_mult = 0;
+        int32_t volume_div  = channels << 8;
         uint8_t i           = 0, j = 0;
 
         lq_mixer_data->amplify = amplify;
