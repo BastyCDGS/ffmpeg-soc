@@ -274,68 +274,93 @@ typedef struct AVMixerContext {
     uint8_t flags;
 
     /** The initialization function to call for the mixer.  */
-    AVMixerData * (*init)(struct AVMixerContext *mixctx, const char *args, void *opaque);
+    AVMixerData * (*init)(struct AVMixerContext *const mixctx,
+                          const char *args, void *opaque);
 
     /** The destruction function to call for the mixer.  */
-    int (*uninit)(AVMixerData *mixer_data);
+    int (*uninit)(AVMixerData *const mixer_data);
 
     /** Transfers a new mixing rate in Hz and number of output
        channels from the AVSequencer to the internal mixer data.  */
-    uint32_t (*set_rate)(AVMixerData *mixer_data, uint32_t new_mix_rate,
-                         uint32_t new_channels);
+    uint32_t (*set_rate)(AVMixerData *const mixer_data,
+                         const uint32_t mix_rate,
+                         const uint32_t channels);
 
     /** Transfers the new time interval for calling the playback
        handler to the interal mixer, in AV_TIME_BASE fractional
        seconds.  */
-    uint32_t (*set_tempo)(AVMixerData *mixer_data, uint32_t new_tempo);
+    uint32_t (*set_tempo)(AVMixerData *const mixer_data,
+                          const uint32_t tempo);
 
     /** Transfers the new volume boost, the new left position volume,
        the new right position volume and new number of maximum
        channels from the AVSequencer to the internal mixer data.  */
-    uint32_t (*set_volume)(AVMixerData *mixer_data, uint32_t amplify,
-                           uint32_t left_volume, uint32_t right_volume,
-                           uint32_t channels);
+    uint32_t (*set_volume)(AVMixerData *const mixer_data,
+                           const uint32_t amplify,
+                           const uint32_t left_volume,
+                           const uint32_t right_volume,
+                           const uint32_t channels);
 
     /** Transfers the current internal mixer channel data to the
        AVSequencer.  */
-    void (*get_channel)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+    void (*get_channel)(const AVMixerData *const mixer_data,
+                        AVMixerChannel *const mixer_channel,
+                        const uint32_t channel);
 
     /** Transfers the current AVSequencer channel data to the
        internal mixer channel data.  */
-    void (*set_channel)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+    void (*set_channel)(AVMixerData *const mixer_data,
+                        const AVMixerChannel *const mixer_channel,
+                        const uint32_t channel);
 
     /** Resets the AVSequencer channel data to the mixer internal
        default values.  */
-    void (*reset_channel)(AVMixerData *mixer_data, uint32_t channel);
+    void (*reset_channel)(AVMixerData *const mixer_data,
+                          const uint32_t channel);
 
     /** Transfers both (current and next) internal mixer channel data
        to the AVSequencer.  */
-    void (*get_both_channels)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel);
+    void (*get_both_channels)(const AVMixerData *const mixer_data,
+                              AVMixerChannel *const mixer_channel_current,
+                              AVMixerChannel *const mixer_channel_next,
+                              const uint32_t channel);
 
     /** Transfers both (current and next) AVSequencer channel data to
        the internal mixer channel data.  */
-    void (*set_both_channels)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel);
+    void (*set_both_channels)(AVMixerData *const mixer_data,
+                              const AVMixerChannel *const mixer_channel_current,
+                              const AVMixerChannel *const mixer_channel_next,
+                              const uint32_t channel);
 
     /** Signals a volume, panning or pitch change from AVSequencer to
        the internal mixer.  */
-    void (*set_channel_volume_panning_pitch)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+    void (*set_channel_volume_panning_pitch)(AVMixerData *const mixer_data,
+                                             const AVMixerChannel *const mixer_channel,
+                                             const uint32_t channel);
 
     /** Signals a set sample position, set repeat and flags change
        from AVSequencer to the internal mixer.  */
-    void (*set_channel_position_repeat_flags)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+    void (*set_channel_position_repeat_flags)(AVMixerData *const mixer_data,
+                                              const AVMixerChannel *const mixer_channel,
+                                              const uint32_t channel);
 
     /** Signals a set (resonance) filter from AVSequencer to the
        internal mixer.  */
-    void (*set_channel_filter)(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel);
+    void (*set_channel_filter)(AVMixerData *const mixer_data,
+                               const AVMixerChannel *const mixer_channel,
+                               const uint32_t channel);
 
     /** Run the actual mixing engine by filling the buffer, i.e. the
        player data is converted to SAMPLE_FMT_S32.  */
-    void (*mix)(AVMixerData *mixer_data, int32_t *buf);
+    void (*mix)(AVMixerData *const mixer_data, int32_t *buf);
 
     /** Run the actual mixing engine by filling the buffer by
        specifying a channel range suitable for parallelziation, i.e.
        the player data is converted to SAMPLE_FMT_S32.  */
-    void (*mix_parallel)(AVMixerData *mixer_data, int32_t *buf, const uint32_t first_channel, const uint32_t last_channel);
+    void (*mix_parallel)(AVMixerData *const mixer_data,
+                         int32_t *buf,
+                         const uint32_t first_channel,
+                         const uint32_t last_channel);
 } AVMixerContext;
 
 #endif /* AVSEQUENCER_MIXER_H */

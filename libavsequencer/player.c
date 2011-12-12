@@ -2990,15 +2990,15 @@ EXECUTE_EFFECT(tremor) {
 
     player_host_channel->tremor_on_ticks = tremor_on;
 
-    if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF))
-        tremor_off = tremor_on;
+    if (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
+        if (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_ON))
+            tremor_off = tremor_on;
 
-    if (tremor_off <= player_host_channel->tremor_count) {
-        player_host_channel->flags       ^= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF;
-        player_host_channel->tremor_count = 0;
+        if (player_host_channel->tremor_count-- <= 1) {
+            player_host_channel->flags       ^= AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_ON;
+            player_host_channel->tremor_count = tremor_off;
+        }
     }
-
-    player_host_channel->tremor_count++;
 }
 
 EXECUTE_EFFECT(note_retrigger)
@@ -10665,7 +10665,7 @@ turn_note_off:
             player_host_channel->virtual_channels++;
             virtual_channel++;
 
-            if (!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF))
+            if (!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_ON)))
                 host_volume = 0;
 
             host_volume                        *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;

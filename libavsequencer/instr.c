@@ -462,9 +462,7 @@ CREATE_ENVELOPE(sine)
             value = -value;
 
         pos   += sine_div;
-        value *= (int32_t) scale;
-        value /= 32767;
-        value += y_offset;
+        value  = (((value * (int32_t) scale) + 16383) / 32767) + y_offset;
         count += sine_mod;
 
         if (count >= points) {
@@ -494,9 +492,7 @@ CREATE_ENVELOPE(cosine)
         if ((pos -= sine_div) < 0)
             pos += 360;
 
-        value *= (int32_t) scale;
-        value /= 32767;
-        value += y_offset;
+        value  = (((value * (int32_t) scale) + 16383) / 32767) + y_offset;
         count += sine_mod;
 
         if (count >= points) {

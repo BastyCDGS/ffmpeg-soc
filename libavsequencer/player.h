@@ -469,7 +469,7 @@ enum AVSequencerPlayerHostChannelFlags {
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_TRANSPOSE    = 0x00000200, ///< Set transpose effect invoked
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SUB_SLIDE_RETRIG = 0x00000400, ///< Allow sub-slides in multi retrigger note
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC      = 0x00000800, ///< Tremor effect in hold, i.e. invoked
-    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_OFF       = 0x00001000, ///< Tremor effect is currently turning off volume
+    AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_ON        = 0x00001000, ///< Tremor effect is currently turning on volume
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE      = 0x00002000, ///< Note retrigger effect invoked
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_VIBRATO          = 0x00004000, ///< Vibrato effect in hold, i.e. invoked
     AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOLO          = 0x00008000, ///< Tremolo effect in hold, i.e. invoked
@@ -932,10 +932,10 @@ typedef struct AVSequencerPlayerHostChannel {
        used yet during playback.  */
     uint8_t tremor_off_ticks;
 
-    /** Current number of tick for tremor command. This will allow
-       the player to determine if we are currently in a tremor on
-       or tremor off phase and can also be 0 if the tremor effect
-       was not used yet during playback.  */
+    /** Current remaining number of ticks for tremor command before
+       the effect switches from off to on state (and vice versa).
+       This also can be 0 in case the tremor effect was not used
+       yet during playback or has been initialized with zero.  */
     uint8_t tremor_count;
 
     /** Current mask of sub-slide bits or 0 if the set target

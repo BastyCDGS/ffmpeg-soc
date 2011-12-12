@@ -365,7 +365,7 @@ int avseq_module_play(AVSequencerContext *avctx, AVMixerContext *mixctx,
         player_globals->relative_pitch = player_globals->relative_speed;
 
     tempo                          = avseq_song_calc_speed(avctx, song);
-    volume_boost                   = ((uint64_t) module->channels * (65536*125/1000)) + (65536*75/100);
+    volume_boost                   = ((uint32_t) module->channels * (65536*125/1000)) + (65536*75/100);
     mixer_data->flags             |= AVSEQ_MIXER_DATA_FLAG_MIXING;
 
     if (mixctx)

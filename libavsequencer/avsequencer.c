@@ -146,7 +146,8 @@ void avsequencer_destroy(AVSequencerContext *avctx)
     }
 }
 
-AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
+AVMixerData *avseq_mixer_init(AVSequencerContext *const avctx,
+                              AVMixerContext *const mixctx,
                               const char *args, void *opaque)
 {
     AVMixerData *mixer_data = NULL;
@@ -180,7 +181,8 @@ AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
     return mixer_data;
 }
 
-int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data)
+int avseq_mixer_uninit(AVSequencerContext *const avctx,
+                       AVMixerData *const mixer_data)
 {
     AVMixerContext *mixctx;
 
@@ -239,8 +241,9 @@ int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data)
     return 0;
 }
 
-uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
-                              uint32_t new_channels)
+uint32_t avseq_mixer_set_rate(AVMixerData *const mixer_data,
+                              const uint32_t mix_rate,
+                              const uint32_t channels)
 {
     AVMixerContext *mixctx;
 
@@ -250,6 +253,9 @@ uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
     mixctx = mixer_data->mixctx;
 
     if (mixctx && mixctx->set_rate) {
+        uint32_t new_mix_rate = mix_rate;
+        uint32_t new_channels = channels;
+
         if (new_mix_rate < mixctx->frequency_min)
             new_mix_rate = mixctx->frequency_min;
         else if (new_mix_rate > mixctx->frequency_max)
@@ -264,7 +270,8 @@ uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
     return mixer_data->rate;
 }
 
-uint32_t avseq_mixer_set_tempo(AVMixerData *mixer_data, uint32_t new_tempo)
+uint32_t avseq_mixer_set_tempo(AVMixerData *const mixer_data,
+                               const uint32_t tempo)
 {
     AVMixerContext *mixctx;
 
@@ -273,15 +280,17 @@ uint32_t avseq_mixer_set_tempo(AVMixerData *mixer_data, uint32_t new_tempo)
 
     mixctx = mixer_data->mixctx;
 
-    if (new_tempo && mixctx && mixctx->set_tempo)
-        return mixctx->set_tempo(mixer_data, new_tempo);
+    if (tempo && mixctx && mixctx->set_tempo)
+        return mixctx->set_tempo(mixer_data, tempo);
 
     return mixer_data->tempo;
 }
 
-uint32_t avseq_mixer_set_volume(AVMixerData *mixer_data, uint32_t amplify,
-                                uint32_t left_volume, uint32_t right_volume,
-                                uint32_t channels)
+uint32_t avseq_mixer_set_volume(AVMixerData *const mixer_data,
+                                const uint32_t amplify,
+                                const uint32_t left_volume,
+                                const uint32_t right_volume,
+                                const uint32_t channels)
 {
     AVMixerContext *mixctx;
 
@@ -296,8 +305,9 @@ uint32_t avseq_mixer_set_volume(AVMixerData *mixer_data, uint32_t amplify,
     return mixer_data->tempo;
 }
 
-void avseq_mixer_get_channel(AVMixerData *mixer_data,
-                             AVMixerChannel *mixer_channel, uint32_t channel)
+void avseq_mixer_get_channel(const AVMixerData *const mixer_data,
+                             AVMixerChannel *const mixer_channel,
+                             const uint32_t channel)
 {
     AVMixerContext *mixctx;
 
@@ -310,8 +320,9 @@ void avseq_mixer_get_channel(AVMixerData *mixer_data,
         mixctx->get_channel(mixer_data, mixer_channel, channel);
 }
 
-void avseq_mixer_set_channel(AVMixerData *mixer_data,
-                             AVMixerChannel *mixer_channel, uint32_t channel)
+void avseq_mixer_set_channel(AVMixerData *const mixer_data,
+                             const AVMixerChannel *const mixer_channel,
+                             const uint32_t channel)
 {
     AVMixerContext *mixctx;
 
@@ -324,7 +335,8 @@ void avseq_mixer_set_channel(AVMixerData *mixer_data,
         mixctx->set_channel(mixer_data, mixer_channel, channel);
 }
 
-void avseq_mixer_reset_channel(AVMixerData *mixer_data, uint32_t channel)
+void avseq_mixer_reset_channel(AVMixerData *const mixer_data,
+                               const uint32_t channel)
 {
     AVMixerContext *mixctx;
 
@@ -337,10 +349,10 @@ void avseq_mixer_reset_channel(AVMixerData *mixer_data, uint32_t channel)
         mixctx->reset_channel(mixer_data, channel);
 }
 
-void avseq_mixer_get_both_channels(AVMixerData *mixer_data,
-                                   AVMixerChannel *mixer_channel_current,
-                                   AVMixerChannel *mixer_channel_next,
-                                   uint32_t channel)
+void avseq_mixer_get_both_channels(const AVMixerData *const mixer_data,
+                                   AVMixerChannel *const mixer_channel_current,
+                                   AVMixerChannel *const mixer_channel_next,
+                                   const uint32_t channel)
 {
     AVMixerContext *mixctx;
 
@@ -353,10 +365,10 @@ void avseq_mixer_get_both_channels(AVMixerData *mixer_data,
         mixctx->get_both_channels(mixer_data, mixer_channel_current, mixer_channel_next, channel);
 }
 
-void avseq_mixer_set_both_channels(AVMixerData *mixer_data,
-                                   AVMixerChannel *mixer_channel_current,
-                                   AVMixerChannel *mixer_channel_next,
-                                   uint32_t channel)
+void avseq_mixer_set_both_channels(AVMixerData *const mixer_data,
+                                   const AVMixerChannel *const mixer_channel_current,
+                                   const AVMixerChannel *const mixer_channel_next,
+                                   const uint32_t channel)
 {
     AVMixerContext *mixctx;
 
@@ -369,7 +381,7 @@ void avseq_mixer_set_both_channels(AVMixerData *mixer_data,
         mixctx->set_both_channels(mixer_data, mixer_channel_current, mixer_channel_next, channel);
 }
 
-void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf)
+void avseq_mixer_do_mix(AVMixerData *const mixer_data, int32_t *buf)
 {
     AVMixerContext *mixctx;
 
@@ -386,7 +398,8 @@ void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf)
     }
 }
 
-void avseq_mixer_do_mix_parallel(AVMixerData *mixer_data, int32_t *buf,
+void avseq_mixer_do_mix_parallel(AVMixerData *const mixer_data,
+                                 int32_t *buf,
                                  const uint32_t first_channel,
                                  const uint32_t last_channel)
 {

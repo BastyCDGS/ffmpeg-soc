@@ -247,8 +247,9 @@ void avsequencer_destroy(AVSequencerContext *avctx);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
-                                       const char *args, void *opaque);
+AVMixerData *avseq_mixer_init(AVSequencerContext *const avctx,
+                              AVMixerContext *const mixctx,
+                              const char *args, void *opaque);
 
 /**
  * Closes and uninitializes an AVSequencer mixer data container.
@@ -260,7 +261,8 @@ AVMixerData *avseq_mixer_init(AVSequencerContext *avctx, AVMixerContext *mixctx,
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data);
+int avseq_mixer_uninit(AVSequencerContext *const avctx,
+                       AVMixerData *const mixer_data);
 
 /**
  * Sets and transfers a new mixing rate and number of output
@@ -268,31 +270,33 @@ int avseq_mixer_uninit(AVSequencerContext *avctx, AVMixerData *mixer_data);
  *
  * @param mixer_data the AVMixerData to set the new mixing rate and
  *                   number of output channels of
- * @param new_mix_rate the new mixing rate in Hz to use for mixing
- * @param new_channels the new number of output channels to use for mixing
+ * @param mix_rate the new mixing rate in Hz to use for mixing
+ * @param channels the new number of output channels to use for mixing
  * @return the mixing rate in Hz which actually has been set
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
-                              uint32_t new_channels);
+uint32_t avseq_mixer_set_rate(AVMixerData *const mixer_data,
+                              const uint32_t mix_rate,
+                              const uint32_t channels);
 
 /**
  * Sets and transfers a new tempo for the playback handler to the
  * mixing engine.
  *
  * @param mixer_data the AVMixerData to set the new tempo
- * @param new_tempo the new tempo in AV_TIME_BASE fractional seconds
- *                  to use for mixing
+ * @param tempo the new tempo in AV_TIME_BASE fractional seconds to use
+ *              for mixing
  * @return the tempo in AV_TIME_BASE fractional seconds which actually has been set
  *
  * @note This is part of the new sequencer API which is still under construction.
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_tempo(AVMixerData *mixer_data, uint32_t new_tempo);
+uint32_t avseq_mixer_set_tempo(AVMixerData *const mixer_data,
+                               const uint32_t tempo);
 
 /**
  * Sets and transfers a new volume boost, left and right volume and
@@ -312,9 +316,11 @@ uint32_t avseq_mixer_set_tempo(AVMixerData *mixer_data, uint32_t new_tempo);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-uint32_t avseq_mixer_set_volume(AVMixerData *mixer_data, uint32_t amplify,
-                                uint32_t left_volume, uint32_t right_volume,
-                                uint32_t channels);
+uint32_t avseq_mixer_set_volume(AVMixerData *const mixer_data,
+                                const uint32_t amplify,
+                                const uint32_t left_volume,
+                                const uint32_t right_volume,
+                                const uint32_t channels);
 
 /**
  * Gets and transfers a channel data block from the internal mixing
@@ -329,8 +335,9 @@ uint32_t avseq_mixer_set_volume(AVMixerData *mixer_data, uint32_t amplify,
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_get_channel(AVMixerData *mixer_data,
-                             AVMixerChannel *mixer_channel, uint32_t channel);
+void avseq_mixer_get_channel(const AVMixerData *const mixer_data,
+                             AVMixerChannel *const mixer_channel,
+                             const uint32_t channel);
 
 /**
  * Sets and transfers a channel data block from the AVSequencer to the
@@ -345,8 +352,9 @@ void avseq_mixer_get_channel(AVMixerData *mixer_data,
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_set_channel(AVMixerData *mixer_data,
-                             AVMixerChannel *mixer_channel, uint32_t channel);
+void avseq_mixer_set_channel(AVMixerData *const mixer_data,
+                             const AVMixerChannel *const mixer_channel,
+                             const uint32_t channel);
 
 /**
  * Resets a channel data block from the AVSequencer by setting the
@@ -359,7 +367,8 @@ void avseq_mixer_set_channel(AVMixerData *mixer_data,
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_reset_channel(AVMixerData *mixer_data, uint32_t channel);
+void avseq_mixer_reset_channel(AVMixerData *const mixer_data,
+                               const uint32_t channel);
 
 /**
  * Gets and transfers a channel data block from the internal mixing
@@ -377,10 +386,10 @@ void avseq_mixer_reset_channel(AVMixerData *mixer_data, uint32_t channel);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_get_both_channels(AVMixerData *mixer_data,
-                                   AVMixerChannel *mixer_channel_current,
-                                   AVMixerChannel *mixer_channel_next,
-                                   uint32_t channel);
+void avseq_mixer_get_both_channels(const AVMixerData *const mixer_data,
+                                   AVMixerChannel *const mixer_channel_current,
+                                   AVMixerChannel *const mixer_channel_next,
+                                   const uint32_t channel);
 
 /**
  * Sets and transfers a channel data block from the AVSequencer to the
@@ -399,10 +408,10 @@ void avseq_mixer_get_both_channels(AVMixerData *mixer_data,
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_set_both_channels(AVMixerData *mixer_data,
-                                   AVMixerChannel *mixer_channel_current,
-                                   AVMixerChannel *mixer_channel_next,
-                                   uint32_t channel);
+void avseq_mixer_set_both_channels(AVMixerData *const mixer_data,
+                                   const AVMixerChannel *const mixer_channel_current,
+                                   const AVMixerChannel *const mixer_channel_next,
+                                   const uint32_t channel);
 
 /**
  * Fills the output mixing buffer by calculating all the input channel samples.
@@ -414,7 +423,7 @@ void avseq_mixer_set_both_channels(AVMixerData *mixer_data,
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf);
+void avseq_mixer_do_mix(AVMixerData *const mixer_data, int32_t *buf);
 
 /**
  * Fills the output mixing buffer by calculating all the input channel samples
@@ -432,7 +441,8 @@ void avseq_mixer_do_mix(AVMixerData *mixer_data, int32_t *buf);
  *       Thus do not use this yet. It may change at any time, do not expect
  *       ABI compatibility yet!
  */
-void avseq_mixer_do_mix_parallel(AVMixerData *mixer_data, int32_t *buf,
+void avseq_mixer_do_mix_parallel(AVMixerData *const mixer_data,
+                                 int32_t *buf,
                                  const uint32_t first_channel,
                                  const uint32_t last_channel);
 

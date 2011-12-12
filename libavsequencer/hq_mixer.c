@@ -108,7 +108,11 @@ static const AVClass avseq_high_quality_mixer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-static void apply_filter(AV_HQMixerChannelInfo *channel_info, struct ChannelBlock *const channel_block, int32_t **const dest_buf, const int32_t *src_buf, const uint32_t len)
+static void apply_filter(AV_HQMixerChannelInfo *channel_info,
+                         struct ChannelBlock *const channel_block,
+                         int32_t **const dest_buf,
+                         const int32_t *src_buf,
+                         const uint32_t len)
 {
     int32_t *mix_buf = *dest_buf;
     uint32_t i = len >> 2;
@@ -143,7 +147,8 @@ static void apply_filter(AV_HQMixerChannelInfo *channel_info, struct ChannelBloc
     channel_info->filter_tmp2 = o1;
 }
 
-static void mix_sample(AV_HQMixerData *const mixer_data, int32_t *const buf, const uint32_t len)
+static void mix_sample(AV_HQMixerData *const mixer_data,
+                       int32_t *const buf, const uint32_t len)
 {
     AV_HQMixerChannelInfo *channel_info = mixer_data->channel_info;
     uint16_t i                          = mixer_data->channels_in;
@@ -387,7 +392,10 @@ mix_sample_synth:
     } while (--i);
 }
 
-static void mix_sample_parallel(AV_HQMixerData *const mixer_data, int32_t *const buf, const uint32_t len, const uint32_t first_channel, const uint32_t last_channel)
+static void mix_sample_parallel(AV_HQMixerData *const mixer_data,
+                                int32_t *const buf, const uint32_t len,
+                                const uint32_t first_channel,
+                                const uint32_t last_channel)
 {
     AV_HQMixerChannelInfo *channel_info = mixer_data->channel_info + first_channel;
     uint16_t i                          = (last_channel - first_channel) + 1;
@@ -5573,7 +5581,8 @@ static const void *mixer_stereo_surround_16_to_8[] = {
     mix_stereo_backwards_x_to_8_surround
 };
 
-static void set_mix_functions(const AV_HQMixerData *const mixer_data, struct ChannelBlock *const channel_block)
+static void set_mix_functions(const AV_HQMixerData *const mixer_data,
+                              struct ChannelBlock *const channel_block)
 {
     void **mix_func;
     void (*init_mixer_func)(const AV_HQMixerData *const mixer_data, struct ChannelBlock *channel_block, uint32_t volume, uint32_t panning);
@@ -5711,7 +5720,9 @@ static void set_mix_functions(const AV_HQMixerData *const mixer_data, struct Cha
     init_mixer_func(mixer_data, channel_block, channel_block->volume, panning);
 }
 
-static void set_sample_mix_rate(const AV_HQMixerData *const mixer_data, struct ChannelBlock *const channel_block, const uint32_t rate)
+static void set_sample_mix_rate(const AV_HQMixerData *const mixer_data,
+                                struct ChannelBlock *const channel_block,
+                                const uint32_t rate)
 {
     const uint32_t mix_rate = mixer_data->mix_rate;
 
@@ -6502,7 +6513,8 @@ static const int32_t damp_factor_lut[] = {
      2140116,  2138673,  2137231,  2135790,  2134349,  2132910,  2131472,  2130034,  2128598,  2127163,  2125728,  2124295,  2122862,  2121430,  2120000,  2118570
 };
 
-static inline void mulu_128(uint64_t *const result, const uint64_t a, const uint64_t b)
+static inline void mulu_128(uint64_t *const result, const uint64_t a,
+                            const uint64_t b)
 {
     const uint32_t a_hi = a >> 32;
     const uint32_t a_lo = (uint32_t) a;
@@ -6527,7 +6539,8 @@ static inline void neg_128(uint64_t *const result)
     result[0] += (++result[1] ? 0 : 1);
 }
 
-static inline void muls_128(int64_t *const result, const int64_t a, const int64_t b)
+static inline void muls_128(int64_t *const result, const int64_t a,
+                            const int64_t b)
 {
     const int sign = (a ^ b) < 0;
 
@@ -6537,7 +6550,8 @@ static inline void muls_128(int64_t *const result, const int64_t a, const int64_
         neg_128(result);
 }
 
-static inline uint64_t divu_128(const uint64_t *const a, const uint64_t b)
+static inline uint64_t divu_128(const uint64_t *const a,
+                                const uint64_t b)
 {
     uint64_t a_hi   = a[0];
     uint64_t a_lo   = a[1];
@@ -6584,7 +6598,9 @@ static inline void add_128(int64_t *const a, const int64_t b)
     a[0] += ((uint64_t) a[1] < (uint64_t) b);
 }
 
-static void update_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block)
+static void update_sample_filter(const AV_HQMixerData *const mixer_data,
+                                 AV_HQMixerChannelInfo *const channel_info,
+                                 struct ChannelBlock *const channel_block)
 {
     const uint32_t mix_rate = mixer_data->mix_rate;
     uint64_t tmp_128[2];
@@ -6623,7 +6639,11 @@ static void update_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMi
     channel_block->filter_c3 = (((-e) << 24) + tmp_round) / tmp;
 }
 
-static void set_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMixerChannelInfo *const channel_info, struct ChannelBlock *const channel_block, uint16_t cutoff, uint16_t damping)
+static void set_sample_filter(const AV_HQMixerData *const mixer_data,
+                              AV_HQMixerChannelInfo *const channel_info,
+                              struct ChannelBlock *const channel_block,
+                              uint16_t cutoff,
+                              uint16_t damping)
 {
     if (cutoff > 4095)
         cutoff = 4095;
@@ -6640,7 +6660,8 @@ static void set_sample_filter(const AV_HQMixerData *const mixer_data, AV_HQMixer
     update_sample_filter(mixer_data, channel_info, channel_block);
 }
 
-static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void *opaque)
+static av_cold AVMixerData *init(AVMixerContext *const mixctx,
+                                 const char *args, void *opaque)
 {
     AV_HQMixerData *hq_mixer_data;
     AV_HQMixerChannelInfo *channel_info;
@@ -6730,7 +6751,7 @@ static av_cold AVMixerData *init(AVMixerContext *mixctx, const char *args, void 
     return (AVMixerData *) hq_mixer_data;
 }
 
-static av_cold int uninit(AVMixerData *mixer_data)
+static av_cold int uninit(AVMixerData *const mixer_data)
 {
     AV_HQMixerData *hq_mixer_data = (AV_HQMixerData *) mixer_data;
 
@@ -6746,33 +6767,36 @@ static av_cold int uninit(AVMixerData *mixer_data)
     return 0;
 }
 
-static av_cold uint32_t set_tempo(AVMixerData *mixer_data, uint32_t new_tempo)
+static av_cold uint32_t set_tempo(AVMixerData *const mixer_data,
+                                  const uint32_t tempo)
 {
-    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
-    uint32_t channel_rate = hq_mixer_data->mix_rate * 10;
+    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *const) mixer_data;
+    uint32_t channel_rate               = hq_mixer_data->mix_rate * 10;
     uint64_t pass_value;
 
-    hq_mixer_data->mixer_data.tempo = new_tempo;
+    hq_mixer_data->mixer_data.tempo = tempo;
     pass_value                      = ((uint64_t) channel_rate << 16) + ((uint64_t) hq_mixer_data->mix_rate_frac >> 16);
     hq_mixer_data->pass_len         = (uint64_t) pass_value / hq_mixer_data->mixer_data.tempo;
     hq_mixer_data->pass_len_frac    = (((uint64_t) pass_value % hq_mixer_data->mixer_data.tempo) << 32) / hq_mixer_data->mixer_data.tempo;
 
-    return new_tempo;
+    return tempo;
 }
 
-static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate, uint32_t new_channels)
+static av_cold uint32_t set_rate(AVMixerData *const mixer_data,
+                                 const uint32_t mix_rate,
+                                 const uint32_t channels)
 {
-    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
-    uint32_t buf_size, mix_rate, mix_rate_frac;
+    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *const) mixer_data;
+    uint32_t buf_size, old_mix_rate, mix_rate_frac;
 
-    hq_mixer_data->mixer_data.rate         = new_mix_rate;
+    hq_mixer_data->mixer_data.rate         = mix_rate;
     buf_size                               = hq_mixer_data->mixer_data.mix_buf_size;
-    hq_mixer_data->mixer_data.channels_out = new_channels;
+    hq_mixer_data->mixer_data.channels_out = channels;
 
-    if ((hq_mixer_data->buf_size * hq_mixer_data->channels_out) != (buf_size * new_channels)) {
+    if ((hq_mixer_data->buf_size * hq_mixer_data->channels_out) != (buf_size * channels)) {
         int32_t *buf                    = hq_mixer_data->mixer_data.mix_buf;
         int32_t *filter_buf             = hq_mixer_data->filter_buf;
-        const uint32_t mix_buf_mem_size = (buf_size * new_channels) << 2;
+        const uint32_t mix_buf_mem_size = (buf_size * channels) << 2;
 
         if (!(buf = av_realloc(buf, mix_buf_mem_size + FF_INPUT_BUFFER_PADDING_SIZE))) {
             av_log(hq_mixer_data->mixer_data.mixctx, AV_LOG_ERROR, "Cannot allocate mixer output buffer.\n");
@@ -6791,29 +6815,29 @@ static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
         hq_mixer_data->filter_buf              = filter_buf;
     }
 
-    hq_mixer_data->channels_out = new_channels;
+    hq_mixer_data->channels_out = channels;
     hq_mixer_data->buf          = hq_mixer_data->mixer_data.mix_buf;
     hq_mixer_data->buf_size     = hq_mixer_data->mixer_data.mix_buf_size;
 
     if (hq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_MIXING) {
-        mix_rate      = new_mix_rate; // TODO: Add check here if this mix rate is supported by target device
+        old_mix_rate  = mix_rate; // TODO: Add check here if this mix rate is supported by target device
         mix_rate_frac = 0;
 
-        if (hq_mixer_data->mix_rate != mix_rate) {
+        if (hq_mixer_data->mix_rate != old_mix_rate) {
             AV_HQMixerChannelInfo *channel_info = hq_mixer_data->channel_info;
             uint16_t i;
 
-            hq_mixer_data->mix_rate      = mix_rate;
+            hq_mixer_data->mix_rate      = old_mix_rate;
             hq_mixer_data->mix_rate_frac = mix_rate_frac;
 
             if (hq_mixer_data->mixer_data.tempo)
                 set_tempo((AVMixerData *) mixer_data, hq_mixer_data->mixer_data.tempo);
 
             for (i = hq_mixer_data->channels_in; i > 0; i--) {
-                channel_info->current.advance      = channel_info->current.rate / mix_rate;
-                channel_info->current.advance_frac = (((uint64_t) channel_info->current.rate % mix_rate) << 32) / mix_rate;
-                channel_info->next.advance         = channel_info->next.rate / mix_rate;
-                channel_info->next.advance_frac    = (((uint64_t) channel_info->next.rate % mix_rate) << 32) / mix_rate;
+                channel_info->current.advance      = channel_info->current.rate / old_mix_rate;
+                channel_info->current.advance_frac = (((uint64_t) channel_info->current.rate % old_mix_rate) << 32) / old_mix_rate;
+                channel_info->next.advance         = channel_info->next.rate / old_mix_rate;
+                channel_info->next.advance_frac    = (((uint64_t) channel_info->next.rate % old_mix_rate) << 32) / old_mix_rate;
 
                 update_sample_filter(hq_mixer_data, channel_info, &channel_info->current);
                 update_sample_filter(hq_mixer_data, channel_info, &channel_info->next);
@@ -6825,12 +6849,16 @@ static av_cold uint32_t set_rate(AVMixerData *mixer_data, uint32_t new_mix_rate,
 
     // TODO: Inform libavfilter that the target mixing rate has been changed.
 
-    return new_mix_rate;
+    return mix_rate;
 }
 
-static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, uint32_t left_volume, uint32_t right_volume, uint32_t channels)
+static av_cold uint32_t set_volume(AVMixerData *const mixer_data,
+                                   const uint32_t amplify,
+                                   const uint32_t left_volume,
+                                   const uint32_t right_volume,
+                                   const uint32_t channels)
 {
-    AV_HQMixerData *const hq_mixer_data           = (AV_HQMixerData *) mixer_data;
+    AV_HQMixerData *const hq_mixer_data           = (AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *channel_info           = NULL;
     AV_HQMixerChannelInfo *const old_channel_info = hq_mixer_data->channel_info;
     uint32_t old_channels, i;
@@ -6899,9 +6927,11 @@ static av_cold uint32_t set_volume(AVMixerData *mixer_data, uint32_t amplify, ui
     return channels;
 }
 
-static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
+static av_cold void get_channel(const AVMixerData *const mixer_data,
+                                AVMixerChannel *const mixer_channel,
+                                const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data       = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data       = (const AV_HQMixerData *const) mixer_data;
     const AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
 
     mixer_channel->pos             = channel_info->current.offset;
@@ -6920,9 +6950,11 @@ static av_cold void get_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     mixer_channel->filter_damping  = channel_info->current.filter_damping;
 }
 
-static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
+static av_cold void set_channel(AVMixerData *const mixer_data,
+                                const AVMixerChannel *const mixer_channel,
+                                const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
     struct ChannelBlock *channel_block;
     uint32_t repeat, repeat_len;
@@ -6970,9 +7002,10 @@ static av_cold void set_channel(AVMixerData *mixer_data, AVMixerChannel *mixer_c
     set_sample_filter(hq_mixer_data, channel_info, channel_block, mixer_channel->filter_cutoff, mixer_channel->filter_damping);
 }
 
-static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
+static av_cold void reset_channel(AVMixerData *const mixer_data,
+                                  const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
     struct ChannelBlock *channel_block        = &channel_info->current;
     uint32_t repeat, repeat_len;
@@ -7025,9 +7058,12 @@ static av_cold void reset_channel(AVMixerData *mixer_data, uint32_t channel)
     set_sample_filter(hq_mixer_data, channel_info, channel_block, 4095, 0);
 }
 
-static av_cold void get_both_channels(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel)
+static av_cold void get_both_channels(const AVMixerData *const mixer_data,
+                                      AVMixerChannel *const mixer_channel_current,
+                                      AVMixerChannel *const mixer_channel_next,
+                                      const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data       = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data       = (const AV_HQMixerData *const) mixer_data;
     const AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
 
     mixer_channel_current->pos             = channel_info->current.offset;
@@ -7061,9 +7097,12 @@ static av_cold void get_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     mixer_channel_next->filter_damping  = channel_info->next.filter_damping;
 }
 
-static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *mixer_channel_current, AVMixerChannel *mixer_channel_next, uint32_t channel)
+static av_cold void set_both_channels(AVMixerData *const mixer_data,
+                                      const AVMixerChannel *const mixer_channel_current,
+                                      const AVMixerChannel *const mixer_channel_next,
+                                      const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
     struct ChannelBlock *channel_block        = &channel_info->current;
     uint32_t repeat, repeat_len;
@@ -7148,9 +7187,11 @@ static av_cold void set_both_channels(AVMixerData *mixer_data, AVMixerChannel *m
     set_sample_filter(hq_mixer_data, channel_info, channel_block, mixer_channel_next->filter_cutoff, mixer_channel_next->filter_damping);
 }
 
-static av_cold void set_channel_volume_panning_pitch(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
+static av_cold void set_channel_volume_panning_pitch(AVMixerData *const mixer_data,
+                                                     const AVMixerChannel *const mixer_channel,
+                                                     const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
 
     if ((channel_info->current.volume == mixer_channel->volume) && (channel_info->current.panning == mixer_channel->panning)) {
@@ -7189,9 +7230,11 @@ static av_cold void set_channel_volume_panning_pitch(AVMixerData *mixer_data, AV
     }
 }
 
-static av_cold void set_channel_position_repeat_flags(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
+static av_cold void set_channel_position_repeat_flags(AVMixerData *const mixer_data,
+                                                      const AVMixerChannel *const mixer_channel,
+                                                      const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
 
     if (channel_info->current.flags == mixer_channel->flags) {
@@ -7264,16 +7307,18 @@ static av_cold void set_channel_position_repeat_flags(AVMixerData *mixer_data, A
     }
 }
 
-static av_cold void set_channel_filter(AVMixerData *mixer_data, AVMixerChannel *mixer_channel, uint32_t channel)
+static av_cold void set_channel_filter(AVMixerData *const mixer_data,
+                                       const AVMixerChannel *const mixer_channel,
+                                       const uint32_t channel)
 {
-    const AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+    const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
 
     set_sample_filter(hq_mixer_data, channel_info, &channel_info->current, mixer_channel->filter_cutoff, mixer_channel->filter_damping);
 }
 
-static av_cold void mix(AVMixerData *mixer_data, int32_t *buf) {
-    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+static av_cold void mix(AVMixerData *const mixer_data, int32_t *buf) {
+    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *const) mixer_data;
     uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
     if (!(hq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
@@ -7319,8 +7364,11 @@ static av_cold void mix(AVMixerData *mixer_data, int32_t *buf) {
     // TODO: Execute post-processing step in libavfilter and pass the PCM data.
 }
 
-static av_cold void mix_parallel(AVMixerData *mixer_data, int32_t *buf, const uint32_t first_channel, const uint32_t last_channel) {
-    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *) mixer_data;
+static av_cold void mix_parallel(AVMixerData *const mixer_data,
+                                 int32_t *buf,
+                                 const uint32_t first_channel,
+                                 const uint32_t last_channel) {
+    AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *const) mixer_data;
     uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
     if (!(hq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
