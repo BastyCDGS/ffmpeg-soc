@@ -1460,7 +1460,7 @@ static uint32_t linear_slide_down(const AVSequencerContext *const avctx,
         new_frequency--;
 
     if (new_frequency > frequency)
-        new_frequency = 1;
+        new_frequency = 0;
 
     return (player_channel->frequency = new_frequency);
 }
@@ -1484,7 +1484,7 @@ static uint32_t amiga_slide_down(AVSequencerPlayerChannel *const player_channel,
         new_frequency--;
 
     if (new_frequency > frequency)
-        new_frequency = 1;
+        new_frequency = 0;
 
     return (player_channel->frequency = new_frequency);
 }
@@ -3638,7 +3638,7 @@ EXECUTE_EFFECT(track_volume_slide_to)
 EXECUTE_EFFECT(track_tremolo)
 {
     const AVSequencerSong *const song = avctx->player_song;
-    int32_t track_tremolo_slide_value;
+    int16_t track_tremolo_slide_value;
     uint8_t track_tremolo_rate;
     int16_t track_tremolo_depth;
     uint16_t track_volume;
@@ -6013,7 +6013,7 @@ static void se_arpegio_do(const AVSequencerContext *const avctx,
     frequency_lut                   = (avctx->frequency_lut ? avctx->frequency_lut : pitch_lut) + note + 1;
     frequency                       = *frequency_lut++;
     next_frequency                  = *frequency_lut - frequency;
-    frequency                      += ((int32_t) finetune * (int32_t) next_frequency) >> 8;
+    frequency                      += (finetune * (int32_t) next_frequency) >> 8;
     old_frequency                   = player_channel->frequency;
     slide_frequency                 = player_channel->arpeggio_slide + old_frequency;
     player_channel->frequency       = frequency = ((uint64_t) frequency * slide_frequency) >> (24 - octave);
@@ -6028,7 +6028,7 @@ static void se_tremolo_do(const AVSequencerContext *const avctx,
 
     tremolo_slide_value -= player_channel->tremolo_slide;
 
-    if ((tremolo_slide_value += volume) < 0)
+    if ((int16_t) (tremolo_slide_value += volume) < 0)
         tremolo_slide_value = 0;
 
     if (tremolo_slide_value > 255)
@@ -6046,7 +6046,7 @@ static void se_pannolo_do(const AVSequencerContext *const avctx,
 
     pannolo_slide_value -= player_channel->pannolo_slide;
 
-    if ((pannolo_slide_value += panning) < 0)
+    if ((int16_t) (pannolo_slide_value += panning) < 0)
         pannolo_slide_value = 0;
 
     if (pannolo_slide_value > 255)
@@ -6583,7 +6583,7 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(dmulu)
     uint16_t flags = player_channel->cond_var[synth_type] & AVSEQ_PLAYER_CHANNEL_COND_VAR_EXTEND;
 
     instruction_data |= player_channel->variable[src_var];
-    umult_res         = player_channel->variable[dst_var] * instruction_data;
+    umult_res         = (uint32_t) player_channel->variable[dst_var] * instruction_data;
 
     if (dst_var == 15) {
         player_channel->variable[dst_var] = umult_res;
@@ -9234,28 +9234,28 @@ static int trigger_dct(const AVSequencerPlayerHostChannel *const player_host_cha
     int trigger = 0;
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_NOTE_OR)
-        trigger |= player_host_channel->instr_note == player_channel->instr_note;
+        trigger |= (player_host_channel->instr_note == player_channel->instr_note);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_NOTE_OR)
-        trigger |= player_host_channel->sample_note == player_channel->sample_note;
+        trigger |= (player_host_channel->sample_note == player_channel->sample_note);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_OR)
-        trigger |= player_host_channel->instrument == player_channel->instrument;
+        trigger |= (player_host_channel->instrument == player_channel->instrument);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_OR)
-        trigger |= player_host_channel->sample == player_channel->sample;
+        trigger |= (player_host_channel->sample == player_channel->sample);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_NOTE_AND)
-        trigger &= player_host_channel->instr_note == player_channel->instr_note;
+        trigger &= (player_host_channel->instr_note == player_channel->instr_note);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_NOTE_AND)
-        trigger &= player_host_channel->sample_note == player_channel->sample_note;
+        trigger &= (player_host_channel->sample_note == player_channel->sample_note);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_INSTR_AND)
-        trigger &= player_host_channel->instrument == player_channel->instrument;
+        trigger &= (player_host_channel->instrument == player_channel->instrument);
 
     if (dct & AVSEQ_PLAYER_HOST_CHANNEL_DCT_SAMPLE_AND)
-        trigger &= player_host_channel->sample == player_channel->sample;
+        trigger &= (player_host_channel->sample == player_channel->sample);
 
     return trigger;
 }

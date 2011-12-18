@@ -723,7 +723,7 @@ typedef struct AVSequencerPlayerHostChannel {
        can play a simple instrument or sample only or even play a
        single note on a single row if both set instrument and set
        sample bits are set (0x00300000).  */
-    uint32_t flags;
+    int32_t flags;
 
     /** Player host channel fine slide flags. This stores information
        about the slide commands, i.e. which direction and invoke state
@@ -1630,7 +1630,7 @@ typedef struct AVSequencerPlayerChannel {
        about the current virtual channel based upon the host channel
        which allocated this virtual channel. The virtual channels are
        allocated according to the new note action (NNA) mechanism.  */
-    uint16_t flags;
+    int16_t flags;
 
     /** Current player volume envelope for the current virtual
        channel.  */
