@@ -1989,23 +1989,30 @@ typedef struct AVSequencerPlayerEffects {
        structure is actually for one effect and there actually
        pointed as an array with size of number of total effects.  */
     void (*effect_func)(AVSequencerContext *const avctx,
-        AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel,
-        const uint16_t channel, const unsigned fx_byte, uint16_t data_word);
+                        AVSequencerPlayerHostChannel *const player_host_channel,
+                        AVSequencerPlayerChannel *const player_channel,
+                        const uint16_t channel,
+                        const unsigned fx_byte, uint16_t data_word);
 
     /** Function pointer for pre-pattern evaluation. Some effects
        require a pre-initialization stage. Can be NULL if the effect
        number either is not used or the effect does not require a
        pre-initialization stage.  */
     void (*pre_pattern_func)(const AVSequencerContext *const avctx,
-        AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel,
-        const uint16_t channel, uint16_t data_word);
+                             AVSequencerPlayerHostChannel *const player_host_channel,
+                             AVSequencerPlayerChannel *const player_channel,
+                             const uint16_t channel, uint16_t data_word);
 
     /** Function pointer for parameter checking for an effect. Can
        be NULL if the effect number either is not used or the effect
        does not require pre-checking.  */
     void (*check_fx_func)(const AVSequencerContext *const avctx,
-        AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel,
-        const uint16_t channel, uint16_t *const fx_byte, uint16_t *const data_word, uint16_t *const flags);
+                          AVSequencerPlayerHostChannel *const player_host_channel,
+                          AVSequencerPlayerChannel *const player_channel,
+                          const uint16_t channel,
+                          uint16_t *const fx_byte,
+                          uint16_t *const data_word,
+                          uint16_t *const flags);
 
     /** Special flags for this effect, this currently defines if the
        effect is executed during the whole row each tick or just only
@@ -2044,7 +2051,8 @@ typedef struct AVSequencerPlayerHook {
 
     /** The actual hook function to be called which gets passed the
        associated AVSequencerContext.  */
-    void (*hook_func)(AVSequencerContext *avctx, void *hook_data, uint64_t hook_len);
+    void (*hook_func)(AVSequencerContext *avctx,
+                      void *hook_data, uint64_t hook_len);
 
     /** The actual hook data to be passed to the hook function which
        also gets passed the associated AVSequencerContext and the
