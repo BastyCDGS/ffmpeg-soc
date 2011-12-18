@@ -82,44 +82,36 @@ static const AVClass avseq_null_mixer_class = {
     LIBAVUTIL_VERSION_INT,
 };
 
-#define MIX(type)                                                                               \
-    static void mix_##type(const AV_NULLMixerData *const mixer_data,                            \
-                           const struct ChannelBlock *const channel_block,                      \
-                           uint32_t *const offset, uint32_t *const fraction,                    \
-                           const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
+#define MIX(type)                                                                                      \
+    static inline void mix_##type(const AV_NULLMixerData *const mixer_data,                            \
+                                  const struct ChannelBlock *const channel_block,                      \
+                                  uint32_t *const offset, uint32_t *const fraction,                    \
+                                  const uint32_t advance, const uint32_t adv_frac, const uint32_t len)
 
 MIX(skip)
 {
-    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_frac;
     const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
-    skip_div     = skip_len >> 32;
-    curr_offset += skip_div;
-    skip_div     = skip_len;
-    curr_frac   += skip_div;
-
-    if (curr_frac < skip_div)
-        curr_offset++;
-
-    *offset   = curr_offset;
-    *fraction = curr_frac;
+    curr_offset += skip_len >> 32;
+    skip_frac    = skip_len;
+    curr_frac   += skip_frac;
+    curr_offset += (curr_frac < skip_frac);
+    *offset      = curr_offset;
+    *fraction    = curr_frac;
 }
 
 MIX(skip_backwards)
 {
-    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_frac;
     const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
-    skip_div     = skip_len >> 32;
-    curr_offset -= skip_div;
-    skip_div     = skip_len;
-    curr_frac   += skip_div;
-
-    if (curr_frac < skip_div)
-        curr_offset--;
-
-    *offset   = curr_offset;
-    *fraction = curr_frac;
+    curr_offset -= skip_len >> 32;
+    skip_frac    = skip_len;
+    curr_frac   += skip_frac;
+    curr_offset -= (curr_frac < skip_frac);
+    *offset      = curr_offset;
+    *fraction    = curr_frac;
 }
 
 static void mix_sample(AV_NULLMixerData *const mixer_data,

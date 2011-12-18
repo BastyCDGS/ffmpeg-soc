@@ -57,7 +57,14 @@ typedef struct AV_LQMixerChannelInfo {
         uint32_t fraction;
         uint32_t advance;
         uint32_t advance_frac;
-        void (*mix_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+        void (*mix_func)(const AV_LQMixerData *const mixer_data,
+                         const struct ChannelBlock *const channel_block,
+                         int32_t **const buf,
+                         uint32_t *const offset,
+                         uint32_t *const fraction,
+                         const uint32_t advance,
+                         const uint32_t adv_frac,
+                         const uint32_t len);
         uint32_t end_offset;
         uint32_t restart_offset;
         uint32_t repeat;
@@ -72,7 +79,14 @@ typedef struct AV_LQMixerChannelInfo {
         int32_t filter_c1;
         int32_t filter_c2;
         int32_t filter_c3;
-        void (*mix_backwards_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+        void (*mix_backwards_func)(const AV_LQMixerData *const mixer_data,
+                                   const struct ChannelBlock *const channel_block,
+                                   int32_t **const buf,
+                                   uint32_t *const offset,
+                                   uint32_t *const fraction,
+                                   const uint32_t advance,
+                                   const uint32_t adv_frac,
+                                   const uint32_t len);
         uint8_t bits_per_sample;
         uint8_t flags;
         uint8_t volume;
@@ -147,7 +161,14 @@ static void mix_sample(AV_LQMixerData *const mixer_data,
 
     do {
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
-            void (*mix_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+            void (*mix_func)(const AV_LQMixerData *const mixer_data,
+                             const struct ChannelBlock *const channel_block,
+                             int32_t **const buf,
+                             uint32_t *const offset,
+                             uint32_t *const fraction,
+                             const uint32_t advance,
+                             const uint32_t adv_frac,
+                             const uint32_t len);
             int32_t *mix_buf        = buf;
             uint32_t offset         = channel_info->current.offset;
             uint32_t fraction       = channel_info->current.fraction;
@@ -217,7 +238,14 @@ mix_sample_backwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data,
+                                                          const struct ChannelBlock *const channel_block,
+                                                          int32_t **const buf,
+                                                          uint32_t *const offset,
+                                                          uint32_t *const fraction,
+                                                          const uint32_t advance,
+                                                          const uint32_t adv_frac,
+                                                          const uint32_t len);
 
                                 if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
@@ -320,7 +348,14 @@ mix_sample_forwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data,
+                                                          const struct ChannelBlock *const channel_block,
+                                                          int32_t **const buf,
+                                                          uint32_t *const offset,
+                                                          uint32_t *const fraction,
+                                                          const uint32_t advance,
+                                                          const uint32_t adv_frac,
+                                                          const uint32_t len);
 
                                 if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
@@ -395,7 +430,14 @@ static void mix_sample_parallel(AV_LQMixerData *const mixer_data,
 
     do {
         if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
-            void (*mix_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+            void (*mix_func)(const AV_LQMixerData *const mixer_data,
+                             const struct ChannelBlock *const channel_block,
+                             int32_t **const buf,
+                             uint32_t *const offset,
+                             uint32_t *const fraction,
+                             const uint32_t advance,
+                             const uint32_t adv_frac,
+                             const uint32_t len);
             int32_t *mix_buf        = buf;
             uint32_t offset         = channel_info->current.offset;
             uint32_t fraction       = channel_info->current.fraction;
@@ -465,7 +507,14 @@ mix_sample_backwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data,
+                                                          const struct ChannelBlock *const channel_block,
+                                                          int32_t **const buf,
+                                                          uint32_t *const offset,
+                                                          uint32_t *const fraction,
+                                                          const uint32_t advance,
+                                                          const uint32_t adv_frac,
+                                                          const uint32_t len);
 
                                 if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
@@ -568,7 +617,14 @@ mix_sample_forwards:
                             goto mix_sample_synth;
                         } else {
                             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_PINGPONG) {
-                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data, const struct ChannelBlock *const channel_block, int32_t **const buf, uint32_t *const offset, uint32_t *const fraction, const uint32_t advance, const uint32_t adv_frac, const uint32_t len);
+                                void (*mixer_change_func)(const AV_LQMixerData *const mixer_data,
+                                                          const struct ChannelBlock *const channel_block,
+                                                          int32_t **const buf,
+                                                          uint32_t *const offset,
+                                                          uint32_t *const fraction,
+                                                          const uint32_t advance,
+                                                          const uint32_t adv_frac,
+                                                          const uint32_t len);
 
                                 if (channel_info->next.data) {
                                     memcpy(&channel_info->current, &channel_info->next, sizeof(struct ChannelBlock));
@@ -829,36 +885,28 @@ get_second_sample:                                                        \
 
 MIX(skip)
 {
-    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_frac;
     const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
-    skip_div     = skip_len >> 32;
-    curr_offset += skip_div;
-    skip_div     = skip_len;
-    curr_frac   += skip_div;
-
-    if (curr_frac < skip_div)
-        curr_offset++;
-
-    *offset   = curr_offset;
-    *fraction = curr_frac;
+    curr_offset += skip_len >> 32;
+    skip_frac    = skip_len;
+    curr_frac   += skip_frac;
+    curr_offset += (curr_frac < skip_frac);
+    *offset      = curr_offset;
+    *fraction    = curr_frac;
 }
 
 MIX(skip_backwards)
 {
-    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_div;
+    uint32_t curr_offset    = *offset, curr_frac = *fraction, skip_frac;
     const uint64_t skip_len = (((uint64_t) advance << 32) + adv_frac) * len;
 
-    skip_div     = skip_len >> 32;
-    curr_offset -= skip_div;
-    skip_div     = skip_len;
-    curr_frac   += skip_div;
-
-    if (curr_frac < skip_div)
-        curr_offset--;
-
-    *offset   = curr_offset;
-    *fraction = curr_frac;
+    curr_offset -= skip_len >> 32;
+    skip_frac    = skip_len;
+    curr_frac   += skip_frac;
+    curr_offset -= (curr_frac < skip_frac);
+    *offset      = curr_offset;
+    *fraction    = curr_frac;
 }
 
 MIX(mono_8)
@@ -3884,7 +3932,10 @@ static void set_mix_functions(const AV_LQMixerData *const mixer_data,
                               struct ChannelBlock *const channel_block)
 {
     void **mix_func;
-    void (*init_mixer_func)(const AV_LQMixerData *const mixer_data, struct ChannelBlock *channel_block, uint32_t volume, uint32_t panning);
+    void (*init_mixer_func)(const AV_LQMixerData *const mixer_data,
+                            struct ChannelBlock *channel_block,
+                            uint32_t volume,
+                            uint32_t panning);
     uint32_t panning = 0x80;
 
     if ((channel_block->bits_per_sample <= 8) || !mixer_data->real_16_bit_mode) {
