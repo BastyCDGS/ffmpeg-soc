@@ -8896,7 +8896,11 @@ static void get_effects(const AVSequencerContext *const avctx,
 
         while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
             const AVSequencerPlayerEffects *effects_lut;
-            void (*pre_fx_func)(const AVSequencerContext *const avctx, AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel, const uint16_t channel, uint16_t data_word);
+            void (*pre_fx_func)(const AVSequencerContext *const avctx,
+                                AVSequencerPlayerHostChannel *const player_host_channel,
+                                AVSequencerPlayerChannel *const player_channel,
+                                const uint16_t channel,
+                                uint16_t data_word);
             const int fx_byte = track_fx->command & 0x7F;
 
             effects_lut = (const AVSequencerPlayerEffects *) (avctx->effects_lut ? avctx->effects_lut : fx_lut) + fx_byte;
@@ -8922,7 +8926,13 @@ static void run_effects(AVSequencerContext *const avctx,
 
         while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
             const AVSequencerPlayerEffects *effects_lut;
-            void (*check_func)(const AVSequencerContext *const avctx, AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel, const uint16_t channel, uint16_t *const fx_byte, uint16_t *const data_word, uint16_t *const flags);
+            void (*check_func)(const AVSequencerContext *const avctx,
+                               AVSequencerPlayerHostChannel *const player_host_channel,
+                               AVSequencerPlayerChannel *const player_channel,
+                               const uint16_t channel,
+                               uint16_t *const fx_byte,
+                               uint16_t *const data_word,
+                               uint16_t *const flags);
             uint16_t fx_byte, data_word, flags;
             uint8_t channel_ctrl_type;
 
@@ -9035,7 +9045,13 @@ static void run_effects(AVSequencerContext *const avctx,
 
         while ((++fx < track_data->effects) && ((track_fx = track_data->effects_data[fx]))) {
             const AVSequencerPlayerEffects *effects_lut;
-            void (*check_func)(const AVSequencerContext *const avctx, AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel, const uint16_t channel, uint16_t *const fx_byte, uint16_t *const data_word, uint16_t *const flags);
+            void (*check_func)(const AVSequencerContext *const avctx,
+                               AVSequencerPlayerHostChannel *const player_host_channel,
+                               AVSequencerPlayerChannel *const player_channel,
+                               const uint16_t channel,
+                               uint16_t *const fx_byte,
+                               uint16_t *const data_word,
+                               uint16_t *const flags);
             uint16_t fx_byte, data_word, flags;
             uint8_t channel_ctrl_type;
 
@@ -9537,8 +9553,15 @@ static void init_new_instrument(AVSequencerContext *const avctx,
     const AVSequencerInstrument *const instrument = player_host_channel->instrument;
     const AVSequencerSample *const sample         = player_host_channel->sample;
     AVSequencerPlayerGlobals *player_globals;
-    const AVSequencerEnvelope * (**assign_envelope)(const AVSequencerContext *const avctx, const AVSequencerInstrument *instrument, AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel, const AVSequencerEnvelope **envelope, AVSequencerPlayerEnvelope **player_envelope);
-    const AVSequencerEnvelope * (**assign_auto_envelope)(const AVSequencerSample *sample, AVSequencerPlayerChannel *const player_channel, AVSequencerPlayerEnvelope **player_envelope);
+    const AVSequencerEnvelope *(**assign_envelope)(const AVSequencerContext *const avctx,
+                                                   const AVSequencerInstrument *instrument,
+                                                   AVSequencerPlayerHostChannel *const player_host_channel,
+                                                   AVSequencerPlayerChannel *const player_channel,
+                                                   const AVSequencerEnvelope **envelope,
+                                                   AVSequencerPlayerEnvelope **player_envelope);
+    const AVSequencerEnvelope *(**assign_auto_envelope)(const AVSequencerSample *sample,
+                                                        AVSequencerPlayerChannel *const player_channel, 
+                                                        AVSequencerPlayerEnvelope **player_envelope);
     uint32_t volume = 0, panning, i;
 
     if (instrument) {
@@ -10347,7 +10370,13 @@ exec_synth_done:
 
         if (instruction < 0) {
             const AVSequencerPlayerEffects *effects_lut;
-            void (*check_func)(const AVSequencerContext *const avctx, AVSequencerPlayerHostChannel *const player_host_channel, AVSequencerPlayerChannel *const player_channel, const uint16_t channel, uint16_t *const fx_byte, uint16_t *const data_word, uint16_t *const flags);
+            void (*check_func)(const AVSequencerContext *const avctx,
+                               AVSequencerPlayerHostChannel *const player_host_channel,
+                               AVSequencerPlayerChannel *const player_channel,
+                               const uint16_t channel,
+                               uint16_t *const fx_byte,
+                               uint16_t *const data_word,
+                               uint16_t *const flags);
             uint16_t fx_byte, data_word, flags;
 
             fx_byte     = ~instruction;
@@ -10372,7 +10401,14 @@ exec_synth_done:
 
             player_channel->entry_pos[synth_type] = synth_code_line;
         } else {
-            uint16_t (**fx_exec_func)(const AVSequencerContext *const avctx, AVSequencerPlayerChannel *const player_channel, const uint16_t virtual_channel, uint16_t synth_code_line, const int src_var, int dst_var, uint16_t instruction_data, const int synth_type);
+            uint16_t (**fx_exec_func)(const AVSequencerContext *const avctx,
+                                      AVSequencerPlayerChannel *const player_channel,
+                                      const uint16_t virtual_channel,
+                                      uint16_t synth_code_line,
+                                      const int src_var,
+                                      int dst_var,
+                                      uint16_t instruction_data,
+                                      const int synth_type);
 
             fx_exec_func = (avctx->synth_code_exec_lut ? avctx->synth_code_exec_lut : se_lut);
 

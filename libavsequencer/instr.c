@@ -402,11 +402,11 @@ void avseq_envelope_close(AVSequencerModule *module, AVSequencerEnvelope *envelo
 }
 
 #define CREATE_ENVELOPE(env_type) \
-    static void create_##env_type##_envelope (AVSequencerContext *avctx,  \
-                                              int16_t *data,              \
-                                              uint32_t points,            \
-                                              uint32_t scale,             \
-                                              uint32_t scale_type,        \
+    static void create_##env_type##_envelope (const AVSequencerContext *const avctx,  \
+                                              int16_t *data,                          \
+                                              uint32_t points,                        \
+                                              uint32_t scale,                         \
+                                              uint32_t scale_type,                    \
                                               uint32_t y_offset)
 
 CREATE_ENVELOPE(empty)
@@ -448,7 +448,8 @@ static const int16_t sine_lut[] = {
 
 CREATE_ENVELOPE(sine)
 {
-    uint32_t i, sine_div, sine_mod, pos = 0, count = 0;
+    unsigned i;
+    uint32_t sine_div, sine_mod, pos = 0, count = 0;
     int32_t value = 0;
     const int16_t *const lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
 
@@ -476,7 +477,8 @@ CREATE_ENVELOPE(sine)
 
 CREATE_ENVELOPE(cosine)
 {
-    uint32_t i, sine_div, sine_mod, count = 0;
+    unsigned i;
+    uint32_t sine_div, sine_mod, count = 0;
     int32_t pos = 90, value = 0;
     const int16_t *const lut = (avctx->sine_lut ? avctx->sine_lut : sine_lut);
 
@@ -509,7 +511,8 @@ CREATE_ENVELOPE(cosine)
 
 CREATE_ENVELOPE(ramp)
 {
-    uint32_t i, start_scale = -scale, ramp_points, scale_div, scale_mod, scale_count = 0, value;
+    unsigned i;
+    uint32_t start_scale = -scale, ramp_points, scale_div, scale_mod, scale_count = 0, value;
 
     if (!(ramp_points = points >> 1))
         ramp_points = 1;
@@ -555,7 +558,8 @@ CREATE_ENVELOPE(square)
 
 CREATE_ENVELOPE(triangle)
 {
-    uint32_t i, value, pos = 0, down_pos, triangle_points, scale_div, scale_mod, scale_count = 0;
+    unsigned i;
+    uint32_t value, pos = 0, down_pos, triangle_points, scale_div, scale_mod, scale_count = 0;
 
     if (!(triangle_points = points >> 2))
         triangle_points = 1;
@@ -606,7 +610,8 @@ CREATE_ENVELOPE(triangle)
 
 CREATE_ENVELOPE(sawtooth)
 {
-    uint32_t i, value, pos = scale, down_pos, sawtooth_points, scale_div, scale_mod, scale_count = 0;
+    unsigned i;
+    uint32_t value, pos = scale, down_pos, sawtooth_points, scale_div, scale_mod, scale_count = 0;
 
     down_pos = points >> 1;
 
@@ -665,7 +670,12 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
                              uint32_t y_offset, uint32_t nodes)
 {
     uint32_t scale_type;
-    void (**create_env_func)(AVSequencerContext *avctx, int16_t *data, uint32_t points, uint32_t scale, uint32_t scale_type, uint32_t y_offset);
+    void (**create_env_func)(const AVSequencerContext *const avctx,
+                             int16_t *data,
+                             uint32_t points,
+                             uint32_t scale,
+                             uint32_t scale_type,
+                             uint32_t y_offset);
     int16_t *data;
 
     if (!envelope)
