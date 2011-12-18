@@ -2403,8 +2403,7 @@ EXECUTE_EFFECT(arpeggio)
 
         break;
     default :
-        arpeggio_value = second_arpeggio;
-
+        arpeggio_value                      = second_arpeggio;
         player_host_channel->arpeggio_tick -= 3;
 
         break;
