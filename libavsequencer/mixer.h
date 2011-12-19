@@ -67,6 +67,10 @@ typedef struct AVMixerChannel {
        output data.  */
     uint32_t pos;
 
+    /** Current one shoot position in samples of this channel.
+       This will increment until a new sample is played.  */
+    uint32_t pos_one_shoot;
+
     /** Current length in samples for this channel.  */
     uint32_t len;
 

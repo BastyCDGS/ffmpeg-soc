@@ -34,6 +34,7 @@ enum AVSequencerSongCompatFlags {
     AVSEQ_SONG_COMPAT_FLAG_AMIGA_LIMITS    = 0x04, ///< Enforce AMIGA sound hardware limits (portamento)
     AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES     = 0x08, ///< All volume related commands range from 0-64 instead of 0-255
     AVSEQ_SONG_COMPAT_FLAG_GLOBAL_NEW_ONLY = 0x10, ///< Global volume/panning changes affect new notes only (S3M)
+    AVSEQ_SONG_COMPAT_FLAG_RETRIG_LOOP     = 0x20, ///< Note retrigger plays sample until end if no loop and kills (S3M)
 };
 
 /** AVSequencerSong->compat_flags bitfield.  */

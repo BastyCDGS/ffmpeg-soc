@@ -55,6 +55,7 @@ typedef struct AV_LQMixerChannelInfo {
         uint32_t len;
         uint32_t offset;
         uint32_t fraction;
+        uint32_t offset_one_shoot;
         uint32_t advance;
         uint32_t advance_frac;
         void (*mix_func)(const AV_LQMixerData *const mixer_data,
@@ -411,6 +412,15 @@ mix_sample_synth:
                 }
             }
 
+            channel_info->current.offset_one_shoot += (offset > channel_info->current.offset) ? (offset - channel_info->current.offset) : (channel_info->current.offset - offset);
+
+            if (channel_info->current.offset_one_shoot >= channel_info->current.len) {
+                channel_info->current.offset_one_shoot = channel_info->current.len;
+
+                if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+                    channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
+            }
+
             channel_info->current.offset   = offset;
             channel_info->current.fraction = fraction;
         }
@@ -678,6 +688,15 @@ mix_sample_synth:
                         break;
                     }
                 }
+            }
+
+            channel_info->current.offset_one_shoot += (offset > channel_info->current.offset) ? (offset - channel_info->current.offset) : (channel_info->current.offset - offset);
+
+            if (channel_info->current.offset_one_shoot >= channel_info->current.len) {
+                channel_info->current.offset_one_shoot = channel_info->current.len;
+
+                if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP))
+                    channel_info->current.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_PLAY;
             }
 
             channel_info->current.offset   = offset;
@@ -5292,6 +5311,7 @@ static av_cold void get_channel(const AVMixerData *const mixer_data,
     const AV_LQMixerChannelInfo *const channel_info = lq_mixer_data->channel_info + channel;
 
     mixer_channel->pos             = channel_info->current.offset;
+    mixer_channel->pos_one_shoot   = channel_info->current.offset_one_shoot;
     mixer_channel->bits_per_sample = channel_info->current.bits_per_sample;
     mixer_channel->flags           = channel_info->current.flags;
     mixer_channel->volume          = channel_info->current.volume;
@@ -5325,6 +5345,7 @@ static av_cold void set_channel(AVMixerData *const mixer_data,
 
     channel_block->offset           = mixer_channel->pos;
     channel_block->fraction         = 0;
+    channel_block->offset_one_shoot = mixer_channel->pos_one_shoot;
     channel_block->bits_per_sample  = mixer_channel->bits_per_sample;
     channel_block->flags            = mixer_channel->flags;
     channel_block->volume           = mixer_channel->volume;
@@ -5369,6 +5390,7 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
 
     channel_block->offset           = 0;
     channel_block->fraction         = 0;
+    channel_block->offset_one_shoot = 0;
     channel_block->bits_per_sample  = 0;
     channel_block->flags            = 0;
     channel_block->volume           = 0;
@@ -5390,6 +5412,7 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     channel_block                   = &channel_info->next;
     channel_block->offset           = 0;
     channel_block->fraction         = 0;
+    channel_block->offset_one_shoot = 0;
     channel_block->bits_per_sample  = 0;
     channel_block->flags            = 0;
     channel_block->volume           = 0;
@@ -5418,6 +5441,7 @@ static av_cold void get_both_channels(const AVMixerData *const mixer_data,
     const AV_LQMixerChannelInfo *const channel_info = lq_mixer_data->channel_info + channel;
 
     mixer_channel_current->pos             = channel_info->current.offset;
+    mixer_channel_current->pos_one_shoot   = channel_info->current.offset_one_shoot;
     mixer_channel_current->bits_per_sample = channel_info->current.bits_per_sample;
     mixer_channel_current->flags           = channel_info->current.flags;
     mixer_channel_current->volume          = channel_info->current.volume;
@@ -5433,6 +5457,7 @@ static av_cold void get_both_channels(const AVMixerData *const mixer_data,
     mixer_channel_current->filter_damping  = channel_info->current.filter_damping;
 
     mixer_channel_next->pos             = channel_info->next.offset;
+    mixer_channel_next->pos_one_shoot   = channel_info->next.offset_one_shoot;
     mixer_channel_next->bits_per_sample = channel_info->next.bits_per_sample;
     mixer_channel_next->flags           = channel_info->next.flags;
     mixer_channel_next->volume          = channel_info->next.volume;
@@ -5460,6 +5485,7 @@ static av_cold void set_both_channels(AVMixerData *const mixer_data,
 
     channel_block->offset           = mixer_channel_current->pos;
     channel_block->fraction         = 0;
+    channel_block->offset_one_shoot = mixer_channel_current->pos_one_shoot;
     channel_block->bits_per_sample  = mixer_channel_current->bits_per_sample;
     channel_block->flags            = mixer_channel_current->flags;
     channel_block->volume           = mixer_channel_current->volume;
@@ -5496,6 +5522,7 @@ static av_cold void set_both_channels(AVMixerData *const mixer_data,
     channel_block                   = &channel_info->next;
     channel_block->offset           = mixer_channel_next->pos;
     channel_block->fraction         = 0;
+    channel_block->offset_one_shoot = mixer_channel_next->pos_one_shoot;
     channel_block->bits_per_sample  = mixer_channel_next->bits_per_sample;
     channel_block->flags            = mixer_channel_next->flags;
     channel_block->volume           = mixer_channel_next->volume;
@@ -5590,10 +5617,11 @@ static av_cold void set_channel_position_repeat_flags(AVMixerData *const mixer_d
             channel_info->current.fraction = 0;
         }
 
-        repeat                           = mixer_channel->repeat_start;
-        repeat_len                       = mixer_channel->repeat_length;
-        channel_info->current.repeat     = repeat;
-        channel_info->current.repeat_len = repeat_len;
+        channel_info->current.offset_one_shoot = mixer_channel->pos_one_shoot;
+        repeat                                 = mixer_channel->repeat_start;
+        repeat_len                             = mixer_channel->repeat_length;
+        channel_info->current.repeat           = repeat;
+        channel_info->current.repeat_len       = repeat_len;
 
         if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
             repeat     = mixer_channel->len;

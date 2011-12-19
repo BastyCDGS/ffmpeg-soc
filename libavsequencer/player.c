@@ -3093,16 +3093,24 @@ EXECUTE_EFFECT(tremor) {
 
 EXECUTE_EFFECT(note_retrigger)
 {
+    const AVSequencerSong *const song = avctx->player_song;
     uint16_t retrigger_tick = data_word & 0x7FFF, retrigger_tick_count = player_host_channel->retrig_tick_count;
 
     if (data_word & 0x8000)
         retrigger_tick = player_host_channel->tempo / (retrigger_tick ? retrigger_tick : 1);
 
+    if ((song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_RETRIG_LOOP) && !retrigger_tick)
+        return;
+
     if (retrigger_tick_count-- <= 1) {
         retrigger_tick_count = retrigger_tick;
 
-        if (player_channel->host_channel == channel)
+        if (player_channel->host_channel == channel) {
             player_channel->mixer.pos = 0;
+
+            if (!(song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_RETRIG_LOOP))
+                player_channel->mixer.pos_one_shoot = 0;
+        }
     }
 
     player_host_channel->retrig_tick_count = retrigger_tick_count;
@@ -3110,6 +3118,7 @@ EXECUTE_EFFECT(note_retrigger)
 
 EXECUTE_EFFECT(multi_retrigger_note)
 {
+    const AVSequencerSong *const song = avctx->player_song;
     uint8_t multi_retrigger_tick, multi_retrigger_volume_change;
     uint16_t retrigger_tick_count;
     uint32_t volume;
@@ -3123,6 +3132,9 @@ EXECUTE_EFFECT(multi_retrigger_note)
         multi_retrigger_volume_change = player_host_channel->multi_retrig_vol_chg;
 
     player_host_channel->multi_retrig_vol_chg = multi_retrigger_volume_change;
+
+    if ((song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_RETRIG_LOOP) && !multi_retrigger_tick)
+        return;
 
     if (((retrigger_tick_count = player_host_channel->retrig_tick_count) > 1) || (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE) || (player_channel->host_channel != channel)) {
         player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE;
@@ -3177,8 +3189,12 @@ EXECUTE_EFFECT(multi_retrigger_note)
     if (retrigger_tick_count-- <= 1) {
         retrigger_tick_count = multi_retrigger_tick;
 
-        if (player_channel->host_channel == channel)
+        if (player_channel->host_channel == channel) {
             player_channel->mixer.pos = 0;
+
+            if (!(song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_RETRIG_LOOP))
+                player_channel->mixer.pos_one_shoot = 0;
+        }
     }
 
     player_host_channel->retrig_tick_count = retrigger_tick_count;
@@ -4326,7 +4342,8 @@ EXECUTE_EFFECT(sample_offset_low)
             }
         }
 
-        player_channel->mixer.pos += sample_offset;
+        player_channel->mixer.pos          += sample_offset;
+        player_channel->mixer.pos_one_shoot = player_channel->mixer.pos;
     }
 }
 
@@ -7966,11 +7983,12 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwave)
         AVMixerData *mixer;
         uint16_t flags, repeat_mode, playback_flags;
 
-        player_channel->sample_waveform = waveform;
-        player_channel->mixer.pos       = 0;
-        player_channel->mixer.len       = waveform->samples;
-        player_channel->mixer.data      = waveform->data;
-        flags                           = waveform->flags;
+        player_channel->sample_waveform     = waveform;
+        player_channel->mixer.pos           = 0;
+        player_channel->mixer.pos_one_shoot = 0;
+        player_channel->mixer.len           = waveform->samples;
+        player_channel->mixer.data          = waveform->data;
+        flags                               = waveform->flags;
 
         if (flags & AVSEQ_SYNTH_WAVE_FLAG_SUSTAIN_LOOP) {
             player_channel->mixer.repeat_start  = waveform->sustain_repeat;
@@ -8041,11 +8059,12 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(isetwav)
         AVMixerData *mixer;
         uint16_t flags, repeat_mode, playback_flags;
 
-        player_channel->sample_waveform = waveform;
-        player_channel->mixer.pos       = 0;
-        player_channel->mixer.len       = waveform->samples;
-        player_channel->mixer.data      = waveform->data;
-        flags                           = waveform->flags;
+        player_channel->sample_waveform     = waveform;
+        player_channel->mixer.pos           = 0;
+        player_channel->mixer.pos_one_shoot = 0;
+        player_channel->mixer.len           = waveform->samples;
+        player_channel->mixer.data          = waveform->data;
+        flags                               = waveform->flags;
 
         if (flags & AVSEQ_SYNTH_WAVE_FLAG_SUSTAIN_LOOP) {
             player_channel->mixer.repeat_start  = waveform->sustain_repeat;
@@ -9472,6 +9491,7 @@ static AVSequencerPlayerChannel *play_note_got(AVSequencerContext *const avctx,
     player_channel = trigger_nna(avctx, player_host_channel, player_channel, channel, (uint16_t *const) &virtual_channel);
 
     player_channel->mixer.pos            = sample->start_offset;
+    player_channel->mixer.pos_one_shoot  = sample->start_offset;
     player_host_channel->virtual_channel = virtual_channel;
     player_channel->host_channel         = channel;
     player_channel->instrument           = player_host_channel->instrument;
@@ -10233,7 +10253,8 @@ static uint32_t get_note(AVSequencerContext *const avctx,
         if ((new_player_channel = play_note(avctx, instrument, player_host_channel, player_channel, octave, note, channel))) {
             const AVSequencerSample *const sample = player_host_channel->sample;
 
-            new_player_channel->mixer.pos = sample->start_offset;
+            new_player_channel->mixer.pos           = sample->start_offset;
+            new_player_channel->mixer.pos_one_shoot = sample->start_offset;
 
             if (sample->compat_flags & AVSEQ_SAMPLE_COMPAT_FLAG_VOLUME_ONLY) {
                 new_player_channel->volume     = player_channel->volume;
@@ -10576,6 +10597,7 @@ int avseq_playback_handler(AVMixerData *mixer_data)
 
             sample                               = player_host_channel->sample;
             player_channel->mixer.pos            = sample->start_offset;
+            player_channel->mixer.pos_one_shoot  = sample->start_offset;
             player_host_channel->virtual_channel = virtual_channel;
             player_channel->host_channel         = channel;
             player_host_channel->instrument      = NULL;
@@ -10801,6 +10823,7 @@ instrument_found:
 
             if ((!player_channel->mixer.data || !player_channel->mixer.bits_per_sample) && (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY)) {
                 player_channel->mixer.pos             = 0;
+                player_channel->mixer.pos_one_shoot   = 0;
                 player_channel->mixer.len             = (sizeof (empty_waveform) / sizeof (empty_waveform[0]));
                 player_channel->mixer.data            = (int16_t *) &empty_waveform;
                 player_channel->mixer.repeat_start    = 0;
@@ -10846,12 +10869,12 @@ turn_note_off:
             if (!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_ON)))
                 host_volume = 0;
 
-            host_volume                        *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
-            virtual_volume                      = (((uint16_t) player_channel->vol_env.value >> 8) * (uint16_t) player_channel->global_volume) * (uint16_t) player_channel->fade_out_count;
-            player_channel->mixer.volume        = player_channel->final_volume = ((uint64_t) host_volume * virtual_volume) / UINT64_C(70660093200890625); /* / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL) */
+            host_volume                 *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
+            virtual_volume               = (((uint16_t) player_channel->vol_env.value >> 8) * (uint16_t) player_channel->global_volume) * (uint16_t) player_channel->fade_out_count;
+            player_channel->mixer.volume = player_channel->final_volume = ((uint64_t) host_volume * virtual_volume) / UINT64_C(70660093200890625); /* / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL) */
             flags                               = 0;
-            player_channel->flags              &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND;
-            player_channel->mixer.flags        &= ~AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
+            player_channel->flags       &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND;
+            player_channel->mixer.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
 
             if (player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_SMP_SUR_PAN)
                 flags = AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
