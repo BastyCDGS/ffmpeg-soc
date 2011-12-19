@@ -3093,19 +3093,19 @@ EXECUTE_EFFECT(tremor) {
 
 EXECUTE_EFFECT(note_retrigger)
 {
-    uint16_t retrigger_tick = data_word & 0x7FFF, retrigger_tick_count;
+    uint16_t retrigger_tick = data_word & 0x7FFF, retrigger_tick_count = player_host_channel->retrig_tick_count;
 
-    if ((data_word & 0x8000) && data_word)
-        retrigger_tick = player_host_channel->tempo / retrigger_tick;
+    if (data_word & 0x8000)
+        retrigger_tick = player_host_channel->tempo / (retrigger_tick ? retrigger_tick : 1);
 
-    if ((retrigger_tick_count = player_host_channel->retrig_tick_count) && --retrigger_tick) {
-        if (retrigger_tick <= retrigger_tick_count)
-            retrigger_tick_count = -1;
-    } else if (player_channel->host_channel == channel) {
-        player_channel->mixer.pos = 0;
+    if (retrigger_tick_count-- <= 1) {
+        retrigger_tick_count = retrigger_tick;
+
+        if (player_channel->host_channel == channel)
+            player_channel->mixer.pos = 0;
     }
 
-    player_host_channel->retrig_tick_count = ++retrigger_tick_count;
+    player_host_channel->retrig_tick_count = retrigger_tick_count;
 }
 
 EXECUTE_EFFECT(multi_retrigger_note)
@@ -3124,7 +3124,7 @@ EXECUTE_EFFECT(multi_retrigger_note)
 
     player_host_channel->multi_retrig_vol_chg = multi_retrigger_volume_change;
 
-    if ((retrigger_tick_count = player_host_channel->retrig_tick_count) || (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE) || (player_channel->host_channel != channel)) {
+    if (((retrigger_tick_count = player_host_channel->retrig_tick_count) > 1) || (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE) || (player_channel->host_channel != channel)) {
         player_host_channel->flags &= ~AVSEQ_PLAYER_HOST_CHANNEL_FLAG_RETRIG_NOTE;
     } else if ((int8_t) multi_retrigger_volume_change < 0) {
         uint8_t multi_retrigger_scale = 4;
@@ -3145,16 +3145,16 @@ EXECUTE_EFFECT(multi_retrigger_note)
             volume = ((multi_retrigger_volume_change + 0x40) * multi_retrigger_scale) + player_channel->volume;
 
             if (volume < 0x100) {
-                player_channel->volume  = volume;
+                player_channel->volume = volume;
             } else {
                 player_channel->volume     = 0xFF;
                 player_channel->sub_volume = 0xFF;
             }
         }
-    } else {
+    } else if ((int8_t) multi_retrigger_volume_change > 0) {
         uint8_t volume_multiplier, volume_divider;
 
-        volume = (player_channel->volume << 8);
+        volume = player_channel->volume << 8;
 
         if (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SUB_SLIDE_RETRIG)
             volume += player_channel->sub_volume;
@@ -3174,14 +3174,14 @@ EXECUTE_EFFECT(multi_retrigger_note)
             player_channel->sub_volume = volume;
     }
 
-    if ((retrigger_tick_count = player_host_channel->retrig_tick_count) && --multi_retrigger_tick) {
-        if (multi_retrigger_tick <= retrigger_tick_count)
-            retrigger_tick_count = -1;
-    } else if (player_channel->host_channel == channel) {
-        player_channel->mixer.pos = 0;
+    if (retrigger_tick_count-- <= 1) {
+        retrigger_tick_count = multi_retrigger_tick;
+
+        if (player_channel->host_channel == channel)
+            player_channel->mixer.pos = 0;
     }
 
-    player_host_channel->retrig_tick_count = ++retrigger_tick_count;
+    player_host_channel->retrig_tick_count = retrigger_tick_count;
 }
 
 EXECUTE_EFFECT(extended_ctrl)
@@ -8556,7 +8556,6 @@ static void process_row(const AVSequencerContext *const avctx,
         player_host_channel->effect            = NULL;
         player_host_channel->arpeggio_tick     = 0;
         player_host_channel->note_delay        = 0;
-        player_host_channel->retrig_tick_count = 0;
 
         if ((pattern_delay = player_host_channel->pattern_delay) && (pattern_delay > player_host_channel->pattern_delay_count++))
             return;
@@ -9308,7 +9307,7 @@ previous_nna_found:
     nna_volume                 = new_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
     new_player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
 
-    if (nna_volume || !(nna = player_host_channel->nna))
+    if (nna_volume || !player_channel->final_volume || !(nna = player_host_channel->nna))
         goto nna_found;
 
     if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_VOLUME_NNA)
@@ -9597,26 +9596,27 @@ static void init_new_instrument(AVSequencerContext *const avctx,
         player_host_channel->nna       = instrument->nna;
     }
 
-    player_channel->auto_vibrato_sweep = sample->vibrato_sweep;
-    player_channel->auto_tremolo_sweep = sample->tremolo_sweep;
-    player_channel->auto_pannolo_sweep = sample->pannolo_sweep;
-    player_channel->auto_vibrato_depth = sample->vibrato_depth;
-    player_channel->auto_vibrato_rate  = sample->vibrato_rate;
-    player_channel->auto_tremolo_depth = sample->tremolo_depth;
-    player_channel->auto_tremolo_rate  = sample->tremolo_rate;
-    player_channel->auto_pannolo_depth = sample->pannolo_depth;
-    player_channel->auto_pannolo_rate  = sample->pannolo_rate;
-    player_channel->auto_vibrato_count = 0;
-    player_channel->auto_tremolo_count = 0;
-    player_channel->auto_pannolo_count = 0;
-    player_channel->auto_vibrato_freq  = 0;
-    player_channel->auto_tremolo_vol   = 0;
-    player_channel->auto_pannolo_pan   = 0;
-    player_channel->slide_env_freq     = 0;
-    player_channel->flags             &= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
-    player_host_channel->arpeggio_freq = 0;
-    player_host_channel->vibrato_slide = 0;
-    player_host_channel->tremolo_slide = 0;
+    player_channel->auto_vibrato_sweep     = sample->vibrato_sweep;
+    player_channel->auto_tremolo_sweep     = sample->tremolo_sweep;
+    player_channel->auto_pannolo_sweep     = sample->pannolo_sweep;
+    player_channel->auto_vibrato_depth     = sample->vibrato_depth;
+    player_channel->auto_vibrato_rate      = sample->vibrato_rate;
+    player_channel->auto_tremolo_depth     = sample->tremolo_depth;
+    player_channel->auto_tremolo_rate      = sample->tremolo_rate;
+    player_channel->auto_pannolo_depth     = sample->pannolo_depth;
+    player_channel->auto_pannolo_rate      = sample->pannolo_rate;
+    player_channel->auto_vibrato_count     = 0;
+    player_channel->auto_tremolo_count     = 0;
+    player_channel->auto_pannolo_count     = 0;
+    player_channel->auto_vibrato_freq      = 0;
+    player_channel->auto_tremolo_vol       = 0;
+    player_channel->auto_pannolo_pan       = 0;
+    player_channel->slide_env_freq         = 0;
+    player_channel->flags                 &= AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
+    player_host_channel->retrig_tick_count = 0;
+    player_host_channel->arpeggio_freq     = 0;
+    player_host_channel->vibrato_slide     = 0;
+    player_host_channel->tremolo_slide     = 0;
 
     if (sample->env_proc_flags & AVSEQ_SAMPLE_FLAG_PROC_LINEAR_AUTO_VIB)
         player_channel->flags |= AVSEQ_PLAYER_CHANNEL_FLAG_LINEAR_FREQ_AUTO_VIB;
@@ -9651,7 +9651,7 @@ static void init_new_instrument(AVSequencerContext *const avctx,
                 uint16_t envelope_pos = 0, envelope_value = 0;
 
                 if (instrument->env_proc_flags & mask)
-                    flags  = AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD;
+                    flags = AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD;
 
                 if (instrument->env_retrig_flags & mask) {
                     flags |= AVSEQ_PLAYER_ENVELOPE_FLAG_NO_RETRIG;
@@ -9712,7 +9712,7 @@ static void init_new_instrument(AVSequencerContext *const avctx,
             uint16_t envelope_pos = 0, envelope_value = 0;
 
             if (sample->env_proc_flags & mask)
-                flags  = AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD;
+                flags = AVSEQ_PLAYER_ENVELOPE_FLAG_FIRST_ADD;
 
             if (sample->env_retrig_flags & mask) {
                 flags |= AVSEQ_PLAYER_ENVELOPE_FLAG_NO_RETRIG;
