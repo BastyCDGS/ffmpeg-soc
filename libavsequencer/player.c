@@ -3141,7 +3141,7 @@ EXECUTE_EFFECT(multi_retrigger_note)
     } else if ((int8_t) multi_retrigger_volume_change < 0) {
         uint8_t multi_retrigger_scale = 4;
 
-        if (!(avctx->player_song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES))
+        if (!(song->compat_flags & AVSEQ_SONG_COMPAT_FLAG_OLD_VOLUMES))
             multi_retrigger_scale = player_host_channel->multi_retrig_scale;
 
         if ((int8_t) (multi_retrigger_volume_change -= 0xBF) >= 0) {
@@ -4118,7 +4118,7 @@ EXECUTE_EFFECT(track_pannolo)
     int16_t track_pannolo_slide_value;
     uint8_t track_pannolo_rate;
     int16_t track_pannolo_depth;
-    uint16_t track_panning;
+    int16_t track_panning;
 
     if (!(track_pannolo_rate = (data_word >> 8)))
         track_pannolo_rate = player_host_channel->track_pan_rate;
@@ -5952,7 +5952,7 @@ EXECUTE_EFFECT(global_pannolo)
     int16_t global_pannolo_slide_value;
     uint8_t global_pannolo_rate;
     int16_t global_pannolo_depth;
-    uint16_t global_panning;
+    int16_t global_panning;
 
     if (!(global_pannolo_rate = (data_word >> 8)))
         global_pannolo_rate = player_globals->pannolo_rate;
@@ -8115,7 +8115,8 @@ EXECUTE_SYNTH_CODE_INSTRUCTION(setwavp)
 {
     instruction_data += player_channel->variable[src_var];
 
-    player_channel->mixer.pos = instruction_data;
+    player_channel->mixer.pos           = instruction_data;
+    player_channel->mixer.pos_one_shoot = instruction_data;
 
     return synth_code_line;
 }
