@@ -942,8 +942,11 @@ typedef struct AVSequencerPlayerHostChannel {
        sub-slide to effect was not used yet during playback.  */
     uint8_t sub_slide_bits;
 
-    /** Current retrigger tick counter or 0 if the note retrigger
-       effect was not used yet during playback.  */
+    /** Current remaining number of ticks for both note retrigger and
+       multi retrigger note commands before execution of next
+       retrigger, i.e. sample offset set back to zero. This also can
+       be 0 in case none of the two retrigger effects have been used
+       or upon zero initialization.  */
     uint16_t retrig_tick_count;
 
     /** Current multi retrigger note tick counter or 0 if the multi
