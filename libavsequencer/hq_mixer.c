@@ -4595,8 +4595,6 @@ static void mix_right_loop(const AV_HQMixerData *const mixer_data,
     uint32_t i           = len;
     int32_t smp;
 
-    channel_info->mix_right = 1;
-
     get_next_sample_func(mixer_data, channel_info, channel_block, curr_offset);
 
     do {
@@ -4712,6 +4710,7 @@ MIX(stereo_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -4735,6 +4734,7 @@ MIX(stereo_backwards_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
@@ -4758,6 +4758,7 @@ MIX(stereo_16_to_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_16_to_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_16_to_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -4781,6 +4782,7 @@ MIX(stereo_backwards_16_to_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_16_to_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_16_to_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
@@ -4804,6 +4806,7 @@ MIX(stereo_32_to_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_32_to_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_32_to_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -4827,6 +4830,7 @@ MIX(stereo_backwards_32_to_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_32_to_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_32_to_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
@@ -4850,6 +4854,7 @@ MIX(stereo_x_to_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_x_to_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_x_to_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -4873,6 +4878,7 @@ MIX(stereo_backwards_x_to_8_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_x_to_8;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_x_to_8(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
@@ -4896,6 +4902,7 @@ MIX(stereo_16_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_16;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_16(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -4919,6 +4926,7 @@ MIX(stereo_backwards_16_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_16;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_16(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
@@ -4942,6 +4950,7 @@ MIX(stereo_32_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_32;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_32(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -4965,6 +4974,7 @@ MIX(stereo_backwards_32_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_32;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_32(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
@@ -4988,6 +4998,7 @@ MIX(stereo_x_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_next_sample_x;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_x(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, 1, offset, fraction, advance, adv_frac, len);
     }
@@ -5011,6 +5022,7 @@ MIX(stereo_backwards_x_right)
                                      struct ChannelBlock *const channel_block,
                                      uint32_t offset) = get_backwards_next_sample_x;
 
+        channel_info->mix_right   = 1;
         channel_info->curr_sample = get_curr_sample_x(channel_info, channel_block, *offset);
         mix_right_loop(mixer_data, channel_info, channel_block, buf, get_next_sample_func, -1, offset, fraction, advance, adv_frac, len);
     }
