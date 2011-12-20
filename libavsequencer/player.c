@@ -9327,7 +9327,7 @@ previous_nna_found:
     nna_volume                 = new_player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
     new_player_channel->flags &= ~AVSEQ_PLAYER_CHANNEL_FLAG_ALLOCATED;
 
-    if (nna_volume || !player_channel->final_volume || !(nna = player_host_channel->nna))
+    if (nna_volume || !(nna = player_host_channel->nna))
         goto nna_found;
 
     if (new_player_channel->use_nna_flags & AVSEQ_PLAYER_CHANNEL_USE_NNA_FLAG_VOLUME_NNA)
