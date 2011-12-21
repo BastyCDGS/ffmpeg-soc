@@ -5652,10 +5652,11 @@ static av_cold void set_channel_position_repeat_flags(AVMixerData *const mixer_d
             channel_info->current.fraction = 0;
         }
 
-        repeat                           = mixer_channel->repeat_start;
-        repeat_len                       = mixer_channel->repeat_length;
-        channel_info->current.repeat     = repeat;
-        channel_info->current.repeat_len = repeat_len;
+        channel_info->current.offset_one_shoot = mixer_channel->pos_one_shoot;
+        repeat                                 = mixer_channel->repeat_start;
+        repeat_len                             = mixer_channel->repeat_length;
+        channel_info->current.repeat           = repeat;
+        channel_info->current.repeat_len       = repeat_len;
 
         if (!(channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP)) {
             repeat     = mixer_channel->len;
