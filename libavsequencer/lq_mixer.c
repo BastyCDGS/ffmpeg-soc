@@ -5386,7 +5386,6 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     const AV_LQMixerData *const lq_mixer_data = (const AV_LQMixerData *const) mixer_data;
     AV_LQMixerChannelInfo *const channel_info = lq_mixer_data->channel_info + channel;
     struct ChannelBlock *channel_block        = &channel_info->current;
-    uint32_t repeat, repeat_len;
 
     channel_block->offset           = 0;
     channel_block->fraction         = 0;
@@ -5397,8 +5396,6 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     channel_block->panning          = 0;
     channel_block->data             = NULL;
     channel_block->len              = 0;
-    repeat                          = 0;
-    repeat_len                      = 0;
     channel_block->repeat           = 0;
     channel_block->repeat_len       = 0;
     channel_block->end_offset       = 0;
@@ -5419,8 +5416,6 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     channel_block->panning          = 0;
     channel_block->data             = NULL;
     channel_block->len              = 0;
-    repeat                          = 0;
-    repeat_len                      = 0;
     channel_block->repeat           = 0;
     channel_block->repeat_len       = 0;
     channel_block->end_offset       = 0;
@@ -5693,13 +5688,11 @@ static av_cold void set_channel_filter(AVMixerData *const mixer_data,
 
 static av_cold void mix(AVMixerData *const mixer_data, int32_t *buf) {
     AV_LQMixerData *const lq_mixer_data = (AV_LQMixerData *const) mixer_data;
-    uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
     if (!(lq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
-        mix_rate          = lq_mixer_data->mix_rate;
-        current_left      = lq_mixer_data->current_left;
-        current_left_frac = lq_mixer_data->current_left_frac;
-        buf_size          = lq_mixer_data->buf_size;
+        uint32_t current_left      = lq_mixer_data->current_left;
+        uint32_t current_left_frac = lq_mixer_data->current_left_frac;
+        uint32_t buf_size          = lq_mixer_data->buf_size;
 
         memset(buf, 0, buf_size << ((lq_mixer_data->channels_out >= 2) ? 3 : 2));
 
@@ -5743,13 +5736,11 @@ static av_cold void mix_parallel(AVMixerData *const mixer_data,
                                  const uint32_t first_channel,
                                  const uint32_t last_channel) {
     AV_LQMixerData *const lq_mixer_data = (AV_LQMixerData *const) mixer_data;
-    uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
     if (!(lq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
-        mix_rate          = lq_mixer_data->mix_rate;
-        current_left      = lq_mixer_data->current_left;
-        current_left_frac = lq_mixer_data->current_left_frac;
-        buf_size          = lq_mixer_data->buf_size;
+        uint32_t current_left      = lq_mixer_data->current_left;
+        uint32_t current_left_frac = lq_mixer_data->current_left_frac;
+        uint32_t buf_size          = lq_mixer_data->buf_size;
 
         memset(buf, 0, buf_size << ((lq_mixer_data->channels_out >= 2) ? 3 : 2));
 

@@ -1497,10 +1497,10 @@ static void get_next_sample_x_to_8(const AV_HQMixerData *const mixer_data,
     smp_offset = bit >> 5;
 
     if (((bit &= 31) + bits_per_sample) < 32) {
-        smp_data = ((uint32_t) sample[offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+        smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
     } else {
-        smp_data  = (uint32_t) sample[offset] << bit;
-        smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+        smp_data  = (uint32_t) sample[smp_offset] << bit;
+        smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
     smp = volume_lut[(uint32_t) smp_data >> 24];
@@ -2151,10 +2151,10 @@ static void get_next_sample_x(const AV_HQMixerData *const mixer_data,
     smp_offset = bit >> 5;
 
     if (((bit &= 31) + bits_per_sample) < 32) {
-        smp_data = ((uint32_t) sample[offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+        smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
     } else {
-        smp_data  = (uint32_t) sample[offset] << bit;
-        smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+        smp_data  = (uint32_t) sample[smp_offset] << bit;
+        smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
     muls_128(tmp_128, smp_data, mult_volume);
@@ -2297,10 +2297,10 @@ static int32_t get_curr_sample_x_to_8(const struct AV_HQMixerChannelInfo *const 
     smp_offset = bit >> 5;
 
     if (((bit &= 31) + bits_per_sample) < 32) {
-        smp_data = ((uint32_t) sample[offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+        smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
     } else {
-        smp_data  = (uint32_t) sample[offset] << bit;
-        smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+        smp_data  = (uint32_t) sample[smp_offset] << bit;
+        smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
     return volume_lut[(uint32_t) smp_data >> 24];
@@ -2348,10 +2348,10 @@ static int32_t get_curr_sample_x(const struct AV_HQMixerChannelInfo *const chann
     smp_offset = bit >> 5;
 
     if (((bit &= 31) + bits_per_sample) < 32) {
-        smp_data = ((uint32_t) sample[offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+        smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
     } else {
-        smp_data  = (uint32_t) sample[offset] << bit;
-        smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+        smp_data  = (uint32_t) sample[smp_offset] << bit;
+        smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
     muls_128(tmp_128, smp_data, mult_volume);
@@ -3067,10 +3067,10 @@ static int32_t get_sample_1_x_to_8(const AV_HQMixerData *const mixer_data,
     smp_offset = bit >> 5;
 
     if (((bit &= 31) + bits_per_sample) < 32) {
-        smp_data = ((uint32_t) sample[offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+        smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
     } else {
-        smp_data  = (uint32_t) sample[offset] << bit;
-        smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+        smp_data  = (uint32_t) sample[smp_offset] << bit;
+        smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
     return volume_lut[(uint32_t) smp_data >> 24];
@@ -3608,10 +3608,10 @@ static int32_t get_sample_1_x(const AV_HQMixerData *const mixer_data,
     smp_offset = bit >> 5;
 
     if (((bit &= 31) + bits_per_sample) < 32) {
-        smp_data = ((uint32_t) sample[offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
+        smp_data = ((uint32_t) sample[smp_offset] << bit) & ~((1 << (32 - bits_per_sample)) - 1);
     } else {
-        smp_data  = (uint32_t) sample[offset] << bit;
-        smp_data |= ((uint32_t) sample[offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
+        smp_data  = (uint32_t) sample[smp_offset] << bit;
+        smp_data |= ((uint32_t) sample[smp_offset+1] & ~((1 << (64 - (bit + bits_per_sample))) - 1)) >> (32 - bit);
     }
 
     muls_128(tmp_128, smp_data, mult_volume);
@@ -7967,7 +7967,6 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     const AV_HQMixerData *const hq_mixer_data = (const AV_HQMixerData *const) mixer_data;
     AV_HQMixerChannelInfo *const channel_info = hq_mixer_data->channel_info + channel;
     struct ChannelBlock *channel_block        = &channel_info->current;
-    uint32_t repeat, repeat_len;
 
     channel_block->offset           = 0;
     channel_block->fraction         = 0;
@@ -7978,8 +7977,6 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     channel_block->panning          = 0;
     channel_block->data             = NULL;
     channel_block->len              = 0;
-    repeat                          = 0;
-    repeat_len                      = 0;
     channel_block->repeat           = 0;
     channel_block->repeat_len       = 0;
     channel_block->end_offset       = 0;
@@ -8000,8 +7997,6 @@ static av_cold void reset_channel(AVMixerData *const mixer_data,
     channel_block->panning          = 0;
     channel_block->data             = NULL;
     channel_block->len              = 0;
-    repeat                          = 0;
-    repeat_len                      = 0;
     channel_block->repeat           = 0;
     channel_block->repeat_len       = 0;
     channel_block->end_offset       = 0;
@@ -8286,13 +8281,11 @@ static av_cold void set_channel_filter(AVMixerData *const mixer_data,
 
 static av_cold void mix(AVMixerData *const mixer_data, int32_t *buf) {
     AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *const) mixer_data;
-    uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
     if (!(hq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
-        mix_rate          = hq_mixer_data->mix_rate;
-        current_left      = hq_mixer_data->current_left;
-        current_left_frac = hq_mixer_data->current_left_frac;
-        buf_size          = hq_mixer_data->buf_size;
+        uint32_t current_left      = hq_mixer_data->current_left;
+        uint32_t current_left_frac = hq_mixer_data->current_left_frac;
+        uint32_t buf_size          = hq_mixer_data->buf_size;
 
         memset(buf, 0, buf_size << ((hq_mixer_data->channels_out >= 2) ? 3 : 2));
 
@@ -8336,13 +8329,11 @@ static av_cold void mix_parallel(AVMixerData *const mixer_data,
                                  const uint32_t first_channel,
                                  const uint32_t last_channel) {
     AV_HQMixerData *const hq_mixer_data = (AV_HQMixerData *const) mixer_data;
-    uint32_t mix_rate, current_left, current_left_frac, buf_size;
 
     if (!(hq_mixer_data->mixer_data.flags & AVSEQ_MIXER_DATA_FLAG_FROZEN)) {
-        mix_rate          = hq_mixer_data->mix_rate;
-        current_left      = hq_mixer_data->current_left;
-        current_left_frac = hq_mixer_data->current_left_frac;
-        buf_size          = hq_mixer_data->buf_size;
+        uint32_t current_left      = hq_mixer_data->current_left;
+        uint32_t current_left_frac = hq_mixer_data->current_left_frac;
+        uint32_t buf_size          = hq_mixer_data->buf_size;
 
         memset(buf, 0, buf_size << ((hq_mixer_data->channels_out >= 2) ? 3 : 2));
 

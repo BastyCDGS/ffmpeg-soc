@@ -330,13 +330,12 @@ AVSequencerTrack *avseq_track_get_address(AVSequencerSong *song, uint32_t track)
 int avseq_track_unpack(AVSequencerTrack *track, const uint8_t *buf, uint32_t len)
 {
     AVSequencerTrackRow *data;
-    uint16_t rows, last_pack_row = 0;
+    uint16_t last_pack_row = 0;
     uint8_t pack_type;
 
     if (!(track && buf && len))
         return AVERROR_INVALIDDATA;
 
-    rows = track->last_row;
     data = track->data;
 
     while ((pack_type = *buf++)) {
