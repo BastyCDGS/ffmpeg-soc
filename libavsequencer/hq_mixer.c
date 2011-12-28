@@ -2540,7 +2540,7 @@ static int32_t get_backwards_sample_1_8(const AV_HQMixerData *const mixer_data,
     uint32_t count_restart    = channel_block->count_restart;
     uint32_t counted          = channel_block->counted;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *channel_next_block = &channel_info->next;
 
@@ -2742,7 +2742,7 @@ static int32_t get_backwards_sample_1_16_to_8(const AV_HQMixerData *const mixer_
     uint32_t count_restart    = channel_block->count_restart;
     uint32_t counted          = channel_block->counted;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *channel_next_block = &channel_info->next;
 
@@ -2920,7 +2920,7 @@ static int32_t get_backwards_sample_1_32_to_8(const AV_HQMixerData *const mixer_
     uint32_t count_restart    = channel_block->count_restart;
     uint32_t counted          = channel_block->counted;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *channel_next_block = &channel_info->next;
 
@@ -3092,7 +3092,7 @@ static int32_t get_backwards_sample_1_x_to_8(const AV_HQMixerData *const mixer_d
     uint32_t smp_offset;
     uint32_t smp_data;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *const channel_next_block = &channel_info->next;
 
@@ -3261,7 +3261,7 @@ static int32_t get_backwards_sample_1_16(const AV_HQMixerData *const mixer_data,
     uint32_t count_restart  = channel_block->count_restart;
     uint32_t counted        = channel_block->counted;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *channel_next_block = &channel_info->next;
 
@@ -3451,7 +3451,7 @@ static int32_t get_backwards_sample_1_32(const AV_HQMixerData *const mixer_data,
     uint32_t counted        = channel_block->counted;
     int64_t tmp_128[2];
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *channel_next_block = &channel_info->next;
 
@@ -3637,7 +3637,7 @@ static int32_t get_backwards_sample_1_x(const AV_HQMixerData *const mixer_data,
     uint32_t smp_offset;
     uint32_t smp_data;
 
-    while (offset < end_offset) {
+    while ((int32_t) offset < (int32_t) end_offset) {
         if (channel_block->flags & AVSEQ_MIXER_CHANNEL_FLAG_LOOP) {
             const struct ChannelBlock *const channel_next_block = &channel_info->next;
 
