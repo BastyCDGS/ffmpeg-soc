@@ -122,19 +122,19 @@ static void apply_filter(AV_LQMixerChannelInfo *const channel_info,
                          const uint32_t len)
 {
     int32_t *mix_buf = *dest_buf;
-    uint32_t i = len >> 2;
-    int32_t c1 = channel_block->filter_c1;
-    int32_t c2 = channel_block->filter_c2;
-    int32_t c3 = channel_block->filter_c3;
-    int32_t o1 = channel_info->filter_tmp2;
-    int32_t o2 = channel_info->filter_tmp1;
+    uint32_t i       = len >> 2;
+    const int64_t c1 = channel_block->filter_c1;
+    const int64_t c2 = channel_block->filter_c2;
+    const int64_t c3 = channel_block->filter_c3;
+    int32_t o1       = channel_info->filter_tmp2;
+    int32_t o2       = channel_info->filter_tmp1;
     int32_t o3, o4;
 
     while (i--) {
-        mix_buf[0] += o3 = (((int64_t) c1 * src_buf[0]) + ((int64_t) c2 * o2) + ((int64_t) c3 * o1)) >> 24;
-        mix_buf[1] += o4 = (((int64_t) c1 * src_buf[1]) + ((int64_t) c2 * o3) + ((int64_t) c3 * o2)) >> 24;
-        mix_buf[2] += o1 = (((int64_t) c1 * src_buf[2]) + ((int64_t) c2 * o4) + ((int64_t) c3 * o3)) >> 24;
-        mix_buf[3] += o2 = (((int64_t) c1 * src_buf[3]) + ((int64_t) c2 * o1) + ((int64_t) c3 * o4)) >> 24;
+        mix_buf[0] += o3 = ((c1 * src_buf[0]) + (c2 * o2) + (c3 * o1)) >> 24;
+        mix_buf[1] += o4 = ((c1 * src_buf[1]) + (c2 * o3) + (c3 * o2)) >> 24;
+        mix_buf[2] += o1 = ((c1 * src_buf[2]) + (c2 * o4) + (c3 * o3)) >> 24;
+        mix_buf[3] += o2 = ((c1 * src_buf[3]) + (c2 * o1) + (c3 * o4)) >> 24;
 
         src_buf += 4;
         mix_buf += 4;
@@ -143,7 +143,7 @@ static void apply_filter(AV_LQMixerChannelInfo *const channel_info,
     i = len & 3;
 
     while (i--) {
-        *mix_buf++ += o3 = (((int64_t) c1 * *src_buf++) + ((int64_t) c2 * o2) + ((int64_t) c3 * o1)) >> 24;
+        *mix_buf++ += o3 = ((c1 * *src_buf++) + (c2 * o2) + (c3 * o1)) >> 24;
 
         o1 = o2;
         o2 = o3;
