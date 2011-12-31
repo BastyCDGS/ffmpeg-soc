@@ -135,18 +135,16 @@ static void apply_filter(AV_LQMixerChannelInfo *const channel_info,
         mix_buf[1] += o4 = ((c1 * src_buf[1]) + (c2 * o3) + (c3 * o2)) >> 24;
         mix_buf[2] += o1 = ((c1 * src_buf[2]) + (c2 * o4) + (c3 * o3)) >> 24;
         mix_buf[3] += o2 = ((c1 * src_buf[3]) + (c2 * o1) + (c3 * o4)) >> 24;
-
-        src_buf += 4;
-        mix_buf += 4;
+        src_buf    += 4;
+        mix_buf    += 4;
     }
 
     i = len & 3;
 
     while (i--) {
         *mix_buf++ += o3 = ((c1 * *src_buf++) + (c2 * o2) + (c3 * o1)) >> 24;
-
-        o1 = o2;
-        o2 = o3;
+        o1          = o2;
+        o2          = o3;
     }
 
     *dest_buf                 = mix_buf;
