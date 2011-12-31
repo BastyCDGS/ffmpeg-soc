@@ -169,7 +169,7 @@ static void mix_sample(AV_LQMixerData *const mixer_data,
                              uint32_t *const fraction,
                              const uint32_t advance,
                              const uint32_t adv_frac,
-                             const uint32_t len);
+                             const uint32_t len) = channel_info->current.mix_func;
             int32_t *mix_buf        = buf;
             uint32_t offset         = channel_info->current.offset;
             uint32_t fraction       = channel_info->current.fraction;
@@ -177,8 +177,6 @@ static void mix_sample(AV_LQMixerData *const mixer_data,
             const uint32_t adv_frac = channel_info->current.advance_frac;
             uint32_t remain_len     = len, remain_mix;
             uint64_t calc_mix;
-
-            mix_func = channel_info->current.mix_func;
 
             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
 mix_sample_backwards:
@@ -447,7 +445,7 @@ static void mix_sample_parallel(AV_LQMixerData *const mixer_data,
                              uint32_t *const fraction,
                              const uint32_t advance,
                              const uint32_t adv_frac,
-                             const uint32_t len);
+                             const uint32_t len) = channel_info->current.mix_func;
             int32_t *mix_buf        = buf;
             uint32_t offset         = channel_info->current.offset;
             uint32_t fraction       = channel_info->current.fraction;
@@ -455,8 +453,6 @@ static void mix_sample_parallel(AV_LQMixerData *const mixer_data,
             const uint32_t adv_frac = channel_info->current.advance_frac;
             uint32_t remain_len     = len, remain_mix;
             uint64_t calc_mix;
-
-            mix_func = channel_info->current.mix_func;
 
             if (channel_info->current.flags & AVSEQ_MIXER_CHANNEL_FLAG_BACKWARDS) {
 mix_sample_backwards:

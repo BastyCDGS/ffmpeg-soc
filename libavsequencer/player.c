@@ -9997,8 +9997,8 @@ static void init_new_sample(const AVSequencerContext *const avctx,
             player_host_channel->dna_pos[3] = synth->dna_pos[3];
 
         keep_flags = 1;
-        src_var    = (const uint16_t *) &(synth->variable[0]);
-        dst_var    = (uint16_t *) &(player_host_channel->variable[0]);
+        src_var    = (const uint16_t *) &synth->variable[0];
+        dst_var    = (uint16_t *) &player_host_channel->variable[0];
         i          = 16;
 
         do {
@@ -10422,16 +10422,14 @@ exec_synth_done:
 
             player_channel->entry_pos[synth_type] = synth_code_line;
         } else {
-            uint16_t (**fx_exec_func)(const AVSequencerContext *const avctx,
-                                      AVSequencerPlayerChannel *const player_channel,
-                                      const uint16_t virtual_channel,
-                                      uint16_t synth_code_line,
-                                      const int src_var,
-                                      int dst_var,
-                                      uint16_t instruction_data,
-                                      const int synth_type);
-
-            fx_exec_func = (avctx->synth_code_exec_lut ? avctx->synth_code_exec_lut : se_lut);
+            uint16_t (**const fx_exec_func)(const AVSequencerContext *const avctx,
+                                            AVSequencerPlayerChannel *const player_channel,
+                                            const uint16_t virtual_channel,
+                                            uint16_t synth_code_line,
+                                            const int src_var,
+                                            int dst_var,
+                                            uint16_t instruction_data,
+                                            const int synth_type) = (avctx->synth_code_exec_lut ? avctx->synth_code_exec_lut : se_lut);
 
             player_channel->entry_pos[synth_type] = fx_exec_func[(uint8_t) instruction](avctx, player_channel, channel, synth_code_line, src_var, dst_var, instruction_data, synth_type);
         }

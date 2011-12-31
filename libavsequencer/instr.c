@@ -769,7 +769,7 @@ int avseq_envelope_data_open(AVSequencerContext *avctx, AVSequencerEnvelope *env
         if (scale > 0x7FFF)
             scale = 0x7FFF;
 
-        create_env_func = (void *) &(create_env_lut);
+        create_env_func = (void *) &create_env_lut;
         create_env_func[type](avctx, data, points, scale, scale_type, y_offset);
 
         if (nodes) {
