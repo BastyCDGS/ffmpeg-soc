@@ -7194,10 +7194,7 @@ static av_cold void mix(AVMixerData *const mixer_data, int32_t *buf) {
 
         while (buf_size) {
             if (current_left) {
-                uint32_t mix_len = buf_size;
-
-                if (buf_size > current_left)
-                    mix_len = current_left;
+                const uint32_t mix_len = (buf_size > current_left) ? current_left : buf_size;
 
                 current_left -= mix_len;
                 buf_size     -= mix_len;
@@ -7213,11 +7210,8 @@ static av_cold void mix(AVMixerData *const mixer_data, int32_t *buf) {
             if (mixer_data->handler)
                 mixer_data->handler(mixer_data);
 
-            current_left       = hq_mixer_data->pass_len;
             current_left_frac += hq_mixer_data->pass_len_frac;
-
-            if (current_left_frac < hq_mixer_data->pass_len_frac)
-                current_left++;
+            current_left       = hq_mixer_data->pass_len + (current_left_frac < hq_mixer_data->pass_len_frac);
         }
 
         hq_mixer_data->current_left      = current_left;
@@ -7242,10 +7236,7 @@ static av_cold void mix_parallel(AVMixerData *const mixer_data,
 
         while (buf_size) {
             if (current_left) {
-                uint32_t mix_len = buf_size;
-
-                if (buf_size > current_left)
-                    mix_len = current_left;
+                const uint32_t mix_len = (buf_size > current_left) ? current_left : buf_size;
 
                 current_left -= mix_len;
                 buf_size     -= mix_len;
@@ -7261,11 +7252,8 @@ static av_cold void mix_parallel(AVMixerData *const mixer_data,
             if (mixer_data->handler)
                 mixer_data->handler(mixer_data);
 
-            current_left       = hq_mixer_data->pass_len;
             current_left_frac += hq_mixer_data->pass_len_frac;
-
-            if (current_left_frac < hq_mixer_data->pass_len_frac)
-                current_left++;
+            current_left       = hq_mixer_data->pass_len + (current_left_frac < hq_mixer_data->pass_len_frac);
         }
 
         hq_mixer_data->current_left      = current_left;
