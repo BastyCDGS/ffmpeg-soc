@@ -342,10 +342,10 @@ static const int32_t portamento_mask[8] = {
 static const int32_t portamento_trigger_mask[6] = {
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN,
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_DOWN,
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN,
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN,
     AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE_DOWN,
-    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE_DOWN
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_PORTA_ONCE_DOWN,
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN,
+    AVSEQ_PLAYER_HOST_CHANNEL_FINE_SLIDE_FLAG_FINE_PORTA_ONCE_DOWN
 };
 
 #define CHECK_EFFECT(fx_type)                                                               \
@@ -380,12 +380,12 @@ CHECK_EFFECT(portamento)
         }
 
         if (!(track->compat_flags & AVSEQ_TRACK_COMPAT_FLAG_OP_SLIDES) && (*fx_byte > AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN)) {
-            const uint16_t mask_volume_fx = *fx_byte;
+            const uint16_t mask_fx = *fx_byte;
 
             *fx_byte -= AVSEQ_TRACK_EFFECT_CMD_PORTA_UP - AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO;
             *fx_byte &= -2;
 
-            if (player_host_channel->fine_slide_flags & portamento_trigger_mask[(mask_volume_fx - AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN - 1)])
+            if (player_host_channel->fine_slide_flags & portamento_trigger_mask[(mask_fx - AVSEQ_TRACK_EFFECT_CMD_PORTA_DOWN - 1)])
                 *fx_byte |= 1;
 
             *fx_byte += AVSEQ_TRACK_EFFECT_CMD_PORTA_UP - AVSEQ_TRACK_EFFECT_CMD_ARPEGGIO;
