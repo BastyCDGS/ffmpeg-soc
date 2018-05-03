@@ -10440,6 +10440,55 @@ exec_synth_done:
 
 static const int8_t empty_waveform[256];
 
+/* #define ACCURATE_VOLUMES 1 */
+
+#ifdef ACCURATE_VOLUMES
+static inline void mulu_128(uint64_t *const result, const uint64_t a,
+                            const uint64_t b)
+{
+    const uint32_t a_hi = a >> 32;
+    const uint32_t a_lo = (uint32_t) a;
+    const uint32_t b_hi = b >> 32;
+    const uint32_t b_lo = (uint32_t) b;
+    const uint64_t x1 = (uint64_t) a_lo * b_hi;
+    uint64_t x2 = (uint64_t) a_hi * b_lo;
+    const uint64_t x3 = (uint64_t) a_lo * b_lo;
+    uint64_t x0 = (uint64_t) a_hi * b_hi;
+
+    x2       += x3 >> 32;
+    x2       += x1;
+    x0       += (x2 < x1) ? UINT64_C(0x100000000) : 0;
+    result[0] = x0 + (x2 >> 32);
+    result[1] = (x2 << 32) + (x3 & UINT64_C(0xFFFFFFFF));
+}
+
+static inline uint64_t divu_128(const uint64_t *const a,
+                                const uint64_t b)
+{
+    uint64_t a_hi   = a[0];
+    uint64_t a_lo   = a[1];
+    uint64_t result = 0, result_r = 0;
+    uint16_t i      = 128;
+
+    while (i--) {
+        const uint64_t carry  = a_lo >> 63;
+        const uint64_t carry2 = a_hi >> 63;
+
+        result <<= 1;
+        a_lo   <<= 1;
+        a_hi     = (((a_hi << 1) | (a_hi >> 63)) & ~UINT64_C(1)) | carry; // simulate bitwise rotate with extend (carry)
+        result_r = (((result_r << 1) | (result_r >> 63)) & ~UINT64_C(1)) | carry2; // simulate bitwise rotate with extend (carry)
+
+        if (result_r >= b) {
+            result_r -= b;
+            result++;
+        }
+    }
+
+    return result;
+}
+#endif
+
 int avseq_playback_handler(AVMixerData *mixer_data)
 {
     AVSequencerContext *const avctx                   = (AVSequencerContext *) mixer_data->opaque;
@@ -10503,7 +10552,7 @@ int avseq_playback_handler(AVMixerData *mixer_data)
         if ((player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_INSTRUMENT) &&
             (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_SET_SAMPLE)) {
             const AVSequencerTrack *const old_track        = player_host_channel->track;
-            const AVSequencerTrackEffect const *old_effect = player_host_channel->effect;
+            const AVSequencerTrackEffect *const old_effect = player_host_channel->effect;
             const uint32_t old_tempo_counter               = player_host_channel->tempo_counter;
             const uint16_t old_row                         = player_host_channel->row;
 
@@ -10692,6 +10741,9 @@ instrument_found:
         if (player_channel->mixer.flags & AVSEQ_MIXER_CHANNEL_FLAG_PLAY) {
             const AVSequencerSample *sample;
             AVSequencerPlayerEnvelope *player_envelope;
+#ifdef ACCURATE_VOLUMES
+            uint64_t tmp_128[2];
+#endif
             uint32_t frequency, host_volume, virtual_volume;
             uint32_t auto_vibrato_depth, auto_vibrato_count;
             int32_t auto_vibrato_value;
@@ -10868,9 +10920,17 @@ turn_note_off:
             if (!(player_channel->flags & AVSEQ_PLAYER_CHANNEL_FLAG_BACKGROUND) && (player_host_channel->virtual_channel == channel) && (player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_EXEC) && (!(player_host_channel->flags & AVSEQ_PLAYER_HOST_CHANNEL_FLAG_TREMOR_ON)))
                 host_volume = 0;
 
+#ifdef ACCURATE_VOLUMES
             host_volume                 *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
-            virtual_volume               = (((uint16_t) player_channel->vol_env.value >> 8) * (uint16_t) player_channel->global_volume) * (uint16_t) player_channel->fade_out_count;
+            virtual_volume               = (uint32_t) player_channel->fade_out_count * ((((uint16_t) player_channel->vol_env.value >> 8U) * (uint16_t) player_channel->global_volume));
+            mulu_128(tmp_128, host_volume, virtual_volume);
+            player_channel->mixer.volume = player_channel->final_volume = (uint8_t) divu_128(tmp_128, UINT64_C(70660093200890625)); /* / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL) */
+#else
+            host_volume                 *= (uint16_t) player_host_channel->track_volume * (uint16_t) player_channel->instr_volume;
+            virtual_volume               = (uint32_t) player_channel->fade_out_count * ((((uint16_t) player_channel->vol_env.value >> 8U) * (uint16_t) player_channel->global_volume));
             player_channel->mixer.volume = player_channel->final_volume = ((uint64_t) host_volume * virtual_volume) / UINT64_C(70660093200890625); /* / (255ULL*255ULL*255ULL*255ULL*65535ULL*255ULL) */
+#endif
+
             flags                               = 0;
             player_channel->flags       &= ~AVSEQ_PLAYER_CHANNEL_FLAG_SURROUND;
             player_channel->mixer.flags &= ~AVSEQ_MIXER_CHANNEL_FLAG_SURROUND;
